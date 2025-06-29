@@ -1,15 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'export',
-  // trailingSlash: true,
+  // Removed static export configuration to keep tldraw working
   // eslint: {
   //   ignoreDuringBuilds: true,
   // },
-  // images: {
-  //   unoptimized: true
-  // },
   // serverExternalPackages: ['@tldraw/editor', '@tldraw/tldraw', 'tldraw'],
-  // // Environment variables for client-side usage
+  // Environment variables for client-side usage
   // env: {
   //   GROQ_API_KEY: process.env.GROQ_API_KEY,
   //   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,

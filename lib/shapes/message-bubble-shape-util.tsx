@@ -1,8 +1,102 @@
 import { ShapeUtil, HTMLContainer, Rectangle2d, toDomPrecision } from "tldraw";
 import { MessageBubbleShape } from "./message-bubble-shape";
+import { SmartMessage } from "../models";
+import { isMessageAlreadySent, markMessageAsSent } from "../message-deduplication";
 
 export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
   static override type = "message-bubble" as const;
+  
+  private sendingShapes = new Set<string>(); // Track which shapes are currently sending
+
+  private async sendMessage(shape: MessageBubbleShape) {
+    const shapeId = shape.id;
+    
+    // Prevent duplicate sends
+    if (this.sendingShapes.has(shapeId)) {
+      return;
+    }
+    
+    const phoneNumber = (shape.props as any).phoneNumber;
+    const text = shape.props.text;
+    const personName = shape.props.personName;
+    
+    if (!phoneNumber || !text || !personName) {
+      console.log("💬 Missing required fields for sending message");
+      return;
+    }
+    
+    // Check if message was already sent
+    if (isMessageAlreadySent(phoneNumber, text)) {
+      console.log("🚫 Message already sent, updating to sent state");
+      this.editor.updateShape({
+        id: shapeId,
+        type: "message-bubble",
+        props: {
+          ...shape.props,
+          state: "sent",
+        },
+      });
+      return;
+    }
+    
+    this.sendingShapes.add(shapeId);
+    
+    try {
+      console.log("💬 Sending message automatically via tldraw shape");
+      
+      const message: SmartMessage = {
+        name: personName,
+        phoneNumber,
+        text,
+      };
+      
+      const response = await fetch("/api/send-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to send message");
+      }
+      
+      console.log("✅ Message sent successfully via tldraw shape");
+      
+      // Mark message as sent and update shape state
+      markMessageAsSent(phoneNumber, text);
+      
+      this.editor.updateShape({
+        id: shapeId,
+        type: "message-bubble",
+        props: {
+          ...shape.props,
+          state: "sent",
+        },
+      });
+      
+    } catch (error) {
+      console.error("❌ Failed to send message via tldraw shape:", error);
+      
+      this.editor.updateShape({
+        id: shapeId,
+        type: "message-bubble",
+        props: {
+          ...shape.props,
+          state: "failed",
+        },
+      });
+    } finally {
+      this.sendingShapes.delete(shapeId);
+    }
+  }
 
   getDefaultProps(): MessageBubbleShape["props"] {
     return {
@@ -35,6 +129,16 @@ export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
   component(shape: MessageBubbleShape) {
     const bounds = this.editor.getShapeGeometry(shape).bounds;
     const isDarkMode = this.editor.user.getIsDarkMode();
+    
+    // Auto-send message when state is "sending" and required fields are present
+    if (shape.props.state === "sending" && 
+        (shape.props as any).phoneNumber && 
+        shape.props.text && 
+        shape.props.personName &&
+        shape.props.text !== "Extracting message...") {
+      // Use setTimeout to avoid blocking the render
+      setTimeout(() => this.sendMessage(shape), 100);
+    }
     
     const getBackgroundColor = () => {
       if (shape.props.state === "reply-available") {
@@ -233,8 +337,15 @@ export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
                     lineHeight: "1.4",
                   }}
                   onClick={() => {
-                    // Trigger retry logic
                     console.log("Retrying message send");
+                    this.editor.updateShape({
+                      id: shape.id,
+                      type: "message-bubble",
+                      props: {
+                        ...shape.props,
+                        state: "sending",
+                      },
+                    });
                   }}
                 >
                   {getDisplayText()}

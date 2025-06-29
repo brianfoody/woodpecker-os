@@ -5,7 +5,10 @@ import { X, Send, Check, AlertCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SmartMessage } from "@/lib/models";
 import { toast } from "@/hooks/use-toast";
-import { isMessageAlreadySent, markMessageAsSent } from "@/lib/message-deduplication";
+import {
+  isMessageAlreadySent,
+  markMessageAsSent,
+} from "@/lib/message-deduplication";
 
 type MessageState = "sending" | "sent" | "failed" | "reply-available" | "reply";
 type Priority = "normal" | "important" | "urgent";
@@ -39,7 +42,7 @@ export default function MessageBubble({
   // Create unique key for this message
   const currentMessageKey = `${phoneNumber}-${text}`;
   const isNewMessage = messageKeyRef.current !== currentMessageKey;
-  
+
   if (isNewMessage) {
     messageKeyRef.current = currentMessageKey;
     isSendingRef.current = false; // Reset for new message
@@ -54,7 +57,7 @@ export default function MessageBubble({
     currentState,
     isSending: isSendingRef.current,
     isNewMessage,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   // Sync external state prop with internal state (only when prop changes)
@@ -62,9 +65,9 @@ export default function MessageBubble({
     console.log("💬 MessageBubble state sync:", {
       propState: state,
       currentState,
-      shouldUpdate: state !== currentState
+      shouldUpdate: state !== currentState,
     });
-    
+
     if (state !== currentState) {
       console.log(`💬 Updating currentState from ${currentState} to ${state}`);
       setCurrentState(state);
@@ -79,18 +82,29 @@ export default function MessageBubble({
       hasText: !!text,
       textLength: text.length,
       isSending: isSendingRef.current,
-      shouldSend: currentState === "sending" && phoneNumber && text && !isSendingRef.current
+      shouldSend:
+        currentState === "sending" &&
+        phoneNumber &&
+        text &&
+        !isSendingRef.current,
     });
-    
-    if (currentState === "sending" && phoneNumber && text && !isSendingRef.current) {
+
+    if (
+      currentState === "sending" &&
+      phoneNumber &&
+      text &&
+      !isSendingRef.current
+    ) {
       const sendMessage = async () => {
         try {
           // Set flag immediately to prevent multiple sends
           isSendingRef.current = true;
-          
+
           // Check if message was already sent to prevent duplicates
           if (isMessageAlreadySent(phoneNumber, text)) {
-            console.log("🚫 MessageBubble: Message already sent, skipping duplicate");
+            console.log(
+              "🚫 MessageBubble: Message already sent, skipping duplicate"
+            );
             setCurrentState("sent");
             return;
           }
@@ -98,7 +112,7 @@ export default function MessageBubble({
           console.log("💬 MessageBubble: Sending message via API", {
             name: personName,
             phoneNumber,
-            text: text.substring(0, 50) + "..."
+            text: text.substring(0, 50) + "...",
           });
 
           const message: SmartMessage = {
@@ -116,7 +130,9 @@ export default function MessageBubble({
           });
 
           if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
+            throw new Error(
+              `API request failed with status ${response.status}`
+            );
           }
 
           const result = await response.json();
@@ -125,26 +141,29 @@ export default function MessageBubble({
             throw new Error(result.error || "Failed to send message");
           }
 
-          console.log("✅ MessageBubble: Message sent successfully", result.result);
-          
+          console.log(
+            "✅ MessageBubble: Message sent successfully",
+            result.result
+          );
+
           // Mark message as sent to prevent future duplicates
           markMessageAsSent(phoneNumber, text);
-          
+
           setCurrentState("sent");
 
           // Note: No longer auto-transitioning to reply-available
           // Reply detection is now handled by polling system in main app
-
         } catch (error) {
           console.error("❌ MessageBubble: Failed to send message:", error);
           setCurrentState("failed");
           isSendingRef.current = false; // Reset flag on error so retry is possible
-          
+
           // Show error toast following our UI pattern
           toast({
             variant: "destructive",
             title: "Message Failed",
-            description: "Sorry, there was an error sending your message. Please try again.",
+            description:
+              "Sorry, there was an error sending your message. Please try again.",
           });
         }
       };
@@ -171,7 +190,6 @@ export default function MessageBubble({
     setCurrentState("sending");
     // The useEffect will trigger the API call again
   };
-
 
   const getBackgroundColor = () => {
     if (currentState === "reply-available") {

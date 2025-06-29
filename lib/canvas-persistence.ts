@@ -1,4 +1,4 @@
-import { TLStore, getSnapshot } from "tldraw";
+import { TLStore } from "tldraw";
 
 const STORAGE_KEY = "woodpecker-canvas-data";
 const AUTO_SAVE_DELAY = 1000; // 1 second delay for auto-save
@@ -11,11 +11,7 @@ function isValidSnapshot(snapshot: any): boolean {
     return false;
   }
 
-  // Check that it's a non-empty object (basic validation)
-  if (Object.keys(snapshot).length === 0) {
-    return false;
-  }
-
+  // Allow empty objects - they represent valid but empty canvas state
   return true;
 }
 
@@ -29,7 +25,7 @@ export function saveCanvasData(store: TLStore): void {
       return;
     }
 
-    const snapshot = getSnapshot(store);
+    const snapshot = store.getSnapshot();
 
     if (!isValidSnapshot(snapshot)) {
       console.warn("⚠️ Cannot save: invalid snapshot structure");

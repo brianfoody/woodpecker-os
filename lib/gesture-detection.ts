@@ -1,146 +1,121 @@
-'use client';
-
-import { Editor, Vec } from 'tldraw';
-
-interface Point {
+export interface Point {
   x: number;
   y: number;
-  timestamp: number;
 }
 
-// Store recent points for gesture analysis
-let recentPoints: Point[] = [];
-const MAX_POINTS = 50;
-const CIRCLE_THRESHOLD = 0.8; // Minimum circularity score
-const MIN_RADIUS = 30; // Minimum circle radius in pixels
-const MAX_RADIUS = 200; // Maximum circle radius in pixels
-const TIME_WINDOW = 2000; // 2 seconds to complete a circle
+export interface DrawShape {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  props?: {
+    segments?: Array<{
+      points?: Point[];
+    }>;
+  };
+}
 
-export function detectCircleGesture(currentPoint: { x: number; y: number }, editor: Editor): boolean {
-  const now = Date.now();
-  
-  // Add current point to recent points
-  recentPoints.push({
-    x: currentPoint.x,
-    y: currentPoint.y,
-    timestamp: now,
+export function extractPointsFromShape(drawShape: DrawShape): Point[] {
+  const segments = drawShape.props?.segments || [];
+  const allPoints: Point[] = [];
+
+  segments.forEach((segment) => {
+    if (segment.points) {
+      segment.points.forEach((point) => {
+        allPoints.push({
+          x: drawShape.x + point.x,
+          y: drawShape.y + point.y,
+        });
+      });
+    }
   });
-  
-  // Remove old points outside time window
-  recentPoints = recentPoints.filter(point => now - point.timestamp < TIME_WINDOW);
-  
-  // Keep only recent points within limit
-  if (recentPoints.length > MAX_POINTS) {
-    recentPoints = recentPoints.slice(-MAX_POINTS);
-  }
-  
-  // Need at least 10 points to detect a circle
-  if (recentPoints.length < 10) {
-    return false;
-  }
-  
-  // Analyze the shape formed by recent points
-  return analyzeCircularGesture(recentPoints);
+
+  return allPoints;
 }
 
-function analyzeCircularGesture(points: Point[]): boolean {
+export function checkEnclosingIntent(points: Point[]): boolean {
   if (points.length < 10) return false;
+
+  // For enclosing intent, we just care that it's not a straight line
+  // Calculate the bounding box
+  const minX = Math.min(...points.map(p => p.x));
+  const maxX = Math.max(...points.map(p => p.x));
+  const minY = Math.min(...points.map(p => p.y));
+  const maxY = Math.max(...points.map(p => p.y));
   
-  // Calculate center point (centroid)
-  const center = {
-    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-    y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
-  };
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const area = width * height;
   
-  // Calculate distances from center to each point
-  const distances = points.map(point => 
-    Math.sqrt(Math.pow(point.x - center.x, 2) + Math.pow(point.y - center.y, 2))
-  );
+  // Reject if it's too narrow (likely a line)
+  const aspectRatio = Math.max(width, height) / Math.min(width, height);
+  if (aspectRatio > 10) {
+    return false; // Too linear
+  }
   
-  // Calculate average radius
-  const avgRadius = distances.reduce((sum, d) => sum + d, 0) / distances.length;
-  
-  // Check if radius is within acceptable range
-  if (avgRadius < MIN_RADIUS || avgRadius > MAX_RADIUS) {
+  // Reject if area is too small (likely a dot or very short line)
+  if (area < 100) {
     return false;
   }
   
-  // Calculate standard deviation of distances (measure of circularity)
-  const variance = distances.reduce((sum, d) => sum + Math.pow(d - avgRadius, 2), 0) / distances.length;
-  const stdDev = Math.sqrt(variance);
-  
-  // Calculate circularity score (lower standard deviation = more circular)
-  const circularityScore = 1 - (stdDev / avgRadius);
-  
-  // Check angular coverage - ensure we've covered most of the circle
-  const angles = points.map(point => 
-    Math.atan2(point.y - center.y, point.x - center.x)
+  // If it has reasonable dimensions and isn't too linear, consider it enclosing intent
+  return true;
+}
+
+export function detectEnclosingGesture(points: Point[]): boolean {
+  if (points.length < 20) return false;
+
+  // Check if the start and end points are reasonably close (suggesting enclosing intent)
+  const startPoint = points[0];
+  const endPoint = points[points.length - 1];
+  const closureDistance = Math.sqrt(
+    Math.pow(endPoint.x - startPoint.x, 2) +
+    Math.pow(endPoint.y - startPoint.y, 2)
   );
-  
-  // Normalize angles to 0-2π range
-  const normalizedAngles = angles.map(angle => angle < 0 ? angle + 2 * Math.PI : angle);
-  
-  // Sort angles and check coverage
-  normalizedAngles.sort((a, b) => a - b);
-  
-  let angularCoverage = 0;
-  for (let i = 1; i < normalizedAngles.length; i++) {
-    angularCoverage += normalizedAngles[i] - normalizedAngles[i - 1];
+
+  // Calculate the perimeter to set a reasonable closure threshold
+  let perimeter = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dist = Math.sqrt(
+      Math.pow(points[i].x - points[i - 1].x, 2) +
+        Math.pow(points[i].y - points[i - 1].y, 2)
+    );
+    perimeter += dist;
   }
   
-  // Add the gap between last and first angle
-  if (normalizedAngles.length > 1) {
-    angularCoverage += (2 * Math.PI) - (normalizedAngles[normalizedAngles.length - 1] - normalizedAngles[0]);
+  // Be generous with closure - up to 15% of perimeter
+  const closureThreshold = perimeter * 0.15;
+
+  // Check if the shape shows enclosing intent (not a straight line)
+  const hasEnclosingIntent = checkEnclosingIntent(points);
+
+  // A valid enclosing gesture should:
+  // 1. Have start and end points reasonably close
+  // 2. Show enclosing intent (not just a line)
+  // 3. Have sufficient length
+  const isValidGesture = closureDistance < closureThreshold && hasEnclosingIntent && points.length >= 20;
+  
+  return isValidGesture;
+}
+
+export function analyzeForEnclosingGesture(drawShape: DrawShape): boolean {
+  try {
+    // Extract points from the draw shape segments
+    const allPoints = extractPointsFromShape(drawShape);
+
+    if (allPoints.length < 20) return false; // Need enough points for analysis
+
+    // Check if the stroke shows enclosing intent
+    const hasEnclosingIntent = detectEnclosingGesture(allPoints);
+
+    return hasEnclosingIntent;
+  } catch (error) {
+    console.error("Error analyzing stroke:", error);
+    return false;
   }
-  
-  const angularCoverageRatio = angularCoverage / (2 * Math.PI);
-  
-  // Detect circle if both circularity and angular coverage are good
-  const isCircle = circularityScore > CIRCLE_THRESHOLD && angularCoverageRatio > 0.7;
-  
-  // Clear points after detection to prevent repeated triggers
-  if (isCircle) {
-    recentPoints = [];
-  }
-  
-  return isCircle;
 }
 
-// Reset gesture detection (useful for manual clearing)
-export function resetGestureDetection(): void {
-  recentPoints = [];
-}
-
-// Get current gesture statistics (for debugging)
-export function getGestureStats(): {
-  pointCount: number;
-  timeSpan: number;
-  lastActivity: number;
-} {
-  const now = Date.now();
-  const timeSpan = recentPoints.length > 1 
-    ? recentPoints[recentPoints.length - 1].timestamp - recentPoints[0].timestamp 
-    : 0;
-  const lastActivity = recentPoints.length > 0 
-    ? now - recentPoints[recentPoints.length - 1].timestamp 
-    : Infinity;
-  
-  return {
-    pointCount: recentPoints.length,
-    timeSpan,
-    lastActivity,
-  };
-}
-
-// Advanced gesture detection for different action types
-export function detectGestureAction(points: Point[]): 'ask_ai' | 'send_message' | 'add_contact' | null {
-  if (points.length < 5) return null;
-  
-  // For now, we'll use circle detection for AI actions
-  // In the future, different gestures could trigger different actions:
-  // - Circle: ask_ai
-  // - Double-tap: send_message  
-  // - Long press: add_contact
-  
-  return 'ask_ai';
+// Keep the old function name for backward compatibility
+export function analyzeForSingleLoop(drawShape: DrawShape): boolean {
+  return analyzeForEnclosingGesture(drawShape);
 }

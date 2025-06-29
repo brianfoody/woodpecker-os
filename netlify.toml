@@ -4,9 +4,11 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  NPM_VERSION = "9"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions]
+  directory = ".netlify/functions"

@@ -6,8 +6,7 @@
   NODE_VERSION = "18"
   NPM_VERSION = "9"
 
-[[functions]]
-  directory = "netlify/functions"
-
-[functions]
-  node_bundler = "esbuild"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

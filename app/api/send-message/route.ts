@@ -2,16 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { SmartMessage } from "@/lib/models";
 
-// Twilio credentials - should be moved to environment variables in production
-const accountSid = "ACb9b91dc848704f3c17431f2ad83d970d";
-const authToken = "8a79d4e253465d1d6730c71ed3a4cc80";
-const tollFreeNumber = "+18776915217";
+// Get Twilio credentials from environment variables
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const tollFreeNumber = process.env.TWILIO_PHONE_NUMBER;
 
-// Initialize Twilio client
-const client = twilio(accountSid, authToken);
+// Validate that all required environment variables are present
+if (!accountSid || !authToken || !tollFreeNumber) {
+  console.error("❌ Missing required Twilio environment variables");
+  console.error("Required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER");
+}
+
+// Initialize Twilio client only if credentials are available
+const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if Twilio is properly configured
+    if (!client || !tollFreeNumber) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Twilio is not properly configured. Please check environment variables." 
+        },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
     const { message } = body as { message: SmartMessage };
 

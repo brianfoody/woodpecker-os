@@ -222,7 +222,7 @@ export default function Home() {
   }, [isPollingEnabled]);
 
   // Process reply scenario when single message bubble is circled
-  const processReplyScenario = async (
+  const processReplyScenario = useCallback(async (
     editor: any,
     stroke: any,
     shapesForCapture: any[],
@@ -428,7 +428,7 @@ export default function Home() {
         setOriginalStrokeProps(null);
       }
     }
-  };
+  }, [aiProcessingAborted, originalStrokeProps]);
 
   // Function to check for new messages and update message bubbles
   const checkForNewMessages = useCallback(async () => {
@@ -1581,7 +1581,7 @@ export default function Home() {
         setOriginalStrokeProps(null);
       }
     },
-    [originalStrokeProps, aiProcessingAborted, executeAskAI]
+    [originalStrokeProps, aiProcessingAborted, executeAskAI, processReplyScenario]
   );
 
   // Register the magic wand callback via useEffect to handle React strict mode

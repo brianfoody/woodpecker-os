@@ -72,7 +72,7 @@ export default function MessageBubble({
       console.log(`💬 Updating currentState from ${currentState} to ${state}`);
       setCurrentState(state);
     }
-  }, [state]); // Remove currentState from dependencies to prevent infinite loop
+  }, [state, currentState]);
 
   // Handle real message sending when state is "sending"
   useEffect(() => {

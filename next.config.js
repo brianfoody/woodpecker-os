@@ -8,7 +8,7 @@ const nextConfig = {
   // images: {
   //   unoptimized: true
   // },
-  // serverExternalPackages: ['@tldraw/editor', '@tldraw/tldraw', 'tldraw'],
+  serverExternalPackages: ['@tldraw/editor', '@tldraw/tldraw', 'tldraw'],
   // // Environment variables for client-side usage
   // env: {
   //   GROQ_API_KEY: process.env.GROQ_API_KEY,

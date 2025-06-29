@@ -1155,7 +1155,9 @@ export default function TldrawCanvas() {
 
     try {
       if (!imageSummary || imageSummary.trim() === "") {
-        throw new Error("No image summary available for contact identification");
+        throw new Error(
+          "No image summary available for contact identification"
+        );
       }
 
       // Get editor reference for shape operations
@@ -1179,7 +1181,7 @@ export default function TldrawCanvas() {
 
       // Find the smart contact using AI via API
       console.log("📱 Finding contact from image summary...");
-      
+
       const findContactResponse = await fetch("/api/find-contact", {
         method: "POST",
         headers: {
@@ -1192,7 +1194,9 @@ export default function TldrawCanvas() {
       });
 
       if (!findContactResponse.ok) {
-        throw new Error(`Find contact API failed with status ${findContactResponse.status}`);
+        throw new Error(
+          `Find contact API failed with status ${findContactResponse.status}`
+        );
       }
 
       const findContactResult = await findContactResponse.json();
@@ -1261,7 +1265,10 @@ export default function TldrawCanvas() {
       }
 
       // Step 3: Fetch messages from Twilio
-      console.log("📱 Fetching messages for contact:", matchingContact.phoneNumber);
+      console.log(
+        "📱 Fetching messages for contact:",
+        matchingContact.phoneNumber
+      );
 
       const response = await fetch("/api/read-contact-messages", {
         method: "POST",
@@ -1303,7 +1310,9 @@ export default function TldrawCanvas() {
           .join("\n\n");
 
         if (messages.length > 3) {
-          displayText = `(${messages.length - 3} more messages)\n\n${displayText}`;
+          displayText = `(${
+            messages.length - 3
+          } more messages)\n\n${displayText}`;
         }
       }
 
@@ -2172,6 +2181,23 @@ export default function TldrawCanvas() {
         open={contextMenuOpen}
         onOpenChange={setContextMenuOpen}
       />
+
+      {/* Built with Bolt Badge */}
+      <div className="absolute bottom-12 right-4 z-10">
+        <a
+          href="https://bolt.new"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/black_circle_360x360.png"
+            alt="Built with Bolt"
+            className="h-20 w-auto hover:opacity-80 transition-opacity"
+          />
+        </a>
+      </div>
     </div>
   );
 }

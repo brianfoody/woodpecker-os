@@ -10,7 +10,13 @@ import {
   markMessageAsSent,
 } from "@/lib/message-deduplication";
 
-type MessageState = "sending" | "sent" | "failed" | "reply-available" | "reply" | "viewing";
+type MessageState =
+  | "sending"
+  | "sent"
+  | "failed"
+  | "reply-available"
+  | "reply"
+  | "viewing";
 type Priority = "normal" | "important" | "urgent";
 
 interface MessageBubbleProps {
@@ -73,7 +79,9 @@ export default function MessageBubble({
     });
 
     if (state !== currentState) {
-      console.log(`💬 Updating currentState from ${currentState} to ${state} for ${personName}`);
+      console.log(
+        `💬 Updating currentState from ${currentState} to ${state} for ${personName}`
+      );
       setCurrentState(state);
     }
   }, [state, currentState, personName, currentMessageKey]);
@@ -112,7 +120,7 @@ export default function MessageBubble({
             alreadySent,
             messageKey: currentMessageKey,
           });
-          
+
           if (alreadySent) {
             console.log(
               "🚫 MessageBubble: Message already sent, skipping duplicate"
@@ -186,6 +194,7 @@ export default function MessageBubble({
 
       sendMessage();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentState, phoneNumber, text, personName]);
 
   const handleClose = () => {

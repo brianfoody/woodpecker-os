@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findSmartContact } from "@/lib/ai";
-import { SmartContact } from "@/lib/models";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +15,10 @@ export async function POST(request: NextRequest) {
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Contacts array is required and must not be empty" },
+        {
+          success: false,
+          error: "Contacts array is required and must not be empty",
+        },
         { status: 400 }
       );
     }

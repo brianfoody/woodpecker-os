@@ -7,6 +7,7 @@ export type SmartContact = {
 
 export type SmartMessage = SmartContact & {
   text: string;
+  priority?: "normal" | "important" | "urgent";
   sentAt?: Date;
   status?: MessageStatus;
 };

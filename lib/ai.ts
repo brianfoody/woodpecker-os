@@ -299,6 +299,71 @@ Example response:
   };
 };
 
+export const classifyMessagePriority = async ({
+  message,
+}: {
+  message: SmartMessage;
+}): Promise<SmartMessage> => {
+  const chatCompletion = await getGroq().chat.completions.create({
+    messages: [
+      {
+        role: "system",
+        content: `You are a helpful AI assistant that enhances e-ink displays with context aware actions and results for users.
+
+There is a new message for the user.
+
+Classify the supplied message for the user as JSON using this guideline;
+  - "normal" - default priority
+  - "important" - higher priority
+  - "urgent" - highest priority (not "critical")
+
+
+Example message one:
+"Hey how's it going?"
+
+Example response one:
+{
+    "priority": "normal"
+}
+    
+Example message two:
+"Just found our our meeting time is changed from 4 to 4:30pm later on."
+
+Example response two:
+{
+    "priority": "important"
+}
+    
+Example message:
+"Hey! The meeting has been brought forward, it's on in 10 mins!"
+
+Example response:
+{
+    "priority": "urgent"
+}`,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `<message>${message.text}</message>`,
+          },
+        ],
+      },
+    ],
+    model: "llama-3.3-70b-versatile",
+    response_format: { type: "json_object" },
+  });
+
+  const data = JSON.parse(chatCompletion.choices[0].message.content!);
+
+  return {
+    ...message,
+    priority: data.priority || "normal",
+  };
+};
+
 export const findSmartContact = async ({
   contacts,
   image_summary,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { SmartMessage } from "@/lib/models";
+import { classifyMessagePriority } from "@/lib/ai";
 
 // Get Twilio credentials from environment variables
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -10,7 +11,9 @@ const tollFreeNumber = process.env.TWILIO_PHONE_NUMBER;
 // Validate that all required environment variables are present
 if (!accountSid || !authToken || !tollFreeNumber) {
   console.error("❌ Missing required Twilio environment variables");
-  console.error("Required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER");
+  console.error(
+    "Required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER"
+  );
 }
 
 // Initialize Twilio client only if credentials are available
@@ -21,9 +24,10 @@ export async function POST(request: NextRequest) {
     // Check if Twilio is properly configured
     if (!client || !tollFreeNumber) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: "Twilio is not properly configured. Please check environment variables." 
+        {
+          success: false,
+          error:
+            "Twilio is not properly configured. Please check environment variables.",
         },
         { status: 500 }
       );
@@ -67,13 +71,16 @@ export async function POST(request: NextRequest) {
     // Filter for inbound messages and convert to SmartMessage format
     let inboundMessages: SmartMessage[] = messages
       .filter((msg) => msg.direction === "inbound")
-      .map((msg) => ({
-        name: "", // Will be filled in by matching with contacts
-        phoneNumber: msg.from,
-        text: msg.body,
-        sentAt: new Date(msg.dateSent),
-        status: msg.status,
-      }))
+      .map(
+        (msg) =>
+          ({
+            name: "", // Will be filled in by matching with contacts
+            phoneNumber: msg.from,
+            text: msg.body,
+            sentAt: new Date(msg.dateSent),
+            status: msg.status,
+          } as SmartMessage)
+      )
       .sort((a, b) => (a.sentAt?.getTime() || 0) - (b.sentAt?.getTime() || 0)); // Sort by date ascending
 
     console.log(`📱 Found ${inboundMessages.length} total inbound messages`);
@@ -99,9 +106,13 @@ export async function POST(request: NextRequest) {
         ? inboundMessages[inboundMessages.length - 1].sentAt
         : new Date();
 
+    const classifiedMessages: SmartMessage[] = await Promise.all(
+      inboundMessages.map((message) => classifyMessagePriority({ message }))
+    );
+
     return NextResponse.json({
       success: true,
-      messages: inboundMessages,
+      messages: classifiedMessages,
       lastRetrievedAt: newLastRetrievedAt,
     });
   } catch (error) {

@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --background: oklch(100% 0 0);
+  --foreground: oklch(15% 0 0);
+  --card: oklch(100% 0 0);
+  --card-foreground: oklch(15% 0 0);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(15% 0 0);
+  --primary: oklch(15% 0 0);
+  --primary-foreground: oklch(98% 0 0);
+  --secondary: oklch(96% 0 0);
+  --secondary-foreground: oklch(15% 0 0);
+  --muted: oklch(96% 0 0);
+  --muted-foreground: oklch(45% 0 0);
+  --accent: oklch(96% 0 0);
+  --accent-foreground: oklch(15% 0 0);
+  --destructive: oklch(65% 0.15 29);
+  --destructive-foreground: oklch(98% 0 0);
+  --border: oklch(89% 0 0);
+  --input: oklch(89% 0 0);
+  --ring: oklch(15% 0 0);
+  --chart-1: oklch(70% 0.14 158);
+  --chart-2: oklch(60% 0.11 202);
+  --chart-3: oklch(55% 0.13 269);
+  --chart-4: oklch(75% 0.12 77);
+  --chart-5: oklch(65% 0.15 31);
+  --radius: 0.5rem;
+  
+  /* Canvas specific colors */
+  --canvas-bg: oklch(99% 0 0);
+  --canvas-grid: oklch(95% 0 0);
+  --ai-bubble: oklch(95% 0.05 240);
+  --message-bubble: oklch(95% 0.05 140);
+  --gesture-highlight: oklch(85% 0.1 280);
+}
+
+.dark {
+  --background: oklch(15% 0 0);
+  --foreground: oklch(98% 0 0);
+  --card: oklch(15% 0 0);
+  --card-foreground: oklch(98% 0 0);
+  --popover: oklch(15% 0 0);
+  --popover-foreground: oklch(98% 0 0);
+  --primary: oklch(98% 0 0);
+  --primary-foreground: oklch(15% 0 0);
+  --secondary: oklch(25% 0 0);
+  --secondary-foreground: oklch(98% 0 0);
+  --muted: oklch(25% 0 0);
+  --muted-foreground: oklch(65% 0 0);
+  --accent: oklch(25% 0 0);
+  --accent-foreground: oklch(98% 0 0);
+  --destructive: oklch(50% 0.15 29);
+  --destructive-foreground: oklch(98% 0 0);
+  --border: oklch(25% 0 0);
+  --input: oklch(25% 0 0);
+  --ring: oklch(83% 0 0);
+  --chart-1: oklch(60% 0.14 158);
+  --chart-2: oklch(50% 0.11 202);
+  --chart-3: oklch(45% 0.13 269);
+  --chart-4: oklch(65% 0.12 77);
+  --chart-5: oklch(55% 0.15 31);
+  
+  /* Dark mode canvas colors */
+  --canvas-bg: oklch(10% 0 0);
+  --canvas-grid: oklch(20% 0 0);
+  --ai-bubble: oklch(20% 0.05 240);
+  --message-bubble: oklch(20% 0.05 140);
+  --gesture-highlight: oklch(30% 0.1 280);
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* tldraw canvas styling */
+.tl-canvas {
+  background-color: var(--canvas-bg) !important;
+}
+
+.tl-grid-dot {
+  fill: var(--canvas-grid) !important;
+}
+
+/* Custom animations for AI interactions */
+@keyframes pulse-gesture {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.gesture-detected {
+  animation: pulse-gesture 1s ease-in-out infinite;
+}
+
+/* AI bubble animations */
+@keyframes slide-in-bubble {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-bubble-enter {
+  animation: slide-in-bubble 0.3s ease-out;
+}
+
+/* Message bubble styling */
+.message-bubble {
+  background: var(--message-bubble);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px oklch(0% 0 0 / 0.1);
+}
+
+.ai-bubble {
+  background: var(--ai-bubble);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px oklch(0% 0 0 / 0.1);
+}

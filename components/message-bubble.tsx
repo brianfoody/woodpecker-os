@@ -10,7 +10,7 @@ import {
   markMessageAsSent,
 } from "@/lib/message-deduplication";
 
-type MessageState = "sending" | "sent" | "failed" | "reply-available" | "reply";
+type MessageState = "sending" | "sent" | "failed" | "reply-available" | "reply" | "viewing";
 type Priority = "normal" | "important" | "urgent";
 
 interface MessageBubbleProps {
@@ -22,6 +22,7 @@ interface MessageBubbleProps {
   priority?: Priority;
   onClose?: () => void;
   onViewReply?: () => void;
+  onStateChange?: (newState: MessageState) => void;
 }
 
 export default function MessageBubble({
@@ -33,6 +34,7 @@ export default function MessageBubble({
   priority = "normal",
   onClose,
   onViewReply,
+  onStateChange,
 }: MessageBubbleProps) {
   const [currentState, setCurrentState] = useState<MessageState>(state);
   const [isClosing, setIsClosing] = useState(false);
@@ -66,13 +68,15 @@ export default function MessageBubble({
       propState: state,
       currentState,
       shouldUpdate: state !== currentState,
+      personName,
+      messageKey: currentMessageKey,
     });
 
     if (state !== currentState) {
-      console.log(`💬 Updating currentState from ${currentState} to ${state}`);
+      console.log(`💬 Updating currentState from ${currentState} to ${state} for ${personName}`);
       setCurrentState(state);
     }
-  }, [state, currentState]);
+  }, [state, currentState, personName, currentMessageKey]);
 
   // Handle real message sending when state is "sending"
   useEffect(() => {
@@ -101,11 +105,20 @@ export default function MessageBubble({
           isSendingRef.current = true;
 
           // Check if message was already sent to prevent duplicates
-          if (isMessageAlreadySent(phoneNumber, text)) {
+          const alreadySent = isMessageAlreadySent(phoneNumber, text);
+          console.log("🔍 MessageBubble: Deduplication check:", {
+            phoneNumber,
+            text: text.substring(0, 50) + "...",
+            alreadySent,
+            messageKey: currentMessageKey,
+          });
+          
+          if (alreadySent) {
             console.log(
               "🚫 MessageBubble: Message already sent, skipping duplicate"
             );
             setCurrentState("sent");
+            onStateChange?.("sent");
             return;
           }
 
@@ -149,13 +162,16 @@ export default function MessageBubble({
           // Mark message as sent to prevent future duplicates
           markMessageAsSent(phoneNumber, text);
 
+          console.log("✅ MessageBubble: Transitioning to sent state");
           setCurrentState("sent");
+          onStateChange?.("sent");
 
           // Note: No longer auto-transitioning to reply-available
           // Reply detection is now handled by polling system in main app
         } catch (error) {
           console.error("❌ MessageBubble: Failed to send message:", error);
           setCurrentState("failed");
+          onStateChange?.("failed");
           isSendingRef.current = false; // Reset flag on error so retry is possible
 
           // Show error toast following our UI pattern
@@ -188,6 +204,7 @@ export default function MessageBubble({
     console.log("💬 MessageBubble: Retrying message send");
     isSendingRef.current = false; // Reset the sending flag
     setCurrentState("sending");
+    onStateChange?.("sending");
     // The useEffect will trigger the API call again
   };
 
@@ -217,6 +234,8 @@ export default function MessageBubble({
         return <Eye className="w-4 h-4 text-blue-500" />;
       case "reply":
         return null;
+      case "viewing":
+        return <Eye className="w-4 h-4 text-gray-500" />;
       default:
         return null;
     }
@@ -234,6 +253,8 @@ export default function MessageBubble({
         return "Reply available";
       case "reply":
         return "Reply";
+      case "viewing":
+        return "Messages";
       default:
         return "";
     }
@@ -247,6 +268,8 @@ export default function MessageBubble({
         return "retry";
       case "reply":
         return replyText;
+      case "viewing":
+        return text; // For viewing state, text contains the message history
       default:
         return text;
     }
@@ -324,6 +347,10 @@ export default function MessageBubble({
             >
               {getDisplayText()}
             </button>
+          ) : currentState === "viewing" ? (
+            <div className="text-gray-800 leading-relaxed whitespace-pre-line text-sm max-h-48 overflow-y-auto">
+              {getDisplayText()}
+            </div>
           ) : (
             <p className="text-gray-800 leading-relaxed">{getDisplayText()}</p>
           )}

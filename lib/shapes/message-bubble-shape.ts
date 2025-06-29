@@ -9,7 +9,7 @@ export type MessageBubbleShape = TLBaseShape<
     text: string
     phoneNumber?: string
     replyText?: string
-    state: 'sending' | 'sent' | 'failed' | 'reply-available' | 'reply'
+    state: 'sending' | 'sent' | 'failed' | 'reply-available' | 'reply' | 'viewing'
     priority: 'normal' | 'important' | 'urgent'
   }
 >

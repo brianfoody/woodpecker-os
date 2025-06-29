@@ -1139,6 +1139,205 @@ export default function TldrawCanvas() {
     }
   };
 
+  // Extracted function for executing Read Contact Messages action
+  const executeReadContactMessages = async (
+    action: AIAction,
+    imageSummary: string,
+    shapesToRemove: any[],
+    shapePosition: { x: number; y: number },
+    isAutoExecution = false,
+    dimensions?: { width: number; height: number }
+  ) => {
+    const logPrefix = isAutoExecution
+      ? "🤖 Auto-executing"
+      : "👤 User executing";
+    console.log(`${logPrefix} Read Contact Messages action:`, action);
+
+    try {
+      if (!imageSummary || imageSummary.trim() === "") {
+        throw new Error("No image summary available for contact identification");
+      }
+
+      // Get editor reference for shape operations
+      const editor = editorRef.current;
+      if (!editor) {
+        throw new Error("Editor not available");
+      }
+
+      // Load contacts to find the contact
+      const contacts = loadContacts();
+
+      if (contacts.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No Contacts Found",
+          description:
+            "You need to add contacts first before reading their messages.",
+        });
+        return;
+      }
+
+      // Find the smart contact using AI via API
+      console.log("📱 Finding contact from image summary...");
+      
+      const findContactResponse = await fetch("/api/find-contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contacts,
+          image_summary: imageSummary,
+        }),
+      });
+
+      if (!findContactResponse.ok) {
+        throw new Error(`Find contact API failed with status ${findContactResponse.status}`);
+      }
+
+      const findContactResult = await findContactResponse.json();
+
+      if (!findContactResult.success) {
+        throw new Error(findContactResult.error || "Failed to find contact");
+      }
+
+      const contact = findContactResult.contact;
+      console.log("📱 Found contact:", contact);
+
+      // Verify the contact exists in our saved contacts
+      const matchingContact = contacts.find(
+        (c) =>
+          c.phoneNumber === contact.phoneNumber ||
+          c.name.toLowerCase() === contact.name.toLowerCase()
+      );
+
+      if (!matchingContact) {
+        toast({
+          variant: "destructive",
+          title: "Contact Not Found",
+          description: `"${contact.name}" is not in your contacts. Please add them first.`,
+        });
+        return;
+      }
+
+      // Step 1: Create message bubble shape to show loading state
+      const messageBubbleShapeId = createShapeId();
+      console.log(
+        "📱 Creating message bubble shape with ID:",
+        messageBubbleShapeId
+      );
+
+      editor.createShapes([
+        {
+          id: messageBubbleShapeId,
+          type: "message-bubble",
+          x: shapePosition.x,
+          y: shapePosition.y,
+          props: {
+            w: dimensions?.width || 350,
+            h: dimensions?.height || 150,
+            personName: matchingContact.name,
+            phoneNumber: matchingContact.phoneNumber,
+            text: "Loading messages...",
+            state: "viewing",
+            priority: "normal",
+          },
+        },
+      ]);
+
+      // Step 2: Remove the scribbled text
+      if (shapesToRemove.length > 0) {
+        console.log(
+          `🗑️ Removing ${shapesToRemove.length} shapes after creating message viewer`
+        );
+
+        shapesToRemove.forEach((shape) => {
+          try {
+            editor.deleteShape(shape.id);
+          } catch (error) {
+            console.warn("⚠️ Failed to delete shape:", shape.id, error);
+          }
+        });
+      }
+
+      // Step 3: Fetch messages from Twilio
+      console.log("📱 Fetching messages for contact:", matchingContact.phoneNumber);
+
+      const response = await fetch("/api/read-contact-messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phoneNumber: matchingContact.phoneNumber,
+          limit: 10, // Get last 10 messages
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch messages");
+      }
+
+      const messages = result.messages;
+      console.log(`📱 Retrieved ${messages.length} messages`);
+
+      // Step 4: Update message bubble with fetched messages
+      let displayText = "";
+      if (messages.length === 0) {
+        displayText = "No messages found.";
+      } else {
+        // Show the last few messages
+        const recentMessages = messages.slice(-3); // Last 3 messages
+        displayText = recentMessages
+          .map((msg: any) => {
+            const direction = msg.direction === "inbound" ? "←" : "→";
+            const date = new Date(msg.sentAt).toLocaleDateString();
+            return `${direction} ${date}: ${msg.text}`;
+          })
+          .join("\n\n");
+
+        if (messages.length > 3) {
+          displayText = `(${messages.length - 3} more messages)\n\n${displayText}`;
+        }
+      }
+
+      // Update the message bubble with the actual messages
+      editor.updateShape({
+        id: messageBubbleShapeId,
+        type: "message-bubble",
+        props: {
+          personName: matchingContact.name,
+          phoneNumber: matchingContact.phoneNumber,
+          text: displayText,
+          state: "viewing",
+          priority: "normal",
+        },
+      });
+
+      console.log("✅ Messages loaded successfully");
+
+      toast({
+        title: "Messages Loaded",
+        description: `Retrieved ${messages.length} messages from ${matchingContact.name}`,
+      });
+    } catch (error) {
+      console.error("❌ Error executing read contact messages:", error);
+
+      toast({
+        variant: "destructive",
+        title: "Failed to Read Messages",
+        description:
+          "Sorry, there was an error retrieving the messages. Please try again.",
+      });
+    }
+  };
+
   const handleActionSelect = async (action: AIAction) => {
     console.log("🎯 User selected action:", action);
     setContextMenuOpen(false);
@@ -1169,6 +1368,17 @@ export default function TldrawCanvas() {
       // Use the center of the circled area for consistent positioning
       const bubblePagePosition = currentCircledAreaCenter;
       await executeSendMessage(
+        action,
+        currentImageSummary,
+        currentCapturedShapes,
+        bubblePagePosition,
+        false,
+        currentBubbleDimensions
+      );
+    } else if (action.action === "read_contact_messages") {
+      // Use the center of the circled area for consistent positioning
+      const bubblePagePosition = currentCircledAreaCenter;
+      await executeReadContactMessages(
         action,
         currentImageSummary,
         currentCapturedShapes,
@@ -1507,6 +1717,19 @@ export default function TldrawCanvas() {
                 y: bubbleY,
               };
               await executeSendMessage(
+                action,
+                imageSummary,
+                shapesInLoop,
+                bubblePagePosition,
+                true,
+                { width: scaledWidth, height: scaledHeight }
+              );
+            } else if (action.action === "read_contact_messages") {
+              const bubblePagePosition = {
+                x: bubbleX,
+                y: bubbleY,
+              };
+              await executeReadContactMessages(
                 action,
                 imageSummary,
                 shapesInLoop,

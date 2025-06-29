@@ -10,6 +10,7 @@ export type SmartMessage = SmartContact & {
   priority?: "normal" | "important" | "urgent";
   sentAt?: Date;
   status?: MessageStatus;
+  direction?: "inbound" | "outbound";
 };
 
 export type SmartAction =

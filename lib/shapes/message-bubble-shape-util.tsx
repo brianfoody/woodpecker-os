@@ -126,6 +126,18 @@ export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
                     },
                   });
                 }}
+                onStateChange={(newState) => {
+                  // Update the shape state when component state changes
+                  console.log(`📝 Updating shape ${shape.id} state to: ${newState}`);
+                  this.editor.updateShape({
+                    id: shape.id,
+                    type: "message-bubble",
+                    props: {
+                      ...shape.props,
+                      state: newState,
+                    },
+                  });
+                }}
               />
             </div>
           </div>

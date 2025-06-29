@@ -7,12 +7,11 @@ const nextConfig = {
   images: { 
     unoptimized: true 
   },
-  transpilePackages: ['tldraw', '@tldraw/editor', '@tldraw/tldraw'],
   experimental: {
     // Enable App Router features
     appDir: true,
     // Prevent tldraw from being processed during SSR
-    serverComponentsExternalPackages: ['@tldraw/editor', '@tldraw/tldraw', 'tldraw']
+    serverExternalPackages: ['@tldraw/editor', '@tldraw/tldraw', 'tldraw']
   },
   // Environment variables for client-side usage
   env: {

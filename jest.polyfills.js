@@ -24,3 +24,38 @@ Object.defineProperties(globalThis, {
   Request: { value: Request },
   Response: { value: Response },
 })
+
+// Mock BroadcastChannel for Jest environment
+class MockBroadcastChannel {
+  constructor(name) {
+    this.name = name
+    this.onmessage = null
+    this.onmessageerror = null
+  }
+
+  postMessage(message) {
+    // Mock implementation - does nothing in test environment
+  }
+
+  close() {
+    // Mock implementation - does nothing in test environment
+  }
+
+  addEventListener(type, listener) {
+    // Mock implementation - does nothing in test environment
+  }
+
+  removeEventListener(type, listener) {
+    // Mock implementation - does nothing in test environment
+  }
+
+  dispatchEvent(event) {
+    // Mock implementation - does nothing in test environment
+    return true
+  }
+}
+
+Object.defineProperty(globalThis, 'BroadcastChannel', {
+  value: MockBroadcastChannel,
+  writable: true
+})

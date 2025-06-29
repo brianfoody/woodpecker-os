@@ -1,19 +1,34 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState, useEffect } from "react";
+import { Tldraw, Editor, TLShape, createShapeId, loadSnapshot } from "tldraw";
+import "tldraw/tldraw.css";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActionPromptModal } from "@/components/action-prompt-modal";
+import { AIActionsContextMenu } from "@/components/ai-actions-context-menu";
+import { LoadingIndicator } from "@/components/loading-indicator";
+import { PointSpinner } from "@/components/point-spinner";
+import { sendToAI } from "@/lib/ai-processing";
+import { analyzeForSingleLoop } from "@/lib/gesture-detection";
+import { HoldDetector } from "@/lib/hold-detection";
+import { AIAction } from "@/lib/models";
+import { AIBubbleShapeUtil } from "@/lib/shapes/ai-bubble-shape-util";
+import { MessageBubbleShapeUtil } from "@/lib/shapes/message-bubble-shape-util";
+import {
+  loadCanvasData,
+  CanvasAutoSaver,
+  clearCanvasData,
+} from "@/lib/canvas-persistence";
+import { saveContact, getAllContacts } from "@/lib/contact-storage";
+import {
+  getLastMessageCheck,
+  updateLastMessageCheck,
+} from "@/lib/message-tracking";
+import { toast } from "@/hooks/use-toast";
+import { SmartContact, SmartMessage } from "@/lib/models";
 
-// Dynamically import the canvas component to prevent SSR issues
-const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-lg text-gray-600">Loading canvas...</div>
-    </div>
-  ),
-});
+const customShapeUtils = [AIBubbleShapeUtil, MessageBubbleShapeUtil];
 
-export default function Home() {
+export default function TldrawCanvas() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -564,13 +579,6 @@ export default function Home() {
     setIsLoading(false);
     holdDetectorRef.current?.cancelHoldDetection();
   };
-
-  // Don't render anything on server-side
-  if (typeof window === 'undefined') {
-    return <div className="w-full h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-lg text-gray-600">Loading canvas...</div>
-    </div>;
-  }
 
   return (
     <div className="relative w-full h-screen overflow-hidden">

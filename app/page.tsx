@@ -1,629 +1,1945 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Tldraw,
+  TLUiOverrides,
+  loadSnapshot,
+  createShapeId,
+  toRichText,
+  TLShape,
+} from "tldraw";
+import "tldraw/tldraw.css";
+// import { debounce } from "lodash";
+import { AIActionsContextMenu } from "@/components/ai-actions-context-menu";
+import type { AIAction } from "@/lib/models";
+import { PointSpinner } from "@/components/point-spinner";
+import { AIBubbleShapeUtil, MessageBubbleShapeUtil } from "@/lib/shapes";
 
-// Dynamically import the canvas component to prevent SSR issues
-const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-lg text-gray-600">Loading canvas...</div>
-    </div>
-  ),
-});
+import { analyzeForSingleLoop } from "@/lib/gesture-detection";
+import { HoldDetector } from "@/lib/hold-detection";
+import { sendToAI } from "@/lib/ai-processing";
+// Removed direct import of askAI - now using API endpoint
+import {
+  loadCanvasData,
+  CanvasAutoSaver,
+  clearCanvasData,
+} from "@/lib/canvas-persistence";
+import { toast } from "@/hooks/use-toast";
+import { saveContact, loadContacts } from "@/lib/contact-storage";
+import {
+  getLastMessageCheck,
+  updateLastMessageCheck,
+} from "@/lib/message-tracking";
+import type { SmartMessage } from "@/lib/models";
+
+// Hold detection
+let holdDetector: HoldDetector | null = null;
+
+// Gesture detection state
+let gestureCheckTimer: NodeJS.Timeout | null = null;
+const GESTURE_CHECK_DELAY = 300; // Wait 300ms before checking for gesture
+
+// Global callback for magic wand gesture - will be set by React component
+let globalMagicWandCallback:
+  | ((
+      stroke: any,
+      editor: any,
+      holdPosition?: { x: number; y: number }
+    ) => Promise<void>)
+  | null = null;
+
+function cancelHoldDetection() {
+  if (holdDetector) {
+    holdDetector.cancelHoldDetection();
+  }
+  if (gestureCheckTimer) {
+    clearTimeout(gestureCheckTimer);
+    gestureCheckTimer = null;
+  }
+}
+
+async function triggerMagicWandGesture(
+  latestStroke: any,
+  editor: any,
+  holdPosition?: { x: number; y: number }
+) {
+  console.log("🪄 Magic wand gesture triggered!");
+  console.log("🔍 Current callback state:", !!globalMagicWandCallback);
+
+  if (globalMagicWandCallback) {
+    console.log(
+      "🚀 Calling global magic wand callback with stroke:",
+      latestStroke.id
+    );
+    try {
+      await globalMagicWandCallback(latestStroke, editor, holdPosition);
+      console.log("✅ Magic wand callback completed successfully");
+    } catch (error) {
+      console.error("❌ Error in magic wand callback:", error);
+    }
+  } else {
+    console.error("❌ No magic wand callback registered!");
+    // console.error("🔍 Debugging - isEditorSetup:", isEditorSetup);
+  }
+}
+
+// Helper function to calculate AI bubble dimensions based on content
+function calculateAIBubbleDimensions(content: string) {
+  // Balanced estimation + 10% larger
+  const minWidth = 374; // 340 * 1.1
+  const minHeight = 187; // 170 * 1.1
+  const maxWidth = 968; // 880 * 1.1
+  const maxHeight = 748; // 680 * 1.1
+
+  // Character-based estimation with 10% larger sizing
+  const charCount = content.length;
+  const lineCount = Math.max(1, content.split("\n").length);
+
+  // 10% more generous chars per line
+  const estimatedCharsPerLine = 42; // 47 * 0.9 (fewer chars per line = wider)
+  const estimatedWidth = Math.min(
+    maxWidth,
+    Math.max(minWidth, estimatedCharsPerLine * 10 + 84)
+  ); // 9*1.1 + 76*1.1
+
+  // Calculate height with 10% larger approach
+  const actualCharsPerLine = Math.max(1, (estimatedWidth - 84) / 10);
+  const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
+  const totalLines = Math.max(lineCount, wrappedLines);
+
+  // 10% larger line height and padding
+  const estimatedHeight = Math.min(
+    maxHeight,
+    Math.max(minHeight, totalLines * 24 + 106)
+  ); // 22*1.1 + 96*1.1
+
+  return {
+    w: Math.round(estimatedWidth),
+    h: Math.round(estimatedHeight),
+  };
+}
 
 export default function Home() {
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [aiActions, setAiActions] = useState<AIAction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingPosition, setLoadingPosition] = useState({ x: 0, y: 0 });
-  const [showPointSpinner, setShowPointSpinner] = useState(false);
-  const [pointSpinnerPosition, setPointSpinnerPosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [sceneDescription, setSceneDescription] = useState<string>("");
-
-  const holdDetectorRef = useRef<HoldDetector | null>(null);
+  const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
-  const lastShapeRef = useRef<TLShape | null>(null);
-  const messagePollingRef = useRef<NodeJS.Timeout | null>(null);
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [contextMenuActions, setContextMenuActions] = useState<AIAction[]>([]);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{
+    x: number;
+    y: number;
+  }>({ x: 0, y: 0 });
+  const [spinnerPosition, setSpinnerPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [originalStrokeProps, setOriginalStrokeProps] = useState<{
+    color: string;
+    size: string;
+  } | null>(null);
+  const [aiProcessingAborted, setAiProcessingAborted] = useState(false);
 
-  // Initialize hold detector
-  useEffect(() => {
-    holdDetectorRef.current = new HoldDetector();
-    holdDetectorRef.current.setHoldCallback(handleHoldGesture);
+  const [currentImageSummary, setCurrentImageSummary] = useState<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [currentCapturedShapes, setCurrentCapturedShapes] = useState<any[]>([]);
+  const [currentBubbleDimensions, setCurrentBubbleDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({ width: 350, height: 150 });
+  const [currentCircledAreaCenter, setCurrentCircledAreaCenter] = useState<{
+    x: number;
+    y: number;
+  }>({ x: 0, y: 0 });
 
-    return () => {
-      holdDetectorRef.current?.cleanup();
-    };
+  // Message polling state
+  const [isPollingEnabled, setIsPollingEnabled] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debug function for manual polling check (accessible in console)
+  const debugPollingState = useCallback(() => {
+    if (editorRef.current) {
+      const allShapes = editorRef.current.getCurrentPageShapes();
+      const messageBubbles = allShapes.filter(
+        (shape: TLShape) => shape.type === "message-bubble"
+      );
+      console.log("🔍 DEBUG Polling State:", {
+        totalShapes: allShapes.length,
+        messageBubbles: messageBubbles.length,
+        isPollingEnabled,
+        intervalActive: !!pollingIntervalRef.current,
+        messageBubbleTypes: messageBubbles.map((b: TLShape) => ({
+          id: b.id,
+          type: b.type,
+          props: b.props,
+        })),
+      });
+      return {
+        totalShapes: allShapes.length,
+        messageBubbles: messageBubbles.length,
+        isPollingEnabled,
+        intervalActive: !!pollingIntervalRef.current,
+      };
+    } else {
+      console.log("🔍 DEBUG: Editor not ready");
+      return { error: "Editor not ready" };
+    }
+  }, [isPollingEnabled]);
+
+  // Manual force polling function
+  const forceStartPolling = useCallback(() => {
+    console.log("🔧 Force starting polling...");
+    setIsPollingEnabled(true);
   }, []);
 
-  // Initialize auto-saver when editor is ready
-  useEffect(() => {
-    if (editor) {
-      autoSaverRef.current = new CanvasAutoSaver(editor.store);
+  const forceStopPolling = useCallback(() => {
+    console.log("🔧 Force stopping polling...");
+    setIsPollingEnabled(false);
+  }, []);
 
-      // Load saved canvas data
-      const savedData = loadCanvasData();
-      if (savedData) {
-        try {
-          loadSnapshot(editor.store, savedData);
-          console.log("📂 Restored canvas from localStorage");
-        } catch (error) {
-          console.error("❌ Failed to restore canvas data:", error);
-          // Clear corrupted data
-          clearCanvasData();
-        }
+  // Check for message bubbles and enable/disable polling
+  const checkMessageBubblesAndUpdatePolling = useCallback(() => {
+    if (editorRef.current) {
+      const allShapes = editorRef.current.getCurrentPageShapes();
+      const messageBubbles = allShapes.filter(
+        (shape: TLShape) => shape.type === "message-bubble"
+      );
+      const hasMessageBubbles = messageBubbles.length > 0;
+
+      // console.log(
+      //   `📱 Checking canvas: ${messageBubbles.length} message bubbles found, polling enabled: ${isPollingEnabled}`
+      // );
+
+      if (hasMessageBubbles && !isPollingEnabled) {
+        console.log("📱 Message bubbles detected, enabling polling");
+        setIsPollingEnabled(true);
+      } else if (!hasMessageBubbles && isPollingEnabled) {
+        console.log("📱 No message bubbles, disabling polling");
+        setIsPollingEnabled(false);
       }
+    } else {
+      console.log("📱 Editor not ready for message bubble check");
+    }
+  }, [isPollingEnabled]);
 
-      // Listen for changes and auto-save
-      const unsubscribe = editor.store.listen(() => {
-        autoSaverRef.current?.scheduleAutoSave();
+  // Process reply scenario when single message bubble is circled
+  const processReplyScenario = async (
+    editor: any,
+    stroke: any,
+    shapesForCapture: any[],
+    targetBubble: any,
+    captureArea: any,
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number
+  ) => {
+    try {
+      console.log("💬 Processing reply scenario...");
+
+      // Set loading state
+      setAiProcessingAborted(false);
+
+      // Set spinner position
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const spinnerScreenPos = editor.pageToScreen({
+        x: centerX,
+        y: centerY,
+      });
+      setSpinnerPosition(spinnerScreenPos);
+
+      // Highlight the stroke while processing
+      setOriginalStrokeProps({
+        color: stroke.props.color || "black",
+        size: stroke.props.size || "m",
       });
 
-      // Set up event listeners for gesture detection
-      const handleEditorPointerMove = (info: any) => {
-        handlePointerMove(info);
-      };
-
-      const handleEditorPointerUp = () => {
-        handlePointerUp();
-      };
-
-      // Try different event names that might work
-      const canvasElement = editor.getContainer().querySelector('canvas');
-      if (canvasElement) {
-        canvasElement.addEventListener('pointermove', handleEditorPointerMove);
-        canvasElement.addEventListener('pointerup', handleEditorPointerUp);
+      try {
+        editor.updateShape({
+          id: stroke.id,
+          type: "draw",
+          props: {
+            color: "blue", // Different color for reply processing
+            size: "xl",
+          },
+        });
+      } catch (error) {
+        console.log("❌ Failed to highlight stroke:", error);
       }
 
-      return () => {
-        unsubscribe();
-        autoSaverRef.current?.cleanup();
-        
-        if (canvasElement) {
-          canvasElement.removeEventListener('pointermove', handleEditorPointerMove);
-          canvasElement.removeEventListener('pointerup', handleEditorPointerUp);
-        }
-      };
-    }
-  }, [editor]);
+      // Capture image of the reply content (excluding message bubble)
+      const shapeIds = shapesForCapture.map((s: any) => s.id);
+      const result = await editor.toImage(shapeIds, {
+        format: "png",
+        background: true,
+        scale: 2,
+        padding: 20,
+      });
 
-  // Message polling effect
-  useEffect(() => {
-    const pollForMessages = async () => {
-      try {
-        const lastCheck = getLastMessageCheck();
-        const response = await fetch("/api/read-messages", {
+      if (result && result.blob) {
+        console.log("✅ Reply content image generated successfully");
+
+        // Check if processing was cancelled
+        if (aiProcessingAborted) {
+          console.log("🚫 Reply processing was cancelled");
+          return;
+        }
+
+        // Send to AI for image summary
+        const aiResult = await sendToAI(
+          result.blob,
+          shapesForCapture,
+          captureArea
+        );
+
+        // Check again after AI processing
+        if (aiProcessingAborted) {
+          console.log("🚫 Reply processing was cancelled during execution");
+          return;
+        }
+
+        console.log("💬 Reply content analyzed, extracting message...");
+
+        // Get target bubble contact info
+        const targetContact = {
+          name: targetBubble.props.personName,
+          phoneNumber: targetBubble.props.phoneNumber,
+        };
+
+        // Call extractSmartMessage to get the reply message
+        const extractResponse = await fetch("/api/extract-message", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
-            lastRetrievedAt: lastCheck?.toISOString(),
+            image_summary: aiResult.sceneDescription,
+            contacts: [targetContact], // Only the target contact
           }),
         });
 
-        if (!response.ok) {
-          console.error("❌ Failed to poll messages:", response.statusText);
-          return;
+        if (!extractResponse.ok) {
+          throw new Error(
+            `Extract message API failed with status ${extractResponse.status}`
+          );
         }
 
-        const result = await response.json();
-        if (!result.success) {
-          console.error("❌ Message polling failed:", result.error);
-          return;
+        const extractResult = await extractResponse.json();
+
+        if (!extractResult.success) {
+          throw new Error(extractResult.error || "Message extraction failed");
         }
 
-        const { messages, lastRetrievedAt } = result;
-        console.log(`📱 Polled ${messages.length} new messages`);
+        const replyMessage = extractResult.message;
+        console.log("💬 Reply message extracted:", replyMessage);
 
-        if (messages.length > 0) {
-          // Update the last check timestamp
-          updateLastMessageCheck(new Date(lastRetrievedAt));
-
-          // Match messages with contacts and show bubbles
-          const contacts = getAllContacts();
-          messages.forEach((message: SmartMessage) => {
-            const contact = contacts.find(
-              (c) => c.phoneNumber === message.phoneNumber
-            );
-            if (contact) {
-              message.name = contact.name;
-              showMessageBubble(message, "reply-available");
-            } else {
-              // Show with phone number as name if no contact found
-              message.name = message.phoneNumber;
-              showMessageBubble(message, "reply-available");
-            }
-          });
-        }
-      } catch (error) {
-        console.error("❌ Error polling messages:", error);
-      }
-    };
-
-    // Poll immediately, then every 10 seconds
-    pollForMessages();
-    messagePollingRef.current = setInterval(pollForMessages, 10000);
-
-    return () => {
-      if (messagePollingRef.current) {
-        clearInterval(messagePollingRef.current);
-      }
-    };
-  }, []);
-
-  const showMessageBubble = (
-    message: SmartMessage,
-    state: "sending" | "sent" | "failed" | "reply-available" | "reply"
-  ) => {
-    if (!editor) return;
-
-    const viewport = editor.getViewportPageBounds();
-    const x = viewport.x + viewport.w - 400;
-    const y = viewport.y + 50;
-
-    const messageBubbleId = createShapeId();
-    editor.createShape({
-      id: messageBubbleId,
-      type: "message-bubble",
-      x,
-      y,
-      props: {
-        w: 350,
-        h: 150,
-        personName: message.name,
-        text: message.text,
-        phoneNumber: message.phoneNumber,
-        state,
-        priority: "normal",
-      },
-    });
-  };
-
-  const handleHoldGesture = useCallback(
-    async (shape: TLShape, holdPosition: { x: number; y: number }) => {
-      if (!editor) return;
-
-      console.log("🎯 Hold gesture detected, processing...");
-      setIsLoading(true);
-      setLoadingPosition(holdPosition);
-
-      try {
-        // Get all shapes within the enclosing gesture
-        const enclosedShapes = getEnclosedShapes(shape);
-        console.log(`📦 Found ${enclosedShapes.length} enclosed shapes`);
-
-        if (enclosedShapes.length === 0) {
-          console.log("⚠️ No shapes found within the gesture");
-          setIsLoading(false);
-          return;
-        }
-
-        // Calculate bounds of enclosed area
-        const bounds = calculateEnclosedBounds(enclosedShapes);
-        console.log("📏 Calculated bounds:", bounds);
-
-        // Create image of the enclosed area
-        const imageResult = await editor.toImage(
-          enclosedShapes.map((s) => s.id),
-          {
-            scale: 1,
-            format: "png",
-          }
-        );
-        const imageBlob = imageResult?.blob;
-
-        if (!imageBlob) {
-          throw new Error("Failed to generate image from selection");
-        }
-
-        // Send to AI for processing
-        const result = await sendToAI(imageBlob, enclosedShapes, bounds);
-        console.log("🤖 AI processing complete:", result);
-
-        setSceneDescription(result.sceneDescription);
-        setAiActions(result.actions);
-        setIsLoading(false);
-
-        if (result.actions.length > 0) {
-          setContextMenuPosition(holdPosition);
-          setShowContextMenu(true);
-        } else {
-          toast({
-            title: "No Actions Available",
-            description:
-              "No actionable suggestions found for the selected content.",
-          });
-        }
-      } catch (error) {
-        console.error("❌ Error processing hold gesture:", error);
-        setIsLoading(false);
-        toast({
-          variant: "destructive",
-          title: "Processing Error",
-          description: "Failed to process the selected area. Please try again.",
+        // Replace the existing message bubble with a new one in sending state
+        console.log("💬 Replacing bubble with reply:", {
+          oldId: targetBubble.id,
+          currentProps: targetBubble.props,
+          newText: replyMessage.text,
+          newState: "sending",
         });
-      }
-    },
-    [editor]
-  );
 
-  const getEnclosedShapes = (enclosingShape: TLShape): TLShape[] => {
-    if (!editor) return [];
+        // Store the bubble position and properties
+        const bubblePosition = { x: targetBubble.x, y: targetBubble.y };
+        const bubbleProps = targetBubble.props as any;
 
-    const allShapes = editor.getCurrentPageShapes();
-    const enclosedShapes: TLShape[] = [];
+        // Delete the old bubble
+        editor.deleteShape(targetBubble.id);
 
-    // Get the bounds of the enclosing shape
-    const enclosingBounds = editor.getShapeGeometry(enclosingShape).bounds;
-    const enclosingPageBounds = {
-      x: enclosingShape.x + enclosingBounds.x,
-      y: enclosingShape.y + enclosingBounds.y,
-      w: enclosingBounds.w,
-      h: enclosingBounds.h,
-    };
+        // Create a new bubble with the reply in sending state
+        const newBubbleId = createShapeId();
+        editor.createShapes([
+          {
+            id: newBubbleId,
+            type: "message-bubble",
+            x: bubblePosition.x,
+            y: bubblePosition.y,
+            props: {
+              w: bubbleProps.w,
+              h: bubbleProps.h,
+              personName: bubbleProps.personName,
+              phoneNumber: bubbleProps.phoneNumber,
+              text: replyMessage.text, // New reply text
+              state: "sending" as const, // Sending state to trigger the message
+              priority: bubbleProps.priority || "normal",
+            },
+          },
+        ]);
 
-    for (const shape of allShapes) {
-      if (shape.id === enclosingShape.id) continue;
-      if (shape.type === "ai-bubble" || shape.type === "message-bubble")
-        continue;
+        console.log("✅ Message bubble updated to sending state with reply");
 
-      const shapeBounds = editor.getShapeGeometry(shape).bounds;
-      const shapePageBounds = {
-        x: shape.x + shapeBounds.x,
-        y: shape.y + shapeBounds.y,
-        w: shapeBounds.w,
-        h: shapeBounds.h,
-      };
+        // Verify the new bubble was created
+        setTimeout(() => {
+          const updatedShapes = editor.getCurrentPageShapes();
+          const newBubble = updatedShapes.find(
+            (s: any) => s.id === newBubbleId
+          );
+          if (newBubble) {
+            console.log("🔍 New bubble created:", {
+              id: newBubble.id,
+              text: (newBubble.props as any).text,
+              state: (newBubble.props as any).state,
+              phoneNumber: (newBubble.props as any).phoneNumber,
+            });
+          } else {
+            console.log("❌ New bubble not found after creation!");
+          }
+        }, 100);
 
-      // Check if shape is within the enclosing bounds
-      if (
-        shapePageBounds.x >= enclosingPageBounds.x &&
-        shapePageBounds.y >= enclosingPageBounds.y &&
-        shapePageBounds.x + shapePageBounds.w <=
-          enclosingPageBounds.x + enclosingPageBounds.w &&
-        shapePageBounds.y + shapePageBounds.h <=
-          enclosingPageBounds.y + enclosingPageBounds.h
-      ) {
-        enclosedShapes.push(shape);
-      }
-    }
+        // Remove the captured shapes (they've been sent as a reply)
+        shapesForCapture.forEach((shape) => {
+          try {
+            editor.deleteShape(shape.id);
+          } catch (error) {
+            console.log(`❌ Failed to remove shape ${shape.id}:`, error);
+          }
+        });
 
-    return enclosedShapes;
-  };
-
-  const calculateEnclosedBounds = (shapes: TLShape[]) => {
-    if (!editor || shapes.length === 0) {
-      return { x: 0, y: 0, w: 100, h: 100 };
-    }
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const shape of shapes) {
-      const bounds = editor.getShapeGeometry(shape).bounds;
-      const pageX = shape.x + bounds.x;
-      const pageY = shape.y + bounds.y;
-
-      minX = Math.min(minX, pageX);
-      minY = Math.min(minY, pageY);
-      maxX = Math.max(maxX, pageX + bounds.w);
-      maxY = Math.max(maxY, pageY + bounds.h);
-    }
-
-    return {
-      x: minX,
-      y: minY,
-      w: maxX - minX,
-      h: maxY - minY,
-    };
-  };
-
-  const handleActionSelect = async (action: AIAction) => {
-    console.log("🎯 Action selected:", action);
-    setShowContextMenu(false);
-
-    try {
-      switch (action.action) {
-        case "ask_ai":
-          await handleAskAI();
-          break;
-        case "send_message":
-          await handleSendMessage();
-          break;
-        case "add_contact":
-          await handleAddContact();
-          break;
-        case "read_contact_messages":
-          await handleReadContactMessages();
-          break;
-        case "search":
-          toast({
-            title: "Search Action",
-            description: "Search functionality would be implemented here.",
-          });
-          break;
-        default:
-          console.log("🤷 Unknown action:", action.action);
+        console.log("🗑️ Original reply content shapes removed");
+      } else {
+        console.log("❌ Failed to generate reply content image");
+        throw new Error("Failed to generate reply content image");
       }
     } catch (error) {
-      console.error("❌ Error executing action:", error);
+      console.error("❌ Reply processing failed:", error);
+
+      // Show error toast
       toast({
         variant: "destructive",
-        title: "Action Failed",
-        description: "Failed to execute the selected action. Please try again.",
-      });
-    }
-  };
-
-  const handleAskAI = async () => {
-    if (!editor) return;
-
-    console.log("🤖 Executing Ask AI action");
-    setShowPointSpinner(true);
-    setPointSpinnerPosition(contextMenuPosition);
-
-    try {
-      const response = await fetch("/api/ask-ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_summary: sceneDescription }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to get AI response");
-      }
-
-      // Create AI bubble shape
-      const viewport = editor.getViewportPageBounds();
-      const bubbleId = createShapeId();
-
-      editor.createShape({
-        id: bubbleId,
-        type: "ai-bubble",
-        x: viewport.x + 50,
-        y: viewport.y + 50,
-        props: {
-          w: 400,
-          h: 300,
-          content: result.response,
-          isLoading: false,
-        },
-      });
-
-      console.log("✅ AI bubble created successfully");
-    } catch (error) {
-      console.error("❌ Ask AI failed:", error);
-      toast({
-        variant: "destructive",
-        title: "AI Request Failed",
-        description: "Failed to get response from AI. Please try again.",
+        title: "Reply Failed",
+        description:
+          "Something went wrong while processing your reply. Please try again.",
       });
     } finally {
-      setShowPointSpinner(false);
+      // Always clean up the gesture stroke and loading state
+      setSpinnerPosition(null);
+
+      try {
+        editor.deleteShape(stroke.id);
+        console.log("🗑️ Reply gesture stroke removed");
+      } catch (error) {
+        console.log("❌ Failed to remove gesture stroke:", error);
+      }
+
+      // Restore original stroke properties
+      if (originalStrokeProps) {
+        setOriginalStrokeProps(null);
+      }
     }
   };
 
-  const handleSendMessage = async () => {
-    console.log("💬 Executing Send Message action");
-    setShowPointSpinner(true);
-    setPointSpinnerPosition(contextMenuPosition);
+  // Function to check for new messages and update message bubbles
+  const checkForNewMessages = useCallback(async () => {
+    if (!editorRef.current) return;
 
     try {
-      const contacts = getAllContacts();
-      const response = await fetch("/api/extract-message", {
+      const lastCheck = getLastMessageCheck();
+      console.log(
+        "📱 Checking for new messages since:",
+        lastCheck?.toISOString() || "never"
+      );
+
+      const response = await fetch("/api/read-messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          image_summary: sceneDescription,
-          contacts,
+          lastRetrievedAt: lastCheck?.toISOString(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        console.error("❌ Failed to check messages:", response.status);
+        return;
       }
 
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.error || "Failed to extract message");
+        console.error("❌ Message check API error:", result.error);
+        return;
       }
 
-      const message: SmartMessage = result.message;
-      console.log("📱 Message extracted:", message);
+      const newMessages: SmartMessage[] = result.messages;
+      if (newMessages.length > 0) {
+        console.log(`📱 Found ${newMessages.length} new messages`);
+      }
 
-      // Show message bubble in sending state
-      showMessageBubble(message, "sending");
+      if (newMessages.length > 0) {
+        // Update the last check timestamp
+        updateLastMessageCheck(new Date(result.lastRetrievedAt));
 
-      console.log("✅ Message bubble created");
+        // Get all message bubble shapes on the canvas
+        const allShapes = editorRef.current.getCurrentPageShapes();
+        const messageBubbles = allShapes.filter(
+          (shape: TLShape) => shape.type === "message-bubble"
+        );
+
+        console.log(
+          `📱 Found ${messageBubbles.length} message bubbles on canvas`
+        );
+
+        // Load contacts to match phone numbers with names
+        const contacts = loadContacts();
+
+        // Check each new message against active message bubbles
+        newMessages.forEach((message) => {
+          console.log(
+            `📱 Processing new message from ${message.phoneNumber}: "${message.text}"`
+          );
+
+          // Find matching contact by phone number
+          const matchingContact = contacts.find(
+            (contact) => contact.phoneNumber === message.phoneNumber
+          );
+
+          console.log(
+            `📱 Matching contact found:`,
+            matchingContact
+              ? `${matchingContact.name} (${matchingContact.phoneNumber})`
+              : "None"
+          );
+
+          if (matchingContact) {
+            // Find message bubble for this contact
+            const matchingBubble = messageBubbles.find((bubble: TLShape) => {
+              const props = bubble.props as any;
+              const isPhoneMatch = props.phoneNumber === message.phoneNumber;
+              const isStateMatch =
+                props.state === "sent" ||
+                props.state === "sending" ||
+                props.state === "reply-available" ||
+                props.state === "reply";
+
+              console.log(`📱 Checking bubble ${bubble.id}:`, {
+                bubblePhone: props.phoneNumber,
+                messagePhone: message.phoneNumber,
+                phoneMatch: isPhoneMatch,
+                bubbleState: props.state,
+                stateMatch: isStateMatch,
+                overallMatch: isPhoneMatch && isStateMatch,
+              });
+
+              return isPhoneMatch && isStateMatch;
+            });
+
+            if (matchingBubble) {
+              console.log(
+                `📱 ✅ Updating bubble ${matchingBubble.id} for ${matchingContact.name} with new reply: "${message.text}"`
+              );
+
+              // Update the bubble to reply-available state with the actual reply
+              editorRef.current.updateShape({
+                id: matchingBubble.id,
+                type: "message-bubble",
+                props: {
+                  ...matchingBubble.props,
+                  state: "reply-available",
+                  replyText: message.text,
+                },
+              });
+            } else {
+              console.log(
+                `📱 ❌ No matching bubble found for ${matchingContact.name}. Available bubbles:`,
+                messageBubbles.map((b: TLShape) => ({
+                  id: b.id,
+                  phone: (b.props as any).phoneNumber,
+                  state: (b.props as any).state,
+                  name: (b.props as any).personName,
+                }))
+              );
+            }
+          } else {
+            console.log(
+              `📱 ❌ No contact found for phone ${message.phoneNumber}. Available contacts:`,
+              contacts.map((c) => ({ name: c.name, phone: c.phoneNumber }))
+            );
+          }
+        });
+      }
     } catch (error) {
-      console.error("❌ Send Message failed:", error);
-      toast({
-        variant: "destructive",
-        title: "Message Failed",
-        description: "Failed to send message. Please try again.",
-      });
-    } finally {
-      setShowPointSpinner(false);
-    }
-  };
-
-  const handleAddContact = async () => {
-    console.log("📱 Executing Add Contact action");
-    setShowPointSpinner(true);
-    setPointSpinnerPosition(contextMenuPosition);
-
-    try {
-      const response = await fetch("/api/extract-contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_summary: sceneDescription }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to extract contact");
-      }
-
-      const contact: SmartContact = result.contact;
-      console.log("📱 Contact extracted:", contact);
-
-      // Save contact to localStorage
-      saveContact(contact);
-
-      toast({
-        title: "Contact Added",
-        description: `${contact.name} has been added to your contacts.`,
-      });
-
-      console.log("✅ Contact saved successfully");
-    } catch (error) {
-      console.error("❌ Add Contact failed:", error);
-      toast({
-        variant: "destructive",
-        title: "Add Contact Failed",
-        description: "Failed to add contact. Please try again.",
-      });
-    } finally {
-      setShowPointSpinner(false);
-    }
-  };
-
-  const handleReadContactMessages = async () => {
-    console.log("📱 Executing Read Contact Messages action");
-    // This would integrate with the message polling system
-    toast({
-      title: "Reading Messages",
-      description: "Message reading functionality is active via polling.",
-    });
-  };
-
-  const handlePointerMove = useCallback((info: any) => {
-    if (!holdDetectorRef.current) return;
-
-    const { currentPagePoint } = info;
-    if (currentPagePoint) {
-      holdDetectorRef.current.updatePosition({
-        x: currentPagePoint.x,
-        y: currentPagePoint.y,
-      });
+      console.error("❌ Error checking for new messages:", error);
     }
   }, []);
 
-  const handlePointerUp = useCallback(() => {
-    if (!editor || !holdDetectorRef.current) return;
+  // Make debug and force functions globally accessible
+  useEffect(() => {
+    (window as any).debugPollingState = debugPollingState;
+    (window as any).forceStartPolling = forceStartPolling;
+    (window as any).forceStopPolling = forceStopPolling;
+    (window as any).forceCheckBubbles = checkMessageBubblesAndUpdatePolling;
+    (window as any).clearMessageTracking = () => {
+      localStorage.removeItem("woodpecker-last-message-check");
+      console.log(
+        "🗑️ Message tracking cleared - next check will get all messages"
+      );
+    };
+    (window as any).getMessageTracking = () => {
+      const stored = localStorage.getItem("woodpecker-last-message-check");
+      console.log("📱 Current message tracking:", stored || "not set");
+      return stored;
+    };
+    (window as any).testMessageCheck = () => {
+      console.log("🧪 Manually triggering message check...");
+      checkForNewMessages();
+    };
+    return () => {
+      delete (window as any).debugPollingState;
+      delete (window as any).forceStartPolling;
+      delete (window as any).forceStopPolling;
+      delete (window as any).forceCheckBubbles;
+      delete (window as any).clearMessageTracking;
+      delete (window as any).getMessageTracking;
+      delete (window as any).testMessageCheck;
+    };
+  }, [
+    debugPollingState,
+    forceStartPolling,
+    forceStopPolling,
+    checkMessageBubblesAndUpdatePolling,
+    checkForNewMessages,
+  ]);
 
-    const currentPageShapes = editor.getCurrentPageShapes();
-    const latestShape = currentPageShapes[currentPageShapes.length - 1];
+  // Start/stop message polling
+  useEffect(() => {
+    console.log(
+      `📱 Polling state changed: isPollingEnabled=${isPollingEnabled}, intervalActive=${!!pollingIntervalRef.current}`
+    );
 
-    if (
-      latestShape &&
-      latestShape.type === "draw" &&
-      latestShape !== lastShapeRef.current
-    ) {
-      console.log("🖊️ New draw shape detected:", latestShape.id);
-      lastShapeRef.current = latestShape;
+    if (isPollingEnabled && !pollingIntervalRef.current) {
+      console.log("📱 Starting message polling every 10 seconds");
 
-      if (analyzeForSingleLoop(latestShape)) {
-        console.log("🔄 Enclosing gesture detected, starting hold detection");
-        const shapeGeometry = editor.getShapeGeometry(latestShape);
-        const center = shapeGeometry.bounds.center;
-        const pageCenter = {
-          x: latestShape.x + center.x,
-          y: latestShape.y + center.y,
-        };
+      // Check immediately
+      checkForNewMessages();
 
-        holdDetectorRef.current.startHoldDetection(latestShape, pageCenter);
-      } else {
-        console.log("❌ Not an enclosing gesture");
-        holdDetectorRef.current.cancelHoldDetection();
-      }
+      // Set up interval
+      pollingIntervalRef.current = setInterval(checkForNewMessages, 10000); // 10 seconds
+    } else if (!isPollingEnabled && pollingIntervalRef.current) {
+      console.log("📱 Stopping message polling");
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
-  }, [editor]);
 
-  const handleCancelLoading = () => {
-    setIsLoading(false);
-    holdDetectorRef.current?.cancelHoldDetection();
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isPollingEnabled, checkForNewMessages]);
+
+  // Set up editor store listener to monitor shape changes
+  useEffect(() => {
+    if (editorRef.current) {
+      const editor = editorRef.current;
+
+      console.log(
+        "📱 Setting up editor store listener for message bubble detection"
+      );
+
+      // Multiple checks to ensure we catch the bubbles
+      checkMessageBubblesAndUpdatePolling(); // Immediate check
+      setTimeout(() => checkMessageBubblesAndUpdatePolling(), 100); // Short delay
+      setTimeout(() => checkMessageBubblesAndUpdatePolling(), 500); // Longer delay
+      setTimeout(() => checkMessageBubblesAndUpdatePolling(), 1000); // Even longer delay
+
+      // Listen to shape changes
+      const unsubscribe = editor.store.listen(() => {
+        // Debounce the check to avoid excessive calls
+        setTimeout(() => {
+          checkMessageBubblesAndUpdatePolling();
+        }, 50);
+      });
+
+      return unsubscribe;
+    }
+  }, [checkMessageBubblesAndUpdatePolling]);
+
+  // Also add a periodic check every 5 seconds as a fallback
+  useEffect(() => {
+    const fallbackInterval = setInterval(() => {
+      if (editorRef.current) {
+        console.log("📱 Fallback: Checking for message bubbles");
+        checkMessageBubblesAndUpdatePolling();
+      }
+    }, 5000);
+
+    return () => clearInterval(fallbackInterval);
+  }, [checkMessageBubblesAndUpdatePolling]);
+
+  // Extracted function for executing Ask AI action
+  const executeAskAI = useCallback(
+    async (
+      action: AIAction,
+      bubblePosition: { x: number; y: number },
+      isAutoExecution = false,
+      imageSummary?: string, // Optional parameter for direct summary passing
+      dimensions?: { width: number; height: number }
+    ) => {
+      const logPrefix = isAutoExecution
+        ? "🤖 Auto-executing"
+        : "👤 User executing";
+      console.log(`${logPrefix} Ask AI action:`, action);
+
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // Create AI bubble shape in loading state
+      const bubbleShapeId = createShapeId();
+      console.log("🔧 Creating AI bubble shape with ID:", bubbleShapeId);
+
+      try {
+        editor.createShapes([
+          {
+            id: bubbleShapeId,
+            type: "ai-bubble",
+            x: bubblePosition.x,
+            y: bubblePosition.y,
+            props: {
+              w: dimensions?.width ? dimensions.width * 1.7 : 600, // AI bubbles are larger than message bubbles
+              h: dimensions?.height ? dimensions.height * 2 : 300,
+              content: "",
+              isLoading: true,
+            },
+          },
+        ]);
+        console.log("✅ AI bubble shape created successfully");
+      } catch (error) {
+        console.error("❌ Failed to create AI bubble shape:", error);
+        // Fall back to text shape
+        editor.createShapes([
+          {
+            id: bubbleShapeId,
+            type: "text",
+            x: bubblePosition.x,
+            y: bubblePosition.y,
+            props: {
+              richText: toRichText("Asking AI..."),
+            },
+          },
+        ]);
+        return;
+      }
+
+      try {
+        // Use passed imageSummary or fall back to currentImageSummary
+        const summaryToUse = imageSummary || currentImageSummary;
+
+        console.log(
+          "🤖 Calling askAI API with summary:",
+          summaryToUse.substring(0, 100) + "..."
+        );
+        console.log("🔍 DEBUG: Using imageSummary param?", !!imageSummary);
+        console.log("🔍 DEBUG: Summary length:", summaryToUse.length);
+        console.log("🔍 DEBUG: Summary is empty?", summaryToUse === "");
+
+        // Call the askAI API endpoint
+        const apiResponse = await fetch("/api/ask-ai", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image_summary: summaryToUse,
+            task: action.text,
+          }),
+        });
+
+        if (!apiResponse.ok) {
+          throw new Error(
+            `API request failed with status ${apiResponse.status}`
+          );
+        }
+
+        const result = await apiResponse.json();
+
+        if (!result.success) {
+          throw new Error(result.error || "API request failed");
+        }
+
+        console.log("🎯 AI Response received from API");
+
+        // Strip HTML tags and get clean text content
+        const cleanText = result.response.replace(/<[^>]*>/g, "").trim();
+
+        // Calculate appropriate dimensions for the content
+        const dimensions = calculateAIBubbleDimensions(cleanText);
+        console.log("🔧 Calculated dimensions for AI response:", dimensions);
+        console.log("🔧 Content length:", cleanText.length);
+
+        // Update the AI bubble shape with the response and auto-sized dimensions
+        editor.updateShape({
+          id: bubbleShapeId,
+          type: "ai-bubble",
+          props: {
+            content: cleanText,
+            isLoading: false,
+            w: dimensions.w,
+            h: dimensions.h,
+          },
+        });
+        console.log("🔧 AI bubble shape updated with new dimensions");
+      } catch (error) {
+        console.error("❌ Error calling askAI API:", error);
+
+        // Delete the shape and show a toast instead of inline error
+        try {
+          editor.deleteShape(bubbleShapeId);
+        } catch (deleteError) {
+          console.error("❌ Failed to delete error shape:", deleteError);
+        }
+
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Ooops",
+          description: "Something went wrong, give it another whirl.",
+        });
+      }
+    },
+    [currentImageSummary]
+  );
+
+  // Extracted function for executing Add Contact action
+  const executeAddContact = async (
+    action: AIAction,
+    imageSummary: string,
+    shapesToRemove: any[],
+    isAutoExecution = false
+  ) => {
+    const logPrefix = isAutoExecution
+      ? "🤖 Auto-executing"
+      : "👤 User executing";
+    console.log(`${logPrefix} Add Contact action:`, action);
+
+    try {
+      console.log("📱 DEBUG: imageSummary passed to function:", imageSummary);
+      console.log("📱 DEBUG: imageSummary length:", imageSummary.length);
+
+      if (!imageSummary || imageSummary.trim() === "") {
+        throw new Error("No image summary available for contact extraction");
+      }
+
+      console.log(
+        "📱 Calling extractContact API with summary:",
+        imageSummary.substring(0, 100) + "..."
+      );
+
+      // Call the extract-contact API endpoint
+      const apiResponse = await fetch("/api/extract-contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_summary: imageSummary,
+        }),
+      });
+
+      if (!apiResponse.ok) {
+        throw new Error(`API request failed with status ${apiResponse.status}`);
+      }
+
+      const result = await apiResponse.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "API request failed");
+      }
+
+      console.log("📱 Contact extracted from API:", result.contact);
+
+      // Check if this is the first contact and if we're updating an existing one
+      const existingContacts = loadContacts();
+      const isFirstContact = existingContacts.length === 0;
+
+      // Check if we're updating an existing contact (by name)
+      const existingContact = existingContacts.find(
+        (contact) =>
+          contact.name.toLowerCase() === result.contact.name.toLowerCase()
+      );
+      const isUpdate = !!existingContact;
+      const phoneNumberChanged =
+        isUpdate && existingContact.phoneNumber !== result.contact.phoneNumber;
+
+      // Save contact to localStorage (this will update if contact exists by phone number)
+      saveContact(result.contact);
+
+      // Get editor reference for shape operations
+      const editor = editorRef.current;
+      if (editor && shapesToRemove.length > 0) {
+        // Remove the shapes that were used to extract the contact
+        console.log(
+          `🗑️ Removing ${shapesToRemove.length} shapes after contact extraction`
+        );
+
+        // Use tldraw's batch operation to ensure this can be undone as a single action
+        editor.batch(() => {
+          shapesToRemove.forEach((shape) => {
+            try {
+              editor.deleteShape(shape.id);
+            } catch (error) {
+              console.warn("⚠️ Failed to delete shape:", shape.id, error);
+            }
+          });
+        });
+      }
+
+      // Show success toast with different message based on the action
+      let title: string;
+      let description: string;
+
+      if (isUpdate) {
+        if (phoneNumberChanged) {
+          title = "Contact Updated";
+          description = `${result.contact.name}'s phone number has been updated to ${result.contact.phoneNumber}.`;
+        } else {
+          title = "Contact Updated";
+          description = `${result.contact.name} (${result.contact.phoneNumber}) contact information has been refreshed.`;
+        }
+      } else if (isFirstContact) {
+        title = "Contact Added";
+        description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts (use undo to restore your writing if you wish).`;
+      } else {
+        title = "Contact Added";
+        description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts.`;
+      }
+
+      toast({
+        title,
+        description,
+      });
+
+      console.log("✅ Contact successfully added and saved");
+    } catch (error) {
+      console.error("❌ Error executing add contact:", error);
+
+      // Show error toast
+      toast({
+        variant: "destructive",
+        title: "Failed to add contact",
+        description:
+          "Sorry, there was an error extracting the contact information. Please try again.",
+      });
+    }
   };
 
-  // Don't render anything on server-side
-  if (typeof window === 'undefined') {
-    return <div className="w-full h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-lg text-gray-600">Loading canvas...</div>
-    </div>;
-  }
+  // Extracted function for executing Send Message action
+  const executeSendMessage = async (
+    action: AIAction,
+    imageSummary: string,
+    shapesToRemove: any[],
+    shapePosition: { x: number; y: number },
+    isAutoExecution = false,
+    dimensions?: { width: number; height: number }
+  ) => {
+    const logPrefix = isAutoExecution
+      ? "🤖 Auto-executing"
+      : "👤 User executing";
+    console.log(`${logPrefix} Send Message action:`, action);
+
+    try {
+      console.log("💬 DEBUG: imageSummary passed to function:", imageSummary);
+      console.log("💬 DEBUG: imageSummary length:", imageSummary.length);
+
+      if (!imageSummary || imageSummary.trim() === "") {
+        throw new Error("No image summary available for message extraction");
+      }
+
+      // Get editor reference for shape operations
+      const editor = editorRef.current;
+      if (!editor) {
+        throw new Error("Editor not available");
+      }
+
+      // Step 1: Create message bubble shape in sending state
+      const messageBubbleShapeId = createShapeId();
+      console.log(
+        "💬 Creating message bubble shape with ID:",
+        messageBubbleShapeId
+      );
+
+      editor.mark("create-message-bubble");
+
+      editor.createShapes([
+        {
+          id: messageBubbleShapeId,
+          type: "message-bubble",
+          x: shapePosition.x,
+          y: shapePosition.y,
+          props: {
+            w: dimensions?.width || 350,
+            h: dimensions?.height || 150,
+            personName: "...", // Will be updated when message is extracted
+            text: "Extracting message...",
+            state: "sending",
+            priority: "normal",
+          },
+        },
+      ]);
+
+      // Step 2: Delete the scribbled text (this allows undo without removing message bubble)
+      editor.mark("delete-original-text");
+
+      if (shapesToRemove.length > 0) {
+        console.log(
+          `🗑️ Removing ${shapesToRemove.length} shapes after message bubble creation`
+        );
+
+        shapesToRemove.forEach((shape) => {
+          try {
+            editor.deleteShape(shape.id);
+          } catch (error) {
+            console.warn("⚠️ Failed to delete shape:", shape.id, error);
+          }
+        });
+      }
+
+      // Step 3: Extract message from image summary
+      console.log("💬 Calling extractMessage API with summary and contacts");
+
+      const contacts = loadContacts();
+
+      // First check if we have any contacts at all
+      if (contacts.length === 0) {
+        // Delete the message bubble we just created
+        editor.deleteShape(messageBubbleShapeId);
+
+        toast({
+          variant: "destructive",
+          title: "No Contacts Found",
+          description:
+            "You need to add contacts first before sending messages. Try adding a contact by circling a name and phone number.",
+        });
+        return;
+      }
+
+      const extractResponse = await fetch("/api/extract-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_summary: imageSummary,
+          contacts: contacts,
+        }),
+      });
+
+      if (!extractResponse.ok) {
+        throw new Error(
+          `Extract message API failed with status ${extractResponse.status}`
+        );
+      }
+
+      const extractResult = await extractResponse.json();
+
+      if (!extractResult.success) {
+        throw new Error(extractResult.error || "Message extraction failed");
+      }
+
+      const message = extractResult.message;
+      console.log("💬 Message extracted:", message);
+
+      // Verify the extracted contact exists in our saved contacts
+      const matchingContact = contacts.find(
+        (contact) =>
+          contact.phoneNumber === message.phoneNumber ||
+          contact.name.toLowerCase() === message.name.toLowerCase()
+      );
+
+      if (!matchingContact) {
+        // Delete the message bubble we just created
+        editor.deleteShape(messageBubbleShapeId);
+
+        toast({
+          variant: "destructive",
+          title: "Contact Not Found",
+          description: `"${message.name}" is not in your contacts. Please add them as a contact first, or check the spelling.`,
+        });
+        return;
+      }
+
+      console.log("✅ Contact verified:", matchingContact);
+
+      // Step 4: Update message bubble with extracted message
+      // Mark a separate undo point for message update so it doesn't revert on text undo
+      editor.mark("update-message-content");
+
+      editor.updateShape({
+        id: messageBubbleShapeId,
+        type: "message-bubble",
+        props: {
+          personName: message.name,
+          text: message.text,
+          phoneNumber: message.phoneNumber, // Add phone number for API call
+          state: "sending", // Still sending, will be updated by the bubble itself
+          priority: "normal",
+        },
+      });
+
+      // Add a delay to ensure the message update is committed to undo history
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      console.log("✅ Message bubble created and text extracted successfully");
+
+      // Note: The actual sending will be handled by the MessageBubble component itself
+      // which will call the /api/send-message endpoint and update its own state
+    } catch (error) {
+      console.error("❌ Error executing send message:", error);
+
+      // If we created a message bubble, update it to show error state
+      // Otherwise show a toast
+      const editor = editorRef.current;
+      if (editor) {
+        try {
+          // Try to find any message bubble shapes and update them to failed state
+          const allShapes = editor.getCurrentPageShapes();
+          const messageBubbles = allShapes.filter(
+            (shape: TLShape) => shape.type === "message-bubble"
+          );
+
+          if (messageBubbles.length > 0) {
+            const latestBubble = messageBubbles[messageBubbles.length - 1];
+            editor.updateShape({
+              id: latestBubble.id,
+              type: "message-bubble",
+              props: {
+                ...latestBubble.props,
+                state: "failed",
+                text: "Failed to extract message. Please try again.",
+              },
+            });
+          } else {
+            // No message bubble to update, show error toast
+            toast({
+              variant: "destructive",
+              title: "Failed to Send Message",
+              description:
+                "Sorry, there was an error extracting the message information. Please try again.",
+            });
+          }
+        } catch (updateError) {
+          console.error(
+            "❌ Failed to update message bubble with error:",
+            updateError
+          );
+          // Fallback to toast
+          toast({
+            variant: "destructive",
+            title: "Failed to Send Message",
+            description:
+              "Sorry, there was an error extracting the message information. Please try again.",
+          });
+        }
+      }
+    }
+  };
+
+  const handleActionSelect = async (action: AIAction) => {
+    console.log("🎯 User selected action:", action);
+    setContextMenuOpen(false);
+
+    if (action.action === "ask_ai") {
+      // Use the center of the circled area for consistent positioning
+      const bubblePagePosition = currentCircledAreaCenter;
+      console.log(
+        "🔧 AI bubble position: using circled area center",
+        bubblePagePosition
+      );
+
+      await executeAskAI(
+        action,
+        bubblePagePosition,
+        false,
+        currentImageSummary,
+        currentBubbleDimensions
+      );
+    } else if (action.action === "add_contact") {
+      await executeAddContact(
+        action,
+        currentImageSummary,
+        currentCapturedShapes,
+        false
+      );
+    } else if (action.action === "send_message") {
+      // Use the center of the circled area for consistent positioning
+      const bubblePagePosition = currentCircledAreaCenter;
+      await executeSendMessage(
+        action,
+        currentImageSummary,
+        currentCapturedShapes,
+        bubblePagePosition,
+        false,
+        currentBubbleDimensions
+      );
+    } else {
+      // TODO: Implement other action types (search)
+      console.log("🚧 Action type not yet implemented:", action.action);
+    }
+  };
+
+  const handleMagicWandGesture = useCallback(
+    async (
+      stroke: any,
+      eventEditor: any,
+      holdPosition?: { x: number; y: number }
+    ) => {
+      console.log("🎯 PROCESSING magic wand gesture for stroke:", stroke.id);
+      console.log("🎯 Hold position received:", holdPosition);
+
+      try {
+        // Extract points from the stroke
+        const segments = stroke.props?.segments || [];
+        const allPoints: { x: number; y: number }[] = [];
+
+        segments.forEach((segment: any) => {
+          if (segment.points) {
+            segment.points.forEach((point: any) => {
+              allPoints.push({
+                x: stroke.x + point.x,
+                y: stroke.y + point.y,
+              });
+            });
+          }
+        });
+
+        // Calculate bounding box of the loop
+        const minX = Math.min(...allPoints.map((p) => p.x));
+        const maxX = Math.max(...allPoints.map((p) => p.x));
+        const minY = Math.min(...allPoints.map((p) => p.y));
+        const maxY = Math.max(...allPoints.map((p) => p.y));
+
+        console.log(
+          `🎯 Loop bounds: x(${minX.toFixed(1)} - ${maxX.toFixed(
+            1
+          )}), y(${minY.toFixed(1)} - ${maxY.toFixed(1)})`
+        );
+
+        // Get all shapes and find ones inside the loop
+        const allShapes = eventEditor.getCurrentPageShapes();
+        const shapesInLoop = allShapes.filter((shape: any) => {
+          if (shape.id === stroke.id) return false; // Don't include the loop itself
+
+          // Get shape bounds
+          const bounds = eventEditor.getShapeGeometry(shape).bounds;
+          const shapeMinX = shape.x + bounds.minX;
+          const shapeMaxX = shape.x + bounds.maxX;
+          const shapeMinY = shape.y + bounds.minY;
+          const shapeMaxY = shape.y + bounds.maxY;
+
+          // Check if shape overlaps with loop bounds
+          const overlaps = !(
+            shapeMaxX < minX ||
+            shapeMinX > maxX ||
+            shapeMaxY < minY ||
+            shapeMinY > maxY
+          );
+
+          return overlaps;
+        });
+
+        console.log(`📦 Found ${shapesInLoop.length} shapes inside the loop:`);
+        shapesInLoop.forEach((shape: any, index: number) => {
+          console.log(
+            `  ${index + 1}. ${shape.type} (id: ${shape.id.slice(-8)})`
+          );
+          if (shape.type === "text") {
+            console.log(`     Text: "${(shape.props as any).text}"`);
+          } else if (shape.type === "message-bubble") {
+            console.log(
+              `     Message bubble: ${(shape.props as any).personName}`
+            );
+          }
+        });
+
+        if (shapesInLoop.length === 0) {
+          console.log("🚫 Ignoring empty loop gesture");
+          // Just remove the gesture stroke
+          try {
+            eventEditor.deleteShape(stroke.id);
+          } catch (error) {
+            console.log("❌ Failed to remove gesture shape:", error);
+          }
+          return;
+        }
+
+        // Check if this is a reply scenario (single message bubble circled)
+        const messageBubbles = shapesInLoop.filter(
+          (shape: any) => shape.type === "message-bubble"
+        );
+        const isReplyScenario = messageBubbles.length === 1;
+
+        if (isReplyScenario) {
+          console.log(
+            "💬 Reply scenario detected - single message bubble circled"
+          );
+
+          const targetBubble = messageBubbles[0];
+          console.log(
+            `💬 Target bubble: ${(targetBubble.props as any).personName} (${
+              (targetBubble.props as any).phoneNumber
+            })`
+          );
+
+          // Remove the message bubble from shapes to be captured
+          const shapesForCapture = shapesInLoop.filter(
+            (shape: any) => shape.type !== "message-bubble"
+          );
+
+          if (shapesForCapture.length === 0) {
+            console.log(
+              "🚫 No content to reply with - only message bubble was circled"
+            );
+            try {
+              eventEditor.deleteShape(stroke.id);
+            } catch (error) {
+              console.log("❌ Failed to remove gesture shape:", error);
+            }
+            return;
+          }
+
+          console.log(
+            `💬 Capturing ${shapesForCapture.length} shapes for reply (excluding message bubble)`
+          );
+
+          // Define capture area for reply processing
+          const padding = 20;
+          const replyArea = {
+            x: minX - padding,
+            y: minY - padding,
+            w: maxX - minX + padding * 2,
+            h: maxY - minY + padding * 2,
+          };
+
+          // Continue with modified shapes list for reply processing
+          await processReplyScenario(
+            eventEditor,
+            stroke,
+            shapesForCapture,
+            targetBubble,
+            replyArea,
+            minX,
+            maxX,
+            minY,
+            maxY
+          );
+          return;
+        }
+
+        // Set loading state
+        setAiProcessingAborted(false);
+
+        // Set spinner position at the exact user press location (if available)
+        let spinnerScreenPos;
+        if (holdPosition) {
+          console.log("🔍 Raw hold position received:", holdPosition);
+          // The hold position might already be in the correct coordinate system
+          // Let's try using it directly as screen coordinates first
+          spinnerScreenPos = holdPosition;
+          console.log(
+            `🎯 Using hold position directly as screen coords: (${holdPosition.x}, ${holdPosition.y})`
+          );
+        } else {
+          console.log("⚠️ No hold position available, using loop center");
+          // Fallback to loop center if no hold position available
+          const centerX = (minX + maxX) / 2;
+          const centerY = (minY + maxY) / 2;
+          spinnerScreenPos = eventEditor.pageToScreen({
+            x: centerX,
+            y: centerY,
+          });
+          console.log(
+            `🎯 Using loop center for spinner: page(${centerX}, ${centerY}) -> screen(${spinnerScreenPos.x}, ${spinnerScreenPos.y})`
+          );
+        }
+        setSpinnerPosition(spinnerScreenPos);
+        console.log("✅ Spinner position set:", spinnerScreenPos);
+        console.log("✅ Spinner should be visible at:", spinnerScreenPos);
+
+        // Store original stroke properties
+        setOriginalStrokeProps({
+          color: stroke.props.color || "black",
+          size: stroke.props.size || "m",
+        });
+
+        // Highlight the stroke while processing
+        try {
+          eventEditor.updateShape({
+            id: stroke.id,
+            type: "draw",
+            props: {
+              color: "orange",
+              size: "xl",
+            },
+          });
+        } catch (error) {
+          console.log("❌ Failed to highlight stroke:", error);
+        }
+
+        // Capture the area as an image
+        const padding = 20;
+        const captureArea = {
+          x: minX - padding,
+          y: minY - padding,
+          w: maxX - minX + padding * 2,
+          h: maxY - minY + padding * 2,
+        };
+
+        console.log(
+          `📸 Capturing area: ${captureArea.w.toFixed(
+            0
+          )}x${captureArea.h.toFixed(0)} at (${captureArea.x.toFixed(
+            0
+          )}, ${captureArea.y.toFixed(0)})`
+        );
+
+        // Capture image using tldraw v3 API
+        const shapeIds = shapesInLoop.map((s: any) => s.id);
+        const result = await eventEditor.toImage(shapeIds, {
+          format: "png",
+          background: true,
+          scale: 2,
+          padding: 20,
+        });
+
+        if (result && result.blob) {
+          console.log("✅ Image generated successfully");
+
+          // Check if processing was cancelled
+          if (aiProcessingAborted) {
+            console.log("🚫 AI processing was cancelled");
+            return;
+          }
+
+          // Send to AI for processing
+          const aiResult = await sendToAI(
+            result.blob,
+            shapesInLoop,
+            captureArea
+          );
+
+          // Check again after AI processing
+          if (aiProcessingAborted) {
+            console.log("🚫 AI processing was cancelled during execution");
+            return;
+          }
+
+          console.log("🏁 Magic wand processing completed!");
+
+          // Store the image summary and shapes for Ask AI functionality
+          console.log("📱 DEBUG: Full aiResult:", aiResult);
+          console.log(
+            "📱 DEBUG: Setting currentImageSummary to:",
+            aiResult.sceneDescription
+          );
+          const imageSummary = aiResult.sceneDescription;
+          setCurrentImageSummary(imageSummary);
+          console.log("📱 DEBUG: currentImageSummary set to:", imageSummary);
+          setCurrentCapturedShapes(shapesInLoop);
+
+          const centerX = (minX + maxX) / 2;
+          const centerY = (minY + maxY) / 2;
+          const areaWidth = maxX - minX;
+          const areaHeight = maxY - minY;
+
+          // Center bubble in the circled area
+          const bubbleX = centerX;
+          const bubbleY = centerY;
+
+          // Scale bubble size based on circled area size
+          // Base size is 350x150, scale it relative to the area size
+          const baseWidth = 350;
+          const baseHeight = 150;
+          const minScale = 0.5; // Minimum 50% of base size
+          const maxScale = 2.0; // Maximum 200% of base size
+
+          // Use a reasonable reference size (400x300) for scaling calculation
+          const referenceArea = 400 * 300;
+          const currentArea = areaWidth * areaHeight;
+          const areaRatio = Math.sqrt(currentArea / referenceArea);
+          const scale = Math.max(minScale, Math.min(maxScale, areaRatio));
+
+          const scaledWidth = Math.round(baseWidth * scale);
+          const scaledHeight = Math.round(baseHeight * scale);
+
+          // Store dimensions and center position for context menu actions
+          setCurrentBubbleDimensions({
+            width: scaledWidth,
+            height: scaledHeight,
+          });
+          setCurrentCircledAreaCenter({ x: centerX, y: centerY });
+
+          const bubbleScreenPos = eventEditor.pageToScreen({
+            x: bubbleX,
+            y: bubbleY,
+          });
+
+          // Check if we have a single decisive task that should be auto-executed
+          if (aiResult.actions.length === 1) {
+            console.log(
+              "🤖 Single decisive task detected, auto-executing:",
+              aiResult.actions[0]
+            );
+
+            // Auto-execute the single action
+            const action = aiResult.actions[0];
+            if (action.action === "ask_ai") {
+              const bubblePagePosition = {
+                x: bubbleX,
+                y: bubbleY,
+              };
+              await executeAskAI(
+                action,
+                bubblePagePosition,
+                true,
+                imageSummary,
+                { width: scaledWidth, height: scaledHeight }
+              );
+            } else if (action.action === "add_contact") {
+              await executeAddContact(action, imageSummary, shapesInLoop, true);
+            } else if (action.action === "send_message") {
+              const bubblePagePosition = {
+                x: bubbleX,
+                y: bubbleY,
+              };
+              await executeSendMessage(
+                action,
+                imageSummary,
+                shapesInLoop,
+                bubblePagePosition,
+                true,
+                { width: scaledWidth, height: scaledHeight }
+              );
+            } else {
+              // TODO: Implement other action types for auto-execution (search)
+              console.log(
+                "🚧 Auto-execution not yet implemented for:",
+                action.action
+              );
+            }
+          } else {
+            // Show context menu with multiple actions for user choice
+            setContextMenuActions(aiResult.actions);
+            console.log(
+              "🎯 Setting context menu position to bubble screen coords:",
+              bubbleScreenPos
+            );
+            setContextMenuPosition(bubbleScreenPos);
+            setContextMenuOpen(true);
+            console.log(
+              "✅ Context menu should now be open with",
+              aiResult.actions.length,
+              "actions"
+            );
+          }
+
+          // Remove the gesture stroke
+          try {
+            eventEditor.deleteShape(stroke.id);
+            console.log("🗑️ Magic wand gesture shape removed");
+          } catch (error) {
+            console.log("❌ Failed to remove gesture shape:", error);
+          }
+
+          // Clear loading state
+          setSpinnerPosition(null);
+          setOriginalStrokeProps(null);
+        } else {
+          console.log("❌ Failed to generate image");
+          // Restore original stroke appearance
+          if (originalStrokeProps) {
+            try {
+              eventEditor.updateShape({
+                id: stroke.id,
+                type: "draw",
+                props: originalStrokeProps,
+              });
+            } catch (error) {
+              console.log("❌ Failed to restore stroke:", error);
+            }
+          }
+          setSpinnerPosition(null);
+          setOriginalStrokeProps(null);
+        }
+      } catch (error) {
+        console.error("❌ Magic wand processing failed:", error);
+
+        // Restore original stroke appearance
+        if (originalStrokeProps && stroke.id) {
+          try {
+            eventEditor.updateShape({
+              id: stroke.id,
+              type: "draw",
+              props: originalStrokeProps,
+            });
+          } catch (error) {
+            console.log("❌ Failed to restore stroke:", error);
+          }
+        }
+        setSpinnerPosition(null);
+        setOriginalStrokeProps(null);
+      }
+    },
+    [originalStrokeProps, aiProcessingAborted, executeAskAI]
+  );
+
+  // Register the magic wand callback via useEffect to handle React strict mode
+  useEffect(() => {
+    globalMagicWandCallback = handleMagicWandGesture;
+    console.log(
+      "🎯 Magic wand callback registered via useEffect:",
+      !!globalMagicWandCallback
+    );
+
+    return () => {
+      if (globalMagicWandCallback === handleMagicWandGesture) {
+        globalMagicWandCallback = null;
+        console.log("🧹 Cleaned up magic wand callback via useEffect");
+      }
+    };
+  }, [handleMagicWandGesture]);
+
+  // Debug spinner position changes
+  useEffect(() => {
+    console.log("🎨 Spinner position state changed:", spinnerPosition);
+  }, [spinnerPosition]);
+
+  // Effect to ensure pen tool is selected when editor is ready
+  useEffect(() => {
+    if (editorRef.current) {
+      // Set pen tool as default when editor is available
+      editorRef.current.setCurrentTool("draw");
+      console.log("🖊️ Set pen tool via useEffect with editor ref");
+    }
+  }, []);
+
+  // Cleanup effect for component unmount
+  useEffect(() => {
+    return () => {
+      // Force save on unmount
+      if (autoSaverRef.current) {
+        autoSaverRef.current.forceSave();
+        autoSaverRef.current.cleanup();
+      }
+    };
+  }, []);
+
+  // UI overrides - hand tool is now available
+  const uiOverrides: TLUiOverrides = {
+    // No longer filtering out the hand tool - it's available alongside other tools
+  };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      {/* Built with Bolt Badge */}
-      <div className="fixed top-4 right-4 z-50">
-        <a
-          href="https://bolt.new"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 border border-white/20"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="text-yellow-300"
-          >
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="currentColor" />
-          </svg>
-          <span>Built with Bolt</span>
-        </a>
-      </div>
-
+    <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
-        shapeUtils={customShapeUtils}
-        onMount={setEditor}
+        shapeUtils={[AIBubbleShapeUtil, MessageBubbleShapeUtil]}
+        overrides={uiOverrides}
+        onMount={(editor) => {
+          console.log("tldraw mounted");
+          console.log("🔧 Available shape utils:", editor.shapeUtils);
+          console.log(
+            "🔧 AI bubble shape util registered:",
+            editor.shapeUtils["ai-bubble"]
+          );
+
+          // // Clear any stored tool state to ensure fresh start
+          try {
+            localStorage.removeItem("tldraw-current-tool");
+            sessionStorage.removeItem("tldraw-current-tool");
+          } catch {
+            // Ignore storage errors
+          }
+
+          // Store editor reference
+          editorRef.current = editor;
+
+          // Load saved canvas data
+          const savedData = loadCanvasData();
+          if (savedData) {
+            try {
+              loadSnapshot(editor.store, savedData);
+              console.log("📂 Restored canvas from localStorage");
+            } catch (error) {
+              console.error("❌ Failed to restore canvas data:", error);
+              // Clear corrupted data
+              clearCanvasData();
+            }
+          }
+
+          // Load saved contacts from localStorage
+          try {
+            const savedContacts = loadContacts();
+            console.log(
+              `📱 Loaded ${savedContacts.length} saved contacts on app initialization`
+            );
+          } catch (error) {
+            console.error(
+              "❌ Failed to load contacts on initialization:",
+              error
+            );
+          }
+
+          // Set up auto-save functionality
+          autoSaverRef.current = new CanvasAutoSaver(editor.store);
+
+          // Listen for changes to auto-save with immediate save for draw operations
+          const unsubscribe = editor.store.listen((event) => {
+            if (autoSaverRef.current) {
+              // Check if this is a draw operation for immediate save
+              const addedRecords = Object.values(event.changes.added);
+              const updatedRecords = Object.values(event.changes.updated).map(
+                ([, record]) => record
+              );
+              const removedRecords = Object.values(event.changes.removed);
+
+              const isDrawOperation =
+                addedRecords.some(
+                  (record: any) =>
+                    record.typeName === "shape" && record.type === "draw"
+                ) ||
+                updatedRecords.some(
+                  (record: any) =>
+                    record.typeName === "shape" && record.type === "draw"
+                ) ||
+                removedRecords.some(
+                  (record: any) =>
+                    record.typeName === "shape" && record.type === "draw"
+                );
+
+              // Check if any shapes were deleted (immediate save for deletions)
+              const hasDeletedShapes = removedRecords.some(
+                (record: any) => record.typeName === "shape"
+              );
+
+              if (isDrawOperation || hasDeletedShapes) {
+                // Save immediately for draw operations and deletions to prevent loss
+                autoSaverRef.current.forceSave();
+              } else {
+                // Use debounced save for other operations
+                autoSaverRef.current.scheduleAutoSave();
+              }
+            }
+          });
+
+          // Set pen tool as default IMMEDIATELY
+          editor.setCurrentTool("draw");
+          console.log("🖊️ Set pen tool as default in onMount");
+
+          // Create a test message-bubble shape
+          // const messageBubbleShapeId = createShapeId();
+          // try {
+          //   editor.createShapes([
+          //     {
+          //       id: messageBubbleShapeId,
+          //       type: "message-bubble",
+          //       x: 100,
+          //       y: 100,
+          //       props: {
+          //         w: 350,
+          //         h: 150,
+          //         personName: "Alex",
+          //         text: "Hey, are we still on for lunch today?",
+          //         replyText: "Yes! See you at 12:30 at the usual place 😊.",
+          //         state: "sending",
+          //         priority: "normal",
+          //       },
+          //     },
+          //   ]);
+          //   console.log("✅ Test message-bubble shape created successfully");
+          // } catch (error) {
+          //   console.error(
+          //     "❌ Failed to create test message-bubble shape:",
+          //     error
+          //   );
+          // }
+
+          // Create a test AI bubble shape
+          try {
+            // const aiBubbleShapeId = createShapeId();
+            // editor.createShapes([
+            //   {
+            //     id: aiBubbleShapeId,
+            //     type: "ai-bubble",
+            //     x: 500,
+            //     y: 100,
+            //     props: {
+            //       w: 300,
+            //       h: 200,
+            //       content: "This is a test AI response that should be resizable. Try dragging the corners to resize this bubble.",
+            //       isLoading: false,
+            //     },
+            //   },
+            // ]);
+            console.log("✅ Test AI bubble shape created successfully");
+          } catch (error) {
+            console.error("❌ Failed to create test AI bubble shape:", error);
+          }
+
+          // Force pen tool selection multiple times with different delays to ensure it sticks
+          setTimeout(() => {
+            editor.setCurrentTool("draw");
+            console.log("🖊️ Re-confirmed pen tool selection (50ms)");
+          }, 50);
+
+          setTimeout(() => {
+            editor.setCurrentTool("draw");
+            console.log("🖊️ Re-confirmed pen tool selection (100ms)");
+          }, 100);
+
+          setTimeout(() => {
+            editor.setCurrentTool("draw");
+            console.log("🖊️ Re-confirmed pen tool selection (200ms)");
+          }, 200);
+
+          console.log("✅ Setting up editor");
+
+          // Initialize hold detector
+          holdDetector = new HoldDetector();
+          holdDetector.setHoldCallback((stroke, holdPosition) => {
+            console.log(
+              "🔥 Hold callback triggered with position:",
+              holdPosition
+            );
+            triggerMagicWandGesture(stroke, editor, holdPosition);
+          });
+
+          // Listen for pointer up events to auto-revert to pen after other tools finish
+          editor.on("event", (info) => {
+            if (info.type === "pointer" && info.name === "pointer_up") {
+              const currentTool = editor.getCurrentToolId();
+
+              // If user just finished with arrow, rectangle, ellipse, or text tool,
+              // revert to pen tool after a short delay
+              if (
+                ["arrow", "rectangle", "ellipse", "text"].includes(currentTool)
+              ) {
+                setTimeout(() => {
+                  // Check if we're still on the same tool (user didn't manually switch)
+                  if (editor.getCurrentToolId() === currentTool) {
+                    editor.setCurrentTool("draw");
+                    console.log(
+                      `🔄 Auto-reverted from ${currentTool} tool back to pen`
+                    );
+                  }
+                }, 200);
+              }
+            }
+          });
+
+          // const activeDrawShapes = new Set();
+
+          // Listen for pointer events
+          editor.on("event", async (info) => {
+            if (info.type === "pointer" && info.name === "pointer_down") {
+              // Cancel any existing hold detection when starting a new stroke
+              cancelHoldDetection();
+            }
+
+            if (info.type === "pointer" && info.name === "pointer_move") {
+              // Check if we're currently drawing and should detect enclosing gestures
+              const allShapes = editor.getCurrentPageShapes();
+              const drawShapes = allShapes.filter(
+                (shape) => shape.type === "draw"
+              );
+              const currentStroke = drawShapes[drawShapes.length - 1];
+
+              if (currentStroke && currentStroke.type === "draw") {
+                // Only check if we haven't already started hold detection for this stroke
+                const currentHoldShape = holdDetector?.getCurrentShape();
+                if (
+                  !currentHoldShape ||
+                  currentHoldShape.id !== currentStroke.id
+                ) {
+                  // Clear any existing gesture check timer
+                  if (gestureCheckTimer) {
+                    clearTimeout(gestureCheckTimer);
+                  }
+
+                  // Set a timer to check for gesture after user pauses drawing
+                  gestureCheckTimer = setTimeout(() => {
+                    // Double-check that we're still on the same stroke
+                    const latestShapes = editor.getCurrentPageShapes();
+                    const latestDrawShapes = latestShapes.filter(
+                      (shape) => shape.type === "draw"
+                    );
+                    const latestStroke =
+                      latestDrawShapes[latestDrawShapes.length - 1];
+
+                    if (latestStroke && latestStroke.id === currentStroke.id) {
+                      // Check if this stroke is forming an enclosing gesture
+                      const isEnclosingGesture = analyzeForSingleLoop(
+                        latestStroke as any
+                      );
+
+                      if (isEnclosingGesture) {
+                        console.log(
+                          "🪄 Enclosing gesture detected! Starting hold detection..."
+                        );
+
+                        // Start hold detection with initial position
+                        const initialPosition = info.point
+                          ? { x: info.point.x, y: info.point.y }
+                          : undefined;
+                        console.log(
+                          "🔍 Starting hold detection with initial position:",
+                          initialPosition
+                        );
+                        holdDetector?.startHoldDetection(
+                          latestStroke,
+                          initialPosition
+                        );
+                      }
+                    }
+                    gestureCheckTimer = null;
+                  }, GESTURE_CHECK_DELAY);
+                }
+              }
+
+              // Update hold detector with current position for movement tracking
+              if (holdDetector && info.point) {
+                const currentPos = { x: info.point.x, y: info.point.y };
+                holdDetector.updatePosition(currentPos);
+              }
+            }
+
+            if (info.type === "pointer" && info.name === "pointer_up") {
+              console.log(
+                `🖱️ Pointer up event - hold detection already handled during drawing`
+              );
+              // The gesture detection and hold logic now happens during pointer_move
+              // So we don't need to do anything special on pointer_up
+            }
+          });
+
+          // Cleanup function
+          return () => {
+            // Force save before any cleanup
+            if (autoSaverRef.current) {
+              autoSaverRef.current.forceSave();
+            }
+
+            cancelHoldDetection();
+
+            // Cleanup store listener
+            unsubscribe();
+
+            // Cleanup auto-saver last
+            if (autoSaverRef.current) {
+              autoSaverRef.current.cleanup();
+            }
+          };
+        }}
       />
 
-      {isLoading && (
-        <LoadingIndicator
-          position={loadingPosition}
-          onCancel={handleCancelLoading}
-        />
-      )}
-
-      {showPointSpinner && <PointSpinner position={pointSpinnerPosition} />}
-
-      <ActionPromptModal
-        open={showModal}
-        onOpenChange={setShowModal}
-        actions={aiActions}
-        onActionSelect={handleActionSelect}
-        loading={isLoading}
-      />
+      {spinnerPosition && <PointSpinner position={spinnerPosition} />}
 
       <AIActionsContextMenu
-        actions={aiActions}
+        actions={contextMenuActions}
         position={contextMenuPosition}
         onActionSelect={handleActionSelect}
-        open={showContextMenu}
-        onOpenChange={setShowContextMenu}
+        open={contextMenuOpen}
+        onOpenChange={setContextMenuOpen}
       />
     </div>
   );

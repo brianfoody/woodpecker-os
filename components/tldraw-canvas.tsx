@@ -222,213 +222,216 @@ export default function TldrawCanvas() {
   }, [isPollingEnabled]);
 
   // Process reply scenario when single message bubble is circled
-  const processReplyScenario = useCallback(async (
-    editor: any,
-    stroke: any,
-    shapesForCapture: any[],
-    targetBubble: any,
-    captureArea: any,
-    minX: number,
-    maxX: number,
-    minY: number,
-    maxY: number
-  ) => {
-    try {
-      console.log("💬 Processing reply scenario...");
-
-      // Set loading state
-      setAiProcessingAborted(false);
-
-      // Set spinner position
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const spinnerScreenPos = editor.pageToScreen({
-        x: centerX,
-        y: centerY,
-      });
-      setSpinnerPosition(spinnerScreenPos);
-
-      // Highlight the stroke while processing
-      setOriginalStrokeProps({
-        color: stroke.props.color || "black",
-        size: stroke.props.size || "m",
-      });
-
+  const processReplyScenario = useCallback(
+    async (
+      editor: any,
+      stroke: any,
+      shapesForCapture: any[],
+      targetBubble: any,
+      captureArea: any,
+      minX: number,
+      maxX: number,
+      minY: number,
+      maxY: number
+    ) => {
       try {
-        editor.updateShape({
-          id: stroke.id,
-          type: "draw",
-          props: {
-            color: "blue", // Different color for reply processing
-            size: "xl",
-          },
+        console.log("💬 Processing reply scenario...");
+
+        // Set loading state
+        setAiProcessingAborted(false);
+
+        // Set spinner position
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const spinnerScreenPos = editor.pageToScreen({
+          x: centerX,
+          y: centerY,
         });
-      } catch (error) {
-        console.log("❌ Failed to highlight stroke:", error);
-      }
+        setSpinnerPosition(spinnerScreenPos);
 
-      // Capture image of the reply content (excluding message bubble)
-      const shapeIds = shapesForCapture.map((s: any) => s.id);
-      const result = await editor.toImage(shapeIds, {
-        format: "png",
-        background: true,
-        scale: 2,
-        padding: 20,
-      });
-
-      if (result && result.blob) {
-        console.log("✅ Reply content image generated successfully");
-
-        // Check if processing was cancelled
-        if (aiProcessingAborted) {
-          console.log("🚫 Reply processing was cancelled");
-          return;
-        }
-
-        // Send to AI for image summary
-        const aiResult = await sendToAI(
-          result.blob,
-          shapesForCapture,
-          captureArea
-        );
-
-        // Check again after AI processing
-        if (aiProcessingAborted) {
-          console.log("🚫 Reply processing was cancelled during execution");
-          return;
-        }
-
-        console.log("💬 Reply content analyzed, extracting message...");
-
-        // Get target bubble contact info
-        const targetContact = {
-          name: targetBubble.props.personName,
-          phoneNumber: targetBubble.props.phoneNumber,
-        };
-
-        // Call extractSmartMessage to get the reply message
-        const extractResponse = await fetch("/api/extract-message", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            image_summary: aiResult.sceneDescription,
-            contacts: [targetContact], // Only the target contact
-          }),
+        // Highlight the stroke while processing
+        setOriginalStrokeProps({
+          color: stroke.props.color || "black",
+          size: stroke.props.size || "m",
         });
 
-        if (!extractResponse.ok) {
-          throw new Error(
-            `Extract message API failed with status ${extractResponse.status}`
-          );
-        }
-
-        const extractResult = await extractResponse.json();
-
-        if (!extractResult.success) {
-          throw new Error(extractResult.error || "Message extraction failed");
-        }
-
-        const replyMessage = extractResult.message;
-        console.log("💬 Reply message extracted:", replyMessage);
-
-        // Replace the existing message bubble with a new one in sending state
-        console.log("💬 Replacing bubble with reply:", {
-          oldId: targetBubble.id,
-          currentProps: targetBubble.props,
-          newText: replyMessage.text,
-          newState: "sending",
-        });
-
-        // Store the bubble position and properties
-        const bubblePosition = { x: targetBubble.x, y: targetBubble.y };
-        const bubbleProps = targetBubble.props as any;
-
-        // Delete the old bubble
-        editor.deleteShape(targetBubble.id);
-
-        // Create a new bubble with the reply in sending state
-        const newBubbleId = createShapeId();
-        editor.createShapes([
-          {
-            id: newBubbleId,
-            type: "message-bubble",
-            x: bubblePosition.x,
-            y: bubblePosition.y,
+        try {
+          editor.updateShape({
+            id: stroke.id,
+            type: "draw",
             props: {
-              w: bubbleProps.w,
-              h: bubbleProps.h,
-              personName: bubbleProps.personName,
-              phoneNumber: bubbleProps.phoneNumber,
-              text: replyMessage.text, // New reply text
-              state: "sending" as const, // Sending state to trigger the message
-              priority: bubbleProps.priority || "normal",
+              color: "blue", // Different color for reply processing
+              size: "xl",
             },
-          },
-        ]);
+          });
+        } catch (error) {
+          console.log("❌ Failed to highlight stroke:", error);
+        }
 
-        console.log("✅ Message bubble updated to sending state with reply");
-
-        // Verify the new bubble was created
-        setTimeout(() => {
-          const updatedShapes = editor.getCurrentPageShapes();
-          const newBubble = updatedShapes.find(
-            (s: any) => s.id === newBubbleId
-          );
-          if (newBubble) {
-            console.log("🔍 New bubble created:", {
-              id: newBubble.id,
-              text: (newBubble.props as any).text,
-              state: (newBubble.props as any).state,
-              phoneNumber: (newBubble.props as any).phoneNumber,
-            });
-          } else {
-            console.log("❌ New bubble not found after creation!");
-          }
-        }, 100);
-
-        // Remove the captured shapes (they've been sent as a reply)
-        shapesForCapture.forEach((shape) => {
-          try {
-            editor.deleteShape(shape.id);
-          } catch (error) {
-            console.log(`❌ Failed to remove shape ${shape.id}:`, error);
-          }
+        // Capture image of the reply content (excluding message bubble)
+        const shapeIds = shapesForCapture.map((s: any) => s.id);
+        const result = await editor.toImage(shapeIds, {
+          format: "png",
+          background: true,
+          scale: 2,
+          padding: 20,
         });
 
-        console.log("🗑️ Original reply content shapes removed");
-      } else {
-        console.log("❌ Failed to generate reply content image");
-        throw new Error("Failed to generate reply content image");
-      }
-    } catch (error) {
-      console.error("❌ Reply processing failed:", error);
+        if (result && result.blob) {
+          console.log("✅ Reply content image generated successfully");
 
-      // Show error toast
-      toast({
-        variant: "destructive",
-        title: "Reply Failed",
-        description:
-          "Something went wrong while processing your reply. Please try again.",
-      });
-    } finally {
-      // Always clean up the gesture stroke and loading state
-      setSpinnerPosition(null);
+          // Check if processing was cancelled
+          if (aiProcessingAborted) {
+            console.log("🚫 Reply processing was cancelled");
+            return;
+          }
 
-      try {
-        editor.deleteShape(stroke.id);
-        console.log("🗑️ Reply gesture stroke removed");
+          // Send to AI for image summary
+          const aiResult = await sendToAI(
+            result.blob,
+            shapesForCapture,
+            captureArea
+          );
+
+          // Check again after AI processing
+          if (aiProcessingAborted) {
+            console.log("🚫 Reply processing was cancelled during execution");
+            return;
+          }
+
+          console.log("💬 Reply content analyzed, extracting message...");
+
+          // Get target bubble contact info
+          const targetContact = {
+            name: targetBubble.props.personName,
+            phoneNumber: targetBubble.props.phoneNumber,
+          };
+
+          // Call extractSmartMessage to get the reply message
+          const extractResponse = await fetch("/api/extract-message", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              image_summary: aiResult.sceneDescription,
+              contacts: [targetContact], // Only the target contact
+            }),
+          });
+
+          if (!extractResponse.ok) {
+            throw new Error(
+              `Extract message API failed with status ${extractResponse.status}`
+            );
+          }
+
+          const extractResult = await extractResponse.json();
+
+          if (!extractResult.success) {
+            throw new Error(extractResult.error || "Message extraction failed");
+          }
+
+          const replyMessage = extractResult.message;
+          console.log("💬 Reply message extracted:", replyMessage);
+
+          // Replace the existing message bubble with a new one in sending state
+          console.log("💬 Replacing bubble with reply:", {
+            oldId: targetBubble.id,
+            currentProps: targetBubble.props,
+            newText: replyMessage.text,
+            newState: "sending",
+          });
+
+          // Store the bubble position and properties
+          const bubblePosition = { x: targetBubble.x, y: targetBubble.y };
+          const bubbleProps = targetBubble.props as any;
+
+          // Delete the old bubble
+          editor.deleteShape(targetBubble.id);
+
+          // Create a new bubble with the reply in sending state
+          const newBubbleId = createShapeId();
+          editor.createShapes([
+            {
+              id: newBubbleId,
+              type: "message-bubble",
+              x: bubblePosition.x,
+              y: bubblePosition.y,
+              props: {
+                w: bubbleProps.w,
+                h: bubbleProps.h,
+                personName: bubbleProps.personName,
+                phoneNumber: bubbleProps.phoneNumber,
+                text: replyMessage.text, // New reply text
+                state: "sending" as const, // Sending state to trigger the message
+                priority: bubbleProps.priority || "normal",
+              },
+            },
+          ]);
+
+          console.log("✅ Message bubble updated to sending state with reply");
+
+          // Verify the new bubble was created
+          setTimeout(() => {
+            const updatedShapes = editor.getCurrentPageShapes();
+            const newBubble = updatedShapes.find(
+              (s: any) => s.id === newBubbleId
+            );
+            if (newBubble) {
+              console.log("🔍 New bubble created:", {
+                id: newBubble.id,
+                text: (newBubble.props as any).text,
+                state: (newBubble.props as any).state,
+                phoneNumber: (newBubble.props as any).phoneNumber,
+              });
+            } else {
+              console.log("❌ New bubble not found after creation!");
+            }
+          }, 100);
+
+          // Remove the captured shapes (they've been sent as a reply)
+          shapesForCapture.forEach((shape) => {
+            try {
+              editor.deleteShape(shape.id);
+            } catch (error) {
+              console.log(`❌ Failed to remove shape ${shape.id}:`, error);
+            }
+          });
+
+          console.log("🗑️ Original reply content shapes removed");
+        } else {
+          console.log("❌ Failed to generate reply content image");
+          throw new Error("Failed to generate reply content image");
+        }
       } catch (error) {
-        console.log("❌ Failed to remove gesture stroke:", error);
-      }
+        console.error("❌ Reply processing failed:", error);
 
-      // Restore original stroke properties
-      if (originalStrokeProps) {
-        setOriginalStrokeProps(null);
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Reply Failed",
+          description:
+            "Something went wrong while processing your reply. Please try again.",
+        });
+      } finally {
+        // Always clean up the gesture stroke and loading state
+        setSpinnerPosition(null);
+
+        try {
+          editor.deleteShape(stroke.id);
+          console.log("🗑️ Reply gesture stroke removed");
+        } catch (error) {
+          console.log("❌ Failed to remove gesture stroke:", error);
+        }
+
+        // Restore original stroke properties
+        if (originalStrokeProps) {
+          setOriginalStrokeProps(null);
+        }
       }
-    }
-  }, [aiProcessingAborted, originalStrokeProps]);
+    },
+    [aiProcessingAborted, originalStrokeProps]
+  );
 
   // Function to check for new messages and update message bubbles
   const checkForNewMessages = useCallback(async () => {
@@ -1581,7 +1584,12 @@ export default function TldrawCanvas() {
         setOriginalStrokeProps(null);
       }
     },
-    [originalStrokeProps, aiProcessingAborted, executeAskAI, processReplyScenario]
+    [
+      originalStrokeProps,
+      aiProcessingAborted,
+      executeAskAI,
+      processReplyScenario,
+    ]
   );
 
   // Register the magic wand callback via useEffect to handle React strict mode

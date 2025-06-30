@@ -18,7 +18,8 @@ export type SmartAction =
   | "search"
   | "send_message"
   | "add_contact"
-  | "read_contact_messages";
+  | "read_contact_messages"
+  | "create_website";
 
 export type SmartTask = {
   action: SmartAction;
@@ -33,4 +34,14 @@ export interface AIAction {
   confidence_score: number;
   type: "create" | "modify" | "delete" | "suggestion";
   icon?: React.ReactNode;
+}
+
+export interface WebsiteCreationJob {
+  jobId: string;
+  status: "creating" | "deploying" | "complete" | "failed";
+  progress?: number;
+  netlifyUrl?: string;
+  boltUrl?: string;
+  errorMessage?: string;
+  createdAt: Date;
 }

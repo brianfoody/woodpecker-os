@@ -1,0 +1,231 @@
+import asyncio
+import base64
+import os
+import tempfile
+from browser_use import Agent
+from browser_use.llm import ChatOpenAI
+import re
+
+async def create_website_automation(
+    job_id: str,
+    image_base64: str,
+    description: str,
+    credentials: dict,
+    job_manager
+):
+    """Main automation function using Browser Use"""
+    try:
+        print(f"🌐 Starting website automation for job {job_id}")
+        
+        # Update progress
+        job_manager.update_job(job_id, "creating", progress=15)
+        
+        # Decode and save image temporarily
+        image_path = await save_base64_image(image_base64, job_id)
+        print(f"💾 Image saved to: {image_path}")
+        
+        # Update progress
+        job_manager.update_job(job_id, "creating", progress=20)
+        
+        # Get API key from environment
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not groq_api_key and not openai_api_key:
+            raise Exception("No API key found. Set GROQ_API_KEY or OPENAI_API_KEY environment variable")
+        
+        # Use GROQ if available, otherwise OpenAI
+        if groq_api_key:
+            from groq import Groq
+            client = Groq(api_key=groq_api_key)
+            llm = client  # Browser Use with GROQ
+        else:
+            llm = ChatOpenAI(model="gpt-4", api_key=openai_api_key)
+        
+        print(f"🤖 Using LLM: {'GROQ' if groq_api_key else 'OpenAI'}")
+        
+        # Construct the StackBlitz URL (from your requirements)
+        stackblitz_url = "https://stackblitz.com/sign_in?redirect_to=%2Foauth%2Fauthorize%3Fclient_id%3Dbolt%26response_type%3Dcode%26redirect_uri%3Dhttps%253A%252F%252Fbolt.new%252Foauth2%26code_challenge_method%3DS256%26code_challenge%3DgNZVFMfZyeHAs4wPk9ISUdkuxaC0VVoM19aar-IzHn8%26state%3D2258c671-46c1-4b10-a2f6-c432ac89ee09%26scope%3Dpublic%26bolt_oauth_provider%3Dlogin_password%26ad_conversions_data_token%3D2b6c65ba-e237-4c97-97fc-09d773559bea%26bolt_auth_handeled%3Dtrue"
+        
+        # Create Browser Use agent with detailed task
+        task = f"""
+        Complete this website creation workflow step by step:
+        
+        1. Navigate to: {stackblitz_url}
+        2. Sign in with email: {credentials['email']} and password: {credentials['password']}
+        3. After successful login, navigate to: https://bolt.new
+        4. Look for and click the file upload icon (should have class "i-ph:link-simple text-xl" or similar upload icon)
+        5. Upload the image file located at: {image_path}
+        6. In the main text input area, enter this prompt: "Create a beautifully designed website based on the attached sketch: {description}"
+        7. Wait for the AI to complete the website creation (watch for stop icon "i-ph:stop-circle-bold" to disappear from the left panel)
+        8. Once creation is complete, click the deploy button in the top right area
+        9. Wait for deployment to complete (stop icon disappears again)
+        10. Extract the Netlify URL from the chat area (format: "https://<site-prefix>.netlify.app")
+        11. Get the current browser URL (this will be the Bolt project URL)
+        
+        IMPORTANT: 
+        - Take your time with each step
+        - Wait for pages to fully load before proceeding
+        - The upload might take a moment to process
+        - Website generation can take 1-3 minutes
+        - Deployment can take another 1-2 minutes
+        - Look carefully for the URLs in the final step
+        
+        Return the extracted Netlify URL and Bolt project URL.
+        """
+        
+        print(f"🤖 Creating Browser Use agent...")
+        job_manager.update_job(job_id, "creating", progress=25)
+        
+        agent = Agent(
+            task=task,
+            llm=llm,
+        )
+        
+        print(f"🤖 Starting browser automation...")
+        job_manager.update_job(job_id, "creating", progress=30)
+        
+        # Run the automation with progress updates
+        result = await run_automation_with_progress(agent, job_id, job_manager)
+        
+        # Parse the results
+        netlify_url, bolt_url = await parse_automation_result(result)
+        
+        print(f"✅ Website creation completed!")
+        print(f"🔗 Netlify URL: {netlify_url}")
+        print(f"🔗 Bolt URL: {bolt_url}")
+        
+        # Update job with final results
+        job_manager.update_job(
+            job_id, 
+            "complete", 
+            progress=100,
+            netlify_url=netlify_url,
+            bolt_url=bolt_url
+        )
+        
+        # Clean up temporary image
+        try:
+            os.unlink(image_path)
+            print(f"🗑️ Cleaned up temporary image: {image_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to clean up image: {e}")
+        
+    except Exception as e:
+        print(f"❌ Automation failed for job {job_id}: {e}")
+        job_manager.update_job(
+            job_id, 
+            "failed", 
+            error_message=str(e)
+        )
+        
+        # Clean up on error
+        try:
+            if 'image_path' in locals():
+                os.unlink(image_path)
+        except:
+            pass
+
+async def save_base64_image(image_base64: str, job_id: str) -> str:
+    """Save base64 image to temporary file"""
+    try:
+        # Decode base64
+        image_data = base64.b64decode(image_base64)
+        
+        # Create temporary file
+        temp_dir = tempfile.gettempdir()
+        image_path = os.path.join(temp_dir, f"sketch_{job_id}.png")
+        
+        # Save image
+        with open(image_path, 'wb') as f:
+            f.write(image_data)
+        
+        print(f"💾 Saved image: {len(image_data)} bytes to {image_path}")
+        return image_path
+        
+    except Exception as e:
+        raise Exception(f"Failed to save image: {e}")
+
+async def run_automation_with_progress(agent, job_id: str, job_manager) -> str:
+    """Run automation with progress updates"""
+    try:
+        # Start automation
+        job_manager.update_job(job_id, "creating", progress=40)
+        
+        # This is where the actual Browser Use automation runs
+        # We'll simulate progress updates during the long-running process
+        
+        # In a real implementation, you might need to:
+        # 1. Run the agent in a separate thread/process
+        # 2. Monitor its progress somehow
+        # 3. Update job status periodically
+        
+        # For now, we'll run it and update progress at key stages
+        print("🤖 Running Browser Use agent...")
+        
+        # Simulate progress during automation
+        asyncio.create_task(update_progress_during_automation(job_id, job_manager))
+        
+        # Run the actual automation
+        result = await agent.run()
+        
+        print(f"🤖 Automation completed with result: {result}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Browser automation failed: {e}")
+        raise
+
+async def update_progress_during_automation(job_id: str, job_manager):
+    """Update progress during the long-running automation"""
+    try:
+        # Simulate realistic progress updates
+        await asyncio.sleep(10)  # Sign in phase
+        job_manager.update_job(job_id, "creating", progress=50)
+        
+        await asyncio.sleep(15)  # Navigation and upload
+        job_manager.update_job(job_id, "creating", progress=60)
+        
+        await asyncio.sleep(30)  # Website generation
+        job_manager.update_job(job_id, "creating", progress=75)
+        
+        await asyncio.sleep(20)  # Deployment prep
+        job_manager.update_job(job_id, "deploying", progress=85)
+        
+        await asyncio.sleep(15)  # Final deployment
+        job_manager.update_job(job_id, "deploying", progress=95)
+        
+    except Exception as e:
+        print(f"⚠️ Progress update error: {e}")
+
+async def parse_automation_result(result: str) -> tuple[str, str]:
+    """Parse the automation result to extract URLs"""
+    try:
+        print(f"🔍 Parsing automation result: {result}")
+        
+        # Extract Netlify URL
+        netlify_pattern = r'https://[a-zA-Z0-9-]+\.netlify\.app'
+        netlify_matches = re.findall(netlify_pattern, result)
+        netlify_url = netlify_matches[0] if netlify_matches else None
+        
+        # Extract Bolt URL
+        bolt_pattern = r'https://bolt\.new/[^\s]+'
+        bolt_matches = re.findall(bolt_pattern, result)
+        bolt_url = bolt_matches[0] if bolt_matches else None
+        
+        # If we can't find URLs in the result, try some fallback patterns
+        if not netlify_url:
+            # Look for any netlify.app domain
+            netlify_pattern2 = r'[a-zA-Z0-9-]+\.netlify\.app'
+            netlify_matches2 = re.findall(netlify_pattern2, result)
+            if netlify_matches2:
+                netlify_url = f"https://{netlify_matches2[0]}"
+        
+        print(f"🔗 Extracted Netlify URL: {netlify_url}")
+        print(f"🔗 Extracted Bolt URL: {bolt_url}")
+        
+        return netlify_url, bolt_url
+        
+    except Exception as e:
+        print(f"⚠️ Error parsing result: {e}")
+        return None, None

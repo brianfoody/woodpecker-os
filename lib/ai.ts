@@ -57,7 +57,7 @@ export const chooseTaskForSelectedArea = async ({
         role: "system",
         content: `You are a helpful AI assistant that enhances e-ink displays with context aware actions for users.
         
-We support four actions right now;
+We support five actions right now;
 
 <supported_actions>
 ask_ai = Ask AI a question. This would be used if they highlight topics which appear to ask general knowledge questions or feedback on what they are working on.
@@ -65,6 +65,7 @@ search = Search the web for a very specific answer. For example, weather, news, 
 send_message = Send a message to a user if they have highlighted what appears to be a request to send a message to a user.
 add_contact = Called when a phone number and name is circled.
 read_contact_messages = Called when a contact name is circled with words suggesting to read the messages.
+create_website = Called when a sketch, wireframe, or website mockup is circled with words suggesting to create a website or web application. Examples: "make this a website", "create a site from this", "build this as a web app", "turn this into a website".
 </supported_actions>
 
 You will provided a section of the display the user has highlighted. Please suggest the liklihood of each action.
@@ -108,6 +109,11 @@ Example response:
             "title": "add_contact",
             "detail": "Add 'Linus' to contacts",
             "confidence_score": 0.4
+        },
+        {
+            "action": "create_website",
+            "text": "Create a website from this sketch",
+            "confidence_score": 0.8
         }
     ]
 }`,

@@ -14,11 +14,12 @@ import "tldraw/tldraw.css";
 import { AIActionsContextMenu } from "@/components/ai-actions-context-menu";
 import type { AIAction } from "@/lib/models";
 import { PointSpinner } from "@/components/point-spinner";
-import { AIBubbleShapeUtil, MessageBubbleShapeUtil } from "@/lib/shapes";
+import { AIBubbleShapeUtil, MessageBubbleShapeUtil, WebsiteBubbleShapeUtil } from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
 import { HoldDetector } from "@/lib/hold-detection";
 import { sendToAI } from "@/lib/ai-processing";
+import { startWebsiteJobPolling, blobToBase64 } from "@/lib/website-polling";
 // Removed direct import of askAI - now using API endpoint
 import {
   loadCanvasData,
@@ -142,6 +143,7 @@ export default function TldrawCanvas() {
   const [currentImageSummary, setCurrentImageSummary] = useState<string>("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentCapturedShapes, setCurrentCapturedShapes] = useState<any[]>([]);
+  const [currentCapturedImageBlob, setCurrentCapturedImageBlob] = useState<Blob | null>(null);
   const [currentBubbleDimensions, setCurrentBubbleDimensions] = useState<{
     width: number;
     height: number;
@@ -1347,6 +1349,127 @@ export default function TldrawCanvas() {
     }
   };
 
+  // Extracted function for executing Create Website action
+  const executeCreateWebsite = async (
+    action: AIAction,
+    imageSummary: string,
+    shapesToRemove: any[],
+    shapePosition: { x: number; y: number },
+    capturedImageBlob: Blob,
+    isAutoExecution = false,
+    dimensions?: { width: number; height: number }
+  ) => {
+    const logPrefix = isAutoExecution
+      ? "🤖 Auto-executing"
+      : "👤 User executing";
+    console.log(`${logPrefix} Create Website action:`, action);
+
+    try {
+      if (!imageSummary || imageSummary.trim() === "") {
+        throw new Error("No image summary available for website creation");
+      }
+
+      if (!capturedImageBlob) {
+        throw new Error("No image blob available for website creation");
+      }
+
+      // Get editor reference for shape operations
+      const editor = editorRef.current;
+      if (!editor) {
+        throw new Error("Editor not available");
+      }
+
+      // Step 1: Create website bubble shape in creating state
+      const websiteBubbleShapeId = createShapeId();
+      console.log(
+        "🌐 Creating website bubble shape with ID:",
+        websiteBubbleShapeId
+      );
+
+      const jobId = `website_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      editor.createShapes([
+        {
+          id: websiteBubbleShapeId,
+          type: "website-bubble",
+          x: shapePosition.x,
+          y: shapePosition.y,
+          props: {
+            w: dimensions?.width || 400,
+            h: dimensions?.height || 200,
+            sketchDescription: imageSummary,
+            status: "creating",
+            progress: 0,
+            jobId: jobId,
+          },
+        },
+      ]);
+
+      // Step 2: Remove the scribbled text
+      if (shapesToRemove.length > 0) {
+        console.log(
+          `🗑️ Removing ${shapesToRemove.length} shapes after creating website bubble`
+        );
+
+        shapesToRemove.forEach((shape) => {
+          try {
+            editor.deleteShape(shape.id);
+          } catch (error) {
+            console.warn("⚠️ Failed to delete shape:", shape.id, error);
+          }
+        });
+      }
+
+      // Step 3: Convert image to base64 and start job
+      console.log("🌐 Converting image to base64 and starting website creation...");
+
+      const imageBase64 = await blobToBase64(capturedImageBlob);
+
+      const response = await fetch("/api/create-website", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobId: jobId,
+          imageBase64: imageBase64,
+          description: imageSummary,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to start website creation");
+      }
+
+      console.log(`✅ Website creation job started with ID: ${result.jobId}`);
+
+      // Step 4: Start polling for status updates
+      startWebsiteJobPolling(websiteBubbleShapeId, result.jobId, editor);
+
+      toast({
+        title: "Website Creation Started",
+        description: "Your website is being created from the sketch. This may take a few minutes.",
+      });
+
+      console.log("✅ Website creation process initiated successfully");
+    } catch (error) {
+      console.error("❌ Error executing create website:", error);
+
+      toast({
+        variant: "destructive",
+        title: "Failed to Create Website",
+        description:
+          "Sorry, there was an error starting the website creation. Please try again.",
+      });
+    }
+  };
+
   const handleActionSelect = async (action: AIAction) => {
     console.log("🎯 User selected action:", action);
     setContextMenuOpen(false);
@@ -1392,6 +1515,18 @@ export default function TldrawCanvas() {
         currentImageSummary,
         currentCapturedShapes,
         bubblePagePosition,
+        false,
+        currentBubbleDimensions
+      );
+    } else if (action.action === "create_website") {
+      // Use the center of the circled area for consistent positioning
+      const bubblePagePosition = currentCircledAreaCenter;
+      await executeCreateWebsite(
+        action,
+        currentImageSummary,
+        currentCapturedShapes,
+        bubblePagePosition,
+        currentCapturedImageBlob, // Need to preserve this from magic wand
         false,
         currentBubbleDimensions
       );
@@ -1634,6 +1769,10 @@ export default function TldrawCanvas() {
             return;
           }
 
+          // IMPORTANT: Preserve the image blob for website creation
+          setCurrentCapturedImageBlob(result.blob);
+          console.log("📱 DEBUG: Image blob preserved for website creation");
+
           // Send to AI for processing
           const aiResult = await sendToAI(
             result.blob,
@@ -1743,6 +1882,20 @@ export default function TldrawCanvas() {
                 imageSummary,
                 shapesInLoop,
                 bubblePagePosition,
+                true,
+                { width: scaledWidth, height: scaledHeight }
+              );
+            } else if (action.action === "create_website") {
+              const bubblePagePosition = {
+                x: bubbleX,
+                y: bubbleY,
+              };
+              await executeCreateWebsite(
+                action,
+                imageSummary,
+                shapesInLoop,
+                bubblePagePosition,
+                result.blob, // Use the captured image blob
                 true,
                 { width: scaledWidth, height: scaledHeight }
               );
@@ -1873,7 +2026,7 @@ export default function TldrawCanvas() {
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
-        shapeUtils={[AIBubbleShapeUtil, MessageBubbleShapeUtil]}
+        shapeUtils={[AIBubbleShapeUtil, MessageBubbleShapeUtil, WebsiteBubbleShapeUtil]}
         overrides={uiOverrides}
         onMount={(editor) => {
           console.log("tldraw mounted");

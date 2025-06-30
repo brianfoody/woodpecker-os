@@ -797,7 +797,9 @@ export default function TldrawCanvas() {
         // Check for onboarding progression
         const onboardingUpdate = onboardingActions.checkActionForOnboarding('ask_ai');
         if (onboardingUpdate && onboardingUpdate.isActive) {
-          setShowOnboarding(true);
+          setTimeout(() => {
+            setShowOnboarding(true);
+          }, 3000);
         }
       } catch (error) {
         console.error("❌ Error calling askAI API:", error);
@@ -889,7 +891,9 @@ export default function TldrawCanvas() {
         contactName: result.contact.name
       });
       if (onboardingUpdate && onboardingUpdate.isActive) {
-        setShowOnboarding(true);
+        setTimeout(() => {
+          setShowOnboarding(true);
+        }, 3000);
       }
 
       // Get editor reference for shape operations
@@ -1112,7 +1116,9 @@ export default function TldrawCanvas() {
       // Check for onboarding progression
       const onboardingUpdate = onboardingActions.checkActionForOnboarding('send_message');
       if (onboardingUpdate && onboardingUpdate.isActive) {
-        setShowOnboarding(true);
+        setTimeout(() => {
+          setShowOnboarding(true);
+        }, 3000);
       }
 
       // Note: The actual sending will be handled by the MessageBubble component itself
@@ -1471,7 +1477,7 @@ export default function TldrawCanvas() {
 
       toast({
         title: "Website Creation Started",
-        description: "Your website is being created from the sketch. This takes about 10 minutes - grab a coffee!",
+        description: "Your website is being created from the sketch. This takes about 5-6 minutes with our new automation!",
       });
 
       console.log("✅ Website creation process initiated successfully");

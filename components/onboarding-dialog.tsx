@@ -29,9 +29,10 @@ const stepContent = {
     content: (
       <div className="space-y-4">
         <p className="text-lg">
-          You are <strong>Bjorn</strong>, a designer. You use Woodpecker to start your morning.
+          You are <strong>Bjorn</strong>, a designer. You use Woodpecker to
+          start your morning.
         </p>
-        <p>
+        <p className="text-lg">
           It helps you avoid your phone, keep your focus and plan your day.
         </p>
       </div>
@@ -42,15 +43,14 @@ const stepContent = {
     title: "Add a Contact",
     content: (
       <div className="space-y-4">
-        <p>
-          Using your phone, you will act as <strong>Bjorn&apos;s colleague</strong>.
+        <p className="text-lg">
+          Using your phone, you will act as{" "}
+          <strong>Bjorn&apos;s colleague</strong>.
         </p>
-        <p>
+        <p className="text-lg">
           Just write your name and number on the canvas, circle it and hold.
         </p>
-        <p>
-          Woodpecker will take care of the rest.
-        </p>
+        <p className="text-lg">Woodpecker will take care of the rest.</p>
       </div>
     ),
     buttonText: "Got it",
@@ -59,18 +59,17 @@ const stepContent = {
     title: "Send a Message",
     content: (contactName: string) => (
       <div className="space-y-4">
-        <p>
-          Okay, Bjorn. Send a message to <strong>{contactName}</strong> to remind them of our client meeting at 10am.
+        <p className="text-lg">
+          Okay, <strong>{contactName}</strong> has been added to your contacts.
+          {`Now, let's send them a message to remind them of our client meeting at 10am.`}
         </p>
-        <p>
-          Simply write: <em>&quot;Don&apos;t forget our client meeting at 10:15. Send to {contactName}&quot;</em>
+        <p className="text-lg">
+          Simply write:{" "}
+          <em>&quot;Don&apos;t forget our client meeting at 10:15.&quot;</em>
+          And below that:
+          <em>&quot;Send to {contactName}&quot;</em>
         </p>
-        <p>
-          Circle and hold.
-        </p>
-        <p className="text-sm text-gray-600">
-          Great. Now you&apos;ve messaged your colleague without disrupting your morning.
-        </p>
+        <p className="text-lg">Circle and hold.</p>
       </div>
     ),
     buttonText: "Got it",
@@ -79,18 +78,19 @@ const stepContent = {
     title: "Do Some Research",
     content: (
       <div className="space-y-4">
-        <p>
-          Now let&apos;s do some research.
+        <p className="text-lg text-gray-600">
+          Great. Now you&apos;ve messaged your colleague without disrupting your
+          morning.
         </p>
-        <p>
+
+        <p className="text-lg">Now let&apos;s do some research.</p>
+        <p className="text-lg">
           Your meeting is about Apple&apos;s new liquid glass design & studies.
         </p>
-        <p>
+        <p className="text-lg">
           Write: <em>&quot;Tell me about Apple&apos;s liquid design&quot;</em>
         </p>
-        <p>
-          You know the drill now. Circle & hold.
-        </p>
+        <p className="text-lg">You know the drill now. Circle & hold.</p>
       </div>
     ),
     buttonText: "Got it",
@@ -99,13 +99,14 @@ const stepContent = {
     title: "Follow Up Question",
     content: (
       <div className="space-y-4">
-        <p>
+        <p className="text-lg">
           Right, makes sense. But what does it mean for our mates at Bolt?
         </p>
-        <p>
-          Sketch a note beside it asking: <em>&quot;How do you see this impacting bolt.new?&quot;</em>
+        <p className="text-lg">
+          Sketch a note beside it asking:{" "}
+          <em>&quot;How do you see this impacting bolt.new?&quot;</em>
         </p>
-        <p>
+        <p className="text-lg">
           Circle <strong>BOTH</strong> the note and the AI answer.
         </p>
       </div>
@@ -116,10 +117,11 @@ const stepContent = {
     title: "Wait for Reply",
     content: (contactName: string) => (
       <div className="space-y-4">
-        <p>
-          Alright, we&apos;re set. Let&apos;s see if <strong>{contactName}</strong> got back to us.
+        <p className="text-lg">
+          Alright, we&apos;re set. Let&apos;s see if{" "}
+          <strong>{contactName}</strong> got back to us.
         </p>
-        <p>
+        <p className="text-lg">
           Send a message reply to &quot;Bjorn&quot; from your phone.
         </p>
         <div className="flex items-center justify-center py-4">
@@ -136,12 +138,8 @@ const stepContent = {
     title: "View the Reply",
     content: (
       <div className="space-y-4">
-        <p>
-          Ah great, they have replied.
-        </p>
-        <p>
-          Tap to view.
-        </p>
+        <p className="text-lg">Ah great, they have replied.</p>
+        <p className="text-lg">Tap to view.</p>
       </div>
     ),
     buttonText: "Got it",
@@ -150,10 +148,10 @@ const stepContent = {
     title: "You're All Set!",
     content: (
       <div className="space-y-4">
-        <p>
+        <p className="text-lg">
           Okay now you&apos;ve got a feel for Woodpecker.
         </p>
-        <p>
+        <p className="text-lg">
           Have fun and watch your focus & curiosity grow.
         </p>
       </div>
@@ -162,8 +160,12 @@ const stepContent = {
   },
 };
 
-export function OnboardingDialog({ isOpen, onClose, onStepChange }: OnboardingDialogProps) {
-  const [onboardingState, setOnboardingState] = useState<OnboardingState>(() => 
+export function OnboardingDialog({
+  isOpen,
+  onClose,
+  onStepChange,
+}: OnboardingDialogProps) {
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>(() =>
     getOnboardingState()
   );
 
@@ -189,23 +191,28 @@ export function OnboardingDialog({ isOpen, onClose, onStepChange }: OnboardingDi
 
   const handleNext = () => {
     const nextSteps: Record<OnboardingStep, OnboardingStep> = {
-      welcome: 'add_contact',
-      add_contact: 'add_contact', // Stay here until contact is added
-      send_message: 'send_message', // Stay here until message is sent
-      ask_ai: 'ask_ai', // Stay here until AI question is asked
-      ask_ai_followup: 'ask_ai_followup', // Stay here until followup is asked
-      wait_for_reply: 'view_reply',
-      view_reply: 'complete',
-      complete: 'complete',
+      welcome: "add_contact",
+      add_contact: "add_contact", // Stay here until contact is added
+      send_message: "send_message", // Stay here until message is sent
+      ask_ai: "ask_ai", // Stay here until AI question is asked
+      ask_ai_followup: "ask_ai_followup", // Stay here until followup is asked
+      wait_for_reply: "view_reply",
+      view_reply: "complete",
+      complete: "complete",
     };
 
     const currentStep = onboardingState.currentStep;
     const nextStep = nextSteps[currentStep];
-    
+
     // For instructional steps (add_contact, send_message, ask_ai, ask_ai_followup),
     // "Got it" should just close the dialog and wait for the user to perform the action
-    const instructionalSteps: OnboardingStep[] = ['add_contact', 'send_message', 'ask_ai', 'ask_ai_followup'];
-    
+    const instructionalSteps: OnboardingStep[] = [
+      "add_contact",
+      "send_message",
+      "ask_ai",
+      "ask_ai_followup",
+    ];
+
     if (instructionalSteps.includes(currentStep)) {
       // Just close the dialog, don't advance the step yet
       onClose();
@@ -226,10 +233,13 @@ export function OnboardingDialog({ isOpen, onClose, onStepChange }: OnboardingDi
   };
 
   const currentStepData = stepContent[onboardingState.currentStep];
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>{currentStepData.title}</DialogTitle>
@@ -243,12 +253,13 @@ export function OnboardingDialog({ isOpen, onClose, onStepChange }: OnboardingDi
             </Button>
           </div>
         </DialogHeader>
-        
+
         <div className="py-4">
-          {typeof currentStepData.content === 'function' 
-            ? currentStepData.content(onboardingState.contactName || 'your colleague')
-            : currentStepData.content
-          }
+          {typeof currentStepData.content === "function"
+            ? currentStepData.content(
+                onboardingState.contactName || "your colleague"
+              )
+            : currentStepData.content}
         </div>
 
         {currentStepData.buttonText && (
@@ -256,13 +267,11 @@ export function OnboardingDialog({ isOpen, onClose, onStepChange }: OnboardingDi
             <Button variant="outline" onClick={handleDismiss}>
               Skip Tutorial
             </Button>
-            <Button onClick={handleNext}>
-              {currentStepData.buttonText}
-            </Button>
+            <Button onClick={handleNext}>{currentStepData.buttonText}</Button>
           </div>
         )}
 
-        {onboardingState.currentStep === 'wait_for_reply' && (
+        {onboardingState.currentStep === "wait_for_reply" && (
           <div className="flex justify-end">
             <Button variant="outline" onClick={handleDismiss}>
               Skip Tutorial

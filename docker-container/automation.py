@@ -18,8 +18,6 @@ async def create_website_automation(
         job_manager.update_job(job_id, "creating", progress=10)
         
         # Get credentials from environment
-        # stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
-        # stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
         stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         
@@ -28,17 +26,6 @@ async def create_website_automation(
         proxy_username = os.getenv("PROXY_USERNAME")
         proxy_password = os.getenv("PROXY_PASSWORD")
         
-        # Multiple fallback proxy servers (Decodo provides multiple ports)
-        fallback_proxies = []
-        if proxy_server and "decodo.com" in proxy_server:
-            base_server = proxy_server.replace(":10000", "")
-            fallback_proxies = [
-                f"{base_server}:10001",
-                f"{base_server}:10002", 
-                f"{base_server}:10003",
-                f"{base_server}:10004",
-                f"{base_server}:10005"
-            ]
         
         if not stackblitz_email or not stackblitz_password:
             raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
@@ -53,7 +40,7 @@ async def create_website_automation(
         # Start automation with progress updates
         netlify_url, bolt_url = await run_playwright_automation(
             job_id, description, stackblitz_email, stackblitz_password, job_manager,
-            proxy_server, proxy_username, proxy_password, fallback_proxies
+            proxy_server, proxy_username, proxy_password
         )
         
         print(f"✅ Website creation completed!")
@@ -87,8 +74,7 @@ async def run_playwright_automation(
     job_manager,
     proxy_server: str = None,
     proxy_username: str = None,
-    proxy_password: str = None,
-    fallback_proxies: list = None
+    proxy_password: str = None
 ) -> tuple[str, str]:
     """
     Run Playwright automation following the DPM steps
@@ -107,7 +93,7 @@ async def run_playwright_automation(
     async with async_playwright() as p:
         # Launch browser with comprehensive flags for cloud/headless environments
         browser = await p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 '--disable-popup-blocking',
                 '--disable-web-security',
@@ -211,48 +197,50 @@ async def run_playwright_automation(
         try:
             # Step 1: Navigate to bolt.new with anti-detection strategies
             print(f"📍 Navigating to bolt.new...")
+
+            await page.goto("https://bolt.new", timeout=60000)
             
-            # Random delay before starting (1-3 seconds)
-            await asyncio.sleep(1 + (hash(job_id) % 2000) / 1000)
+            # # Random delay before starting (1-3 seconds)
+            # await asyncio.sleep(1 + (hash(job_id) % 2000) / 1000)
             
-            # Try multiple navigation strategies
-            navigation_success = False
-            for attempt in range(3):
-                try:
-                    print(f"🔄 Navigation attempt {attempt + 1}/3...")
+            # # Try multiple navigation strategies
+            # navigation_success = False
+            # for attempt in range(3):
+            #     try:
+            #         print(f"🔄 Navigation attempt {attempt + 1}/3...")
                     
-                    if attempt == 0:
-                        # First attempt: Direct navigation
-                        await page.goto("https://bolt.new", timeout=60000, wait_until='load')
+            #         if attempt == 0:
+            #             # First attempt: Direct navigation
+            #             await page.goto("https://bolt.new", timeout=60000, wait_until='load')
                         
-                    elif attempt == 1:
-                        # Second attempt: Via referrer
-                        await page.goto("https://google.com", timeout=30000)
-                        await asyncio.sleep(2)
-                        await page.goto("https://bolt.new", timeout=60000, wait_until='load')
+            #         elif attempt == 1:
+            #             # Second attempt: Via referrer
+            #             await page.goto("https://google.com", timeout=30000)
+            #             await asyncio.sleep(2)
+            #             await page.goto("https://bolt.new", timeout=60000, wait_until='load')
                         
-                    else:
-                        # Third attempt: Clear approach
-                        await page.goto("about:blank")
-                        await asyncio.sleep(3)
-                        await page.goto("https://bolt.new", timeout=90000, wait_until='domcontentloaded')
+            #         else:
+            #             # Third attempt: Clear approach
+            #             await page.goto("about:blank")
+            #             await asyncio.sleep(3)
+            #             await page.goto("https://bolt.new", timeout=90000, wait_until='domcontentloaded')
                     
-                    # Wait for page to be ready
-                    await page.wait_for_load_state('networkidle', timeout=30000)
-                    navigation_success = True
-                    break
+            #         # Wait for page to be ready
+            #         await page.wait_for_load_state('networkidle', timeout=30000)
+            #         navigation_success = True
+            #         break
                     
-                except Exception as nav_error:
-                    print(f"❌ Navigation attempt {attempt + 1} failed: {nav_error}")
-                    if attempt < 2:
-                        # Wait before retry with exponential backoff
-                        wait_time = (attempt + 1) * 10 + (hash(job_id) % 5)
-                        print(f"⏳ Waiting {wait_time} seconds before retry...")
-                        await asyncio.sleep(wait_time)
-                    continue
+            #     except Exception as nav_error:
+            #         print(f"❌ Navigation attempt {attempt + 1} failed: {nav_error}")
+            #         if attempt < 2:
+            #             # Wait before retry with exponential backoff
+            #             wait_time = (attempt + 1) * 10 + (hash(job_id) % 5)
+            #             print(f"⏳ Waiting {wait_time} seconds before retry...")
+            #             await asyncio.sleep(wait_time)
+            #         continue
             
-            if not navigation_success:
-                raise Exception("Failed to navigate to bolt.new after 3 attempts")
+            # if not navigation_success:
+            #     raise Exception("Failed to navigate to bolt.new after 3 attempts")
             
             # Add human-like delay
             await asyncio.sleep(2 + (hash(job_id) % 1000) / 1000)
@@ -375,27 +363,25 @@ async def run_playwright_automation(
             print(f"⏱️ Waiting for authentication to complete...")
             
             try:
-                # Try to wait for tab to close (popup scenario)
+                # Wait for the login tab to close automatically
                 await login_page.wait_for_event('close', timeout=60000)
-                print(f"✅ Login tab closed automatically, switching back to original bolt.new tab...")
-            except Exception:
-                print(f"⏳ Tab didn't close automatically, waiting for redirect or manually closing...")
-                # In fallback scenario, wait for redirect or manually close the tab
+                print(f"✅ Login tab closed automatically")
+            except:
+                # If tab doesn't close automatically, close it manually
+                print(f"⏳ Login tab didn't close automatically, closing manually...")
                 try:
-                    await login_page.wait_for_url("https://bolt.new*", timeout=30000)
-                    print(f"✅ Redirected to bolt.new, closing login tab...")
+                    await login_page.close()
                 except:
-                    print(f"⏳ No redirect detected, assuming login completed, closing tab...")
-                
-                # Manually close the tab
-                await login_page.close()
-            
+                    pass  # Tab might already be closed
+
             # Switch back to original tab
             page = original_page
             await page.bring_to_front()
+            
             # Reload the original tab to ensure we're authenticated
+            print(f"🔄 Reloading original tab to check authentication...")
             await page.reload()
-            await page.wait_for_load_state('networkidle')
+            # await page.wait_for_load_state('networkidle')
             
             # Wait a bit more for any dynamic content to load
             await asyncio.sleep(2)
@@ -404,34 +390,36 @@ async def run_playwright_automation(
             # Step 9: Enter description
             print(f"📝 Entering description...")
             
-            # Check if we're authenticated by looking for the textarea or sign-in button
+            # Check if we're authenticated by looking for the textarea
             try:
-                # Wait for either the textarea (authenticated) or sign-in button (not authenticated)
-                await page.wait_for_selector('textarea[placeholder="How can Bolt help you today?"], button:has-text("Sign In")', timeout=10000)
-                
                 # Check if we see the sign-in button (meaning we're not authenticated)
-                sign_in_visible = await page.locator('button:has-text("Sign In")').is_visible()
-                if sign_in_visible:
+                sign_in_button_exists = await page.locator('button:has-text("Sign In")').count() > 0
+                if sign_in_button_exists:
                     raise Exception("Still not authenticated after login process")
                 
-                # Wait for the textarea to be ready
+                # Wait for the textarea to be ready and fill it
                 print(f"🔍 Looking for textarea...")
-                textarea = await page.wait_for_selector('textarea[placeholder="How can Bolt help you today?"]', state='visible', timeout=10000)
+                textarea_locator = page.locator('textarea[placeholder="How can Bolt help you today?"]')
+                await textarea_locator.wait_for(state='visible', timeout=15000)
                 
-                # Double-check the element is attached before filling
-                is_attached = await textarea.is_attached()
-                if not is_attached:
-                    raise Exception("Textarea element is not attached to DOM")
-                
-                print(f"✅ Textarea found and attached, filling with description...")
+                print(f"✅ Textarea found, filling with description...")
                 prompt = f"Create a beautifully designed minimal website based on this detailed description the user has provided in sketch form: {description}"
-                await textarea.fill(prompt)
+                await textarea_locator.fill(prompt)
                 job_manager.update_job(job_id, "creating", progress=44)
                 
             except Exception as e:
                 print(f"❌ Error with textarea: {e}")
                 print(f"🔍 Current URL: {page.url}")
                 print(f"🔍 Page title: {await page.title()}")
+                
+                # Try to get page content for debugging
+                try:
+                    content = await page.content()
+                    print(f"🔍 Page contains 'textarea': {'textarea' in content.lower()}")
+                    print(f"🔍 Page contains 'Sign In': {'sign in' in content.lower()}")
+                except:
+                    pass
+                    
                 raise e
             
             # Step 10: Click submit button

@@ -21,14 +21,25 @@ async def create_website_automation(
         stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
         stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         
+        # Get proxy settings from environment
+        proxy_server = os.getenv("PROXY_SERVER")  # e.g., "http://proxy.example.com:8080"
+        proxy_username = os.getenv("PROXY_USERNAME")
+        proxy_password = os.getenv("PROXY_PASSWORD")
+        
         if not stackblitz_email or not stackblitz_password:
             raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
+        
+        if proxy_server:
+            print(f"🌐 Using proxy server: {proxy_server}")
+        else:
+            print(f"⚠️ No proxy configured - using direct connection")
         
         print(f"🤖 Using Playwright automation (faster and cheaper)")
         
         # Start automation with progress updates
         netlify_url, bolt_url = await run_playwright_automation(
-            job_id, description, stackblitz_email, stackblitz_password, job_manager
+            job_id, description, stackblitz_email, stackblitz_password, job_manager,
+            proxy_server, proxy_username, proxy_password
         )
         
         print(f"✅ Website creation completed!")
@@ -59,9 +70,24 @@ async def run_playwright_automation(
     description: str, 
     email: str, 
     password: str, 
-    job_manager
+    job_manager,
+    proxy_server: str = None,
+    proxy_username: str = None,
+    proxy_password: str = None
 ) -> tuple[str, str]:
-    """Run Playwright automation following the DPM steps"""
+    """
+    Run Playwright automation following the DPM steps
+    
+    Proxy configuration (optional):
+    - proxy_server: HTTP/HTTPS/SOCKS5 proxy URL (e.g., "http://proxy.example.com:8080")
+    - proxy_username: Username for authenticated proxies
+    - proxy_password: Password for authenticated proxies
+    
+    Environment variables:
+    - PROXY_SERVER: Proxy server URL
+    - PROXY_USERNAME: Proxy authentication username  
+    - PROXY_PASSWORD: Proxy authentication password
+    """
     
     async with async_playwright() as p:
         # Launch browser with comprehensive flags for cloud/headless environments
@@ -97,25 +123,113 @@ async def run_playwright_automation(
             ]
         )
         
-        # Create new context and page with proper settings for cloud environments
-        context = await browser.new_context(
-            viewport={'width': 1920, 'height': 1080},
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            locale='en-US',
-            timezone_id='America/New_York'
-        )
+        # Prepare context options with anti-detection measures
+        context_options = {
+            'viewport': {'width': 1366, 'height': 768},  # More common resolution
+            'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'locale': 'en-US',
+            'timezone_id': 'America/New_York',
+            'extra_http_headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0'
+            }
+        }
+        
+        # Add proxy configuration if provided
+        if proxy_server:
+            proxy_config = {'server': proxy_server}
+            if proxy_username and proxy_password:
+                proxy_config['username'] = proxy_username
+                proxy_config['password'] = proxy_password
+            context_options['proxy'] = proxy_config
+            print(f"🌐 Proxy configured: {proxy_server} (authenticated: {bool(proxy_username)})")
+        
+        # Create new context and page with proxy support
+        context = await browser.new_context(**context_options)
         page = await context.new_page()
         
         # Set longer default timeouts for cloud environments
-        page.set_default_timeout(60000)  # 60 seconds
+        page.set_default_timeout(90000)  # 90 seconds
+        
+        # Add human-like behavior
+        await page.add_init_script("""
+            // Remove webdriver property
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
+            
+            // Mock plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+            
+            // Mock languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+            
+            // Mock screen properties
+            Object.defineProperty(screen, 'colorDepth', {
+                get: () => 24,
+            });
+        """)
         
         try:
-            # Step 1: Navigate to bolt.new
+            # Step 1: Navigate to bolt.new with anti-detection strategies
             print(f"📍 Navigating to bolt.new...")
-            await page.goto("https://bolt.new", timeout=25000, wait_until='networkidle')
             
-            # Add extra wait for dynamic content
-            await asyncio.sleep(3)
+            # Random delay before starting (1-3 seconds)
+            await asyncio.sleep(1 + (hash(job_id) % 2000) / 1000)
+            
+            # Try multiple navigation strategies
+            navigation_success = False
+            for attempt in range(3):
+                try:
+                    print(f"🔄 Navigation attempt {attempt + 1}/3...")
+                    
+                    if attempt == 0:
+                        # First attempt: Direct navigation
+                        await page.goto("https://bolt.new", timeout=60000, wait_until='load')
+                        
+                    elif attempt == 1:
+                        # Second attempt: Via referrer
+                        await page.goto("https://google.com", timeout=30000)
+                        await asyncio.sleep(2)
+                        await page.goto("https://bolt.new", timeout=60000, wait_until='load')
+                        
+                    else:
+                        # Third attempt: Clear approach
+                        await page.goto("about:blank")
+                        await asyncio.sleep(3)
+                        await page.goto("https://bolt.new", timeout=90000, wait_until='domcontentloaded')
+                    
+                    # Wait for page to be ready
+                    await page.wait_for_load_state('networkidle', timeout=30000)
+                    navigation_success = True
+                    break
+                    
+                except Exception as nav_error:
+                    print(f"❌ Navigation attempt {attempt + 1} failed: {nav_error}")
+                    if attempt < 2:
+                        # Wait before retry with exponential backoff
+                        wait_time = (attempt + 1) * 10 + (hash(job_id) % 5)
+                        print(f"⏳ Waiting {wait_time} seconds before retry...")
+                        await asyncio.sleep(wait_time)
+                    continue
+            
+            if not navigation_success:
+                raise Exception("Failed to navigate to bolt.new after 3 attempts")
+            
+            # Add human-like delay
+            await asyncio.sleep(2 + (hash(job_id) % 1000) / 1000)
             job_manager.update_job(job_id, "creating", progress=10)
             
             # Debug: Check what's on the page

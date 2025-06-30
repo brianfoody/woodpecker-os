@@ -90,32 +90,32 @@ async function triggerMagicWandGesture(
 
 // Helper function to calculate AI bubble dimensions based on content
 function calculateAIBubbleDimensions(content: string) {
-  // Updated to prioritize wider, shorter bubbles with 25% overall size reduction
-  const minWidth = 340; // 25% smaller: 450 * 0.75 = 337.5 ≈ 340
-  const minHeight = 75;  // 25% smaller: 120 * 0.75 = 90, but make it even shorter
-  const maxWidth = 900;  // 25% smaller: 1200 * 0.75 = 900
-  const maxHeight = 350; // 25% smaller: 600 * 0.75 = 450, but make it shorter
+  // Adjusted to be 25% less wide and accommodate more height
+  const minWidth = 255; // 25% less wide: 340 * 0.75 = 255
+  const minHeight = 75;  
+  const maxWidth = 675;  // 25% less wide: 900 * 0.75 = 675
+  const maxHeight = 500; // Increased max height to accommodate narrower width
 
-  // Character-based estimation favoring width over height
+  // Character-based estimation with narrower width preference
   const charCount = content.length;
   const lineCount = Math.max(1, content.split("\n").length);
 
-  // Even more characters per line to make bubbles wider relative to height
-  const estimatedCharsPerLine = 75; // Increased from 60 to make wider
+  // Fewer characters per line since we're making it narrower
+  const estimatedCharsPerLine = 56; // Reduced from 75 to account for narrower width
   const estimatedWidth = Math.min(
     maxWidth,
-    Math.max(minWidth, estimatedCharsPerLine * 6 + 70) // Reduced multiplier for 25% smaller
+    Math.max(minWidth, estimatedCharsPerLine * 6 + 70)
   );
 
-  // Calculate height with strong preference for shorter bubbles
+  // Calculate height to accommodate more lines due to narrower width
   const actualCharsPerLine = Math.max(1, (estimatedWidth - 70) / 6);
   const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
   const totalLines = Math.max(lineCount, wrappedLines);
 
-  // Much shorter line height for very compact bubbles
+  // Increased line height since we need more vertical space
   const estimatedHeight = Math.min(
     maxHeight,
-    Math.max(minHeight, totalLines * 14 + 60) // Reduced from 18 + 80 for shorter bubbles
+    Math.max(minHeight, totalLines * 16 + 70) // Increased line height and padding
   );
 
   return {
@@ -719,7 +719,6 @@ export default function TldrawCanvas() {
           
           // Position new bubble below the bottommost existing AI bubble with some padding
           const padding = 20;
-          const newBubbleHeight = dimensions?.height ? dimensions.height * 2 : 300;
           adjustedBubblePosition = {
             x: bubblePosition.x,
             y: bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding
@@ -854,6 +853,166 @@ export default function TldrawCanvas() {
       }
     },
     [currentImageSummary, onboardingActions]
+  );
+
+  // Extracted function for executing Search action
+  const executeSearch = useCallback(
+    async (
+      action: AIAction,
+      bubblePosition: { x: number; y: number },
+      isAutoExecution = false,
+      imageSummary?: string,
+      dimensions?: { width: number; height: number }
+    ) => {
+      const logPrefix = isAutoExecution
+        ? "🤖 Auto-executing"
+        : "👤 User executing";
+      console.log(`${logPrefix} Search action:`, action);
+
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // Check for existing AI bubbles in the current captured shapes to position new bubble below them
+      let adjustedBubblePosition = bubblePosition;
+      if (currentCapturedShapes && currentCapturedShapes.length > 0) {
+        const aiBubbles = currentCapturedShapes.filter((shape: any) => shape.type === "ai-bubble");
+        if (aiBubbles.length > 0) {
+          // Find the bottommost AI bubble
+          const bottomMostBubble = aiBubbles.reduce((lowest: any, current: any) => {
+            const currentBottom = current.y + (current.props?.h || 300);
+            const lowestBottom = lowest.y + (lowest.props?.h || 300);
+            return currentBottom > lowestBottom ? current : lowest;
+          });
+          
+          // Position new bubble below the bottommost existing AI bubble with some padding
+          const padding = 20;
+          adjustedBubblePosition = {
+            x: bubblePosition.x,
+            y: bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding
+          };
+          
+          console.log("🔧 Positioning new search bubble below existing AI bubble:", {
+            existingBubbleBottom: bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+            newBubbleY: adjustedBubblePosition.y
+          });
+        }
+      }
+
+      // Create AI bubble shape in loading state
+      const bubbleShapeId = createShapeId();
+      console.log("🔧 Creating search result bubble with ID:", bubbleShapeId);
+
+      try {
+        editor.createShapes([
+          {
+            id: bubbleShapeId,
+            type: "ai-bubble",
+            x: adjustedBubblePosition.x,
+            y: adjustedBubblePosition.y,
+            props: {
+              w: dimensions?.width ? dimensions.width * 1.7 : 400,
+              h: dimensions?.height ? dimensions.height * 2 : 150,
+              content: "",
+              isLoading: true,
+            },
+          },
+        ]);
+        console.log("✅ Search result bubble created successfully");
+      } catch (error) {
+        console.error("❌ Failed to create search result bubble:", error);
+        return;
+      }
+
+      try {
+        // Extract the search query from the action text or use the summary
+        const searchQuery = action.text || imageSummary || "search query";
+        
+        console.log("🔍 Performing search for:", searchQuery);
+
+        // Call the search API endpoint
+        const apiResponse = await fetch("/api/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: searchQuery,
+          }),
+        });
+
+        if (!apiResponse.ok) {
+          throw new Error(
+            `Search API request failed with status ${apiResponse.status}`
+          );
+        }
+
+        const result = await apiResponse.json();
+
+        if (!result.success) {
+          throw new Error(result.error || "Search request failed");
+        }
+
+        console.log("🎯 Search results received");
+
+        // Check if we have an answer from Tavily search results
+        const searchAnswer = result.answer;
+
+        if (!searchAnswer || searchAnswer.trim() === "") {
+          console.log("❌ No answer found in search results");
+          
+          // Remove the search bubble since we have no answer
+          try {
+            editor.deleteShape(bubbleShapeId);
+          } catch (deleteError) {
+            console.error("❌ Failed to delete search bubble:", deleteError);
+          }
+
+          // Show toast indicating no results found
+          toast({
+            variant: "destructive",
+            title: "No Results Found",
+            description: "Sorry, couldn't find any information about your search query.",
+          });
+          
+          return;
+        }
+
+        // Calculate appropriate dimensions for the content
+        const dimensions = calculateAIBubbleDimensions(searchAnswer);
+        console.log("🔧 Calculated dimensions for search results:", dimensions);
+
+        // Update the AI bubble shape with the search results
+        editor.updateShape({
+          id: bubbleShapeId,
+          type: "ai-bubble",
+          props: {
+            content: searchAnswer,
+            isLoading: false,
+            w: dimensions.w,
+            h: dimensions.h,
+          },
+        });
+        console.log("🔧 Search result bubble updated with results");
+
+      } catch (error) {
+        console.error("❌ Error calling search API:", error);
+
+        // Delete the shape and show a toast instead of inline error
+        try {
+          editor.deleteShape(bubbleShapeId);
+        } catch (deleteError) {
+          console.error("❌ Failed to delete error shape:", deleteError);
+        }
+
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Search Failed",
+          description: "Something went wrong with the search. Please try again.",
+        });
+      }
+    },
+    [currentCapturedShapes]
   );
 
   // Extracted function for executing Add Contact action
@@ -1597,8 +1756,18 @@ export default function TldrawCanvas() {
         false,
         currentBubbleDimensions
       );
+    } else if (action.action === "search") {
+      // Use the center of the circled area for consistent positioning
+      const bubblePagePosition = currentCircledAreaCenter;
+      await executeSearch(
+        action,
+        bubblePagePosition,
+        false,
+        currentImageSummary,
+        currentBubbleDimensions
+      );
     } else {
-      // TODO: Implement other action types (search)
+      // TODO: Implement other action types
       console.log("🚧 Action type not yet implemented:", action.action);
     }
   };
@@ -1973,8 +2142,20 @@ export default function TldrawCanvas() {
                 true,
                 { width: scaledWidth, height: scaledHeight }
               );
+            } else if (action.action === "search") {
+              const bubblePagePosition = {
+                x: bubbleX,
+                y: bubbleY,
+              };
+              await executeSearch(
+                action,
+                bubblePagePosition,
+                true,
+                imageSummary,
+                { width: scaledWidth, height: scaledHeight }
+              );
             } else {
-              // TODO: Implement other action types for auto-execution (search)
+              // TODO: Implement other action types for auto-execution
               console.log(
                 "🚧 Auto-execution not yet implemented for:",
                 action.action
@@ -2047,6 +2228,7 @@ export default function TldrawCanvas() {
       originalStrokeProps,
       aiProcessingAborted,
       executeAskAI,
+      executeSearch,
       executeAddContact,
       executeSendMessage,
       processReplyScenario,

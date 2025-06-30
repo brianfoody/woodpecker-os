@@ -78,14 +78,14 @@ export async function sendToAI(
           return { text: text.trim(), x, y };
         })
         .filter(({ text }) => text.length > 0)
-        .map(({ text, x, y }) => `"${text}" at position (${x}, ${y})`);
+        .map(({ text, x, y }) => text);
 
       const textContent =
         meaningfulTextEntries.length > 0
           ? meaningfulTextEntries.join(", ")
           : "[No meaningful text found]";
 
-      sceneDescription = `Text content: ${textContent}`;
+      sceneDescription = `${textContent}`;
     } else {
       console.log("🖼️ Shapes/drawings detected, analyzing image...");
 

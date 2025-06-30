@@ -12,8 +12,8 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
   getDefaultProps(): AIBubbleShape['props'] {
     console.log('🔧 AIBubbleShapeUtil: getDefaultProps called');
     return {
-      w: 360, // 25% smaller: 480 * 0.75 = 360 (wider than before)
-      h: 100, // 25% smaller: 135 * 0.75 ≈ 100 (less tall)
+      w: 270, // 25% less wide: 360 * 0.75 = 270
+      h: 120, // Increased height to accommodate narrower width
       content: '',
       isLoading: false,
     }

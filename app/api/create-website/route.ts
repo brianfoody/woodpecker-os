@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Environment variables for container service
-const CONTAINER_SERVICE_URL = process.env.CONTAINER_SERVICE_URL || "http://localhost:8000";
+const CONTAINER_SERVICE_URL =
+  process.env.CONTAINER_SERVICE_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,9 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if container service is configured
-    if (!CONTAINER_SERVICE_URL || CONTAINER_SERVICE_URL === "http://localhost:8000") {
-      console.warn("⚠️ Container service URL not configured, using mock response");
-      
+    // if (!CONTAINER_SERVICE_URL || CONTAINER_SERVICE_URL === "http://localhost:8000") {
+    if (!CONTAINER_SERVICE_URL) {
+      console.warn(
+        "⚠️ Container service URL not configured, using mock response"
+      );
+
       // Return mock response for development
       return NextResponse.json({
         success: true,
@@ -52,19 +56,22 @@ export async function POST(request: NextRequest) {
     console.log("🌐 Calling container service at:", CONTAINER_SERVICE_URL);
 
     // Call the container service
-    const containerResponse = await fetch(`${CONTAINER_SERVICE_URL}/create-website`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        jobId,
-        imageBase64,
-        description,
-      }),
-      // 10 second timeout for the initial request
-      signal: AbortSignal.timeout(10000),
-    });
+    const containerResponse = await fetch(
+      `${CONTAINER_SERVICE_URL}/create-website`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobId,
+          imageBase64,
+          description,
+        }),
+        // 10 second timeout for the initial request
+        signal: AbortSignal.timeout(10000),
+      }
+    );
 
     if (!containerResponse.ok) {
       throw new Error(

@@ -61,6 +61,8 @@ const stepContent = {
       <div className="space-y-4">
         <p className="text-lg">
           Okay, <strong>{contactName}</strong> has been added to your contacts.
+        </p>
+        <p className="text-lg">
           {`Now, let's send them a message to remind them of our client meeting at 10am.`}
         </p>
         <p className="text-lg">
@@ -75,7 +77,7 @@ const stepContent = {
     buttonText: "Got it",
   },
   ask_ai: {
-    title: "Do Some Research",
+    title: "Research time",
     content: (
       <div className="space-y-4">
         <p className="text-lg text-gray-600">
@@ -83,12 +85,10 @@ const stepContent = {
           morning.
         </p>
 
-        <p className="text-lg">Now let&apos;s do some research.</p>
+        <p className="text-lg">Now it&apos;s time to do some research.</p>
+        <p className="text-lg">{`Your meeting is about design for VR.`}</p>
         <p className="text-lg">
-          Your meeting is about Apple&apos;s new liquid glass design & studies.
-        </p>
-        <p className="text-lg">
-          Write: <em>&quot;Tell me about Apple&apos;s liquid design&quot;</em>
+          Write: <em>&quot;Give me some examples of VR web design.&quot;</em>
         </p>
         <p className="text-lg">You know the drill now. Circle & hold.</p>
       </div>
@@ -100,11 +100,11 @@ const stepContent = {
     content: (
       <div className="space-y-4">
         <p className="text-lg">
-          Right, makes sense. But what does it mean for our mates at Bolt?
+          Right, makes sense. But what does it mean for our mates at Bolt.new?
         </p>
         <p className="text-lg">
           Sketch a note beside it asking:{" "}
-          <em>&quot;How do you see this impacting bolt.new?&quot;</em>
+          <em>&quot;How can bolt.new integrate VR experiences?&quot;</em>
         </p>
         <p className="text-lg">
           Circle <strong>BOTH</strong> the note and the AI answer.

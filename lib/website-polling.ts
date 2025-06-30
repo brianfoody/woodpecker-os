@@ -50,18 +50,28 @@ export const startWebsiteJobPolling = (
         `📊 Job ${jobId} status: ${status} (progress: ${result.progress || 0}%)`
       );
 
-      // Update shape with new status
+      // Update shape with new status (filter out undefined values)
+      const updateProps: any = {
+        ...shape.props,
+        status: status,
+        progress: result.progress || 0,
+      };
+
+      // Only add defined values to avoid validation errors
+      if (result.netlifyUrl !== undefined) {
+        updateProps.netlifyUrl = result.netlifyUrl;
+      }
+      if (result.boltUrl !== undefined) {
+        updateProps.boltUrl = result.boltUrl;
+      }
+      if (result.errorMessage !== undefined) {
+        updateProps.errorMessage = result.errorMessage;
+      }
+
       editor.updateShape({
-        id: shapeId,
+        id: shapeId as any,
         type: "website-bubble",
-        props: {
-          ...shape.props,
-          status: status,
-          progress: result.progress || 0,
-          netlifyUrl: result.netlifyUrl,
-          boltUrl: result.boltUrl,
-          errorMessage: result.errorMessage,
-        },
+        props: updateProps,
       });
 
       // Stop polling when complete or failed

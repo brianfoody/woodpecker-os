@@ -12,15 +12,15 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
   getDefaultProps(): AIBubbleShape['props'] {
     console.log('🔧 AIBubbleShapeUtil: getDefaultProps called');
     return {
-      w: 300,
-      h: 200,
+      w: 400,
+      h: 150,
       content: '',
       isLoading: false,
     }
   }
 
   getMinDimensions() {
-    return { width: 150, height: 100 }
+    return { width: 200, height: 80 }
   }
 
   getMaxDimensions() {
@@ -40,9 +40,9 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
     const bounds = this.editor.getShapeGeometry(shape).bounds
     const isDarkMode = this.editor.user.getIsDarkMode()
 
-    // Calculate responsive font size based on container size
-    const baseFontSize = 14
-    const fontScale = Math.max(0.7, Math.min(1.2, bounds.width / 300))
+    // Calculate responsive font size based on container size (50% smaller)
+    const baseFontSize = 7
+    const fontScale = Math.max(0.7, Math.min(1.2, bounds.width / 400))
     const fontSize = Math.round(baseFontSize * fontScale)
 
     return (

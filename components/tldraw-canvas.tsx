@@ -90,33 +90,33 @@ async function triggerMagicWandGesture(
 
 // Helper function to calculate AI bubble dimensions based on content
 function calculateAIBubbleDimensions(content: string) {
-  // Balanced estimation + 10% larger
-  const minWidth = 374; // 340 * 1.1
-  const minHeight = 187; // 170 * 1.1
-  const maxWidth = 968; // 880 * 1.1
-  const maxHeight = 748; // 680 * 1.1
+  // Updated to prioritize wider, shorter bubbles
+  const minWidth = 450; // Wider minimum width
+  const minHeight = 120; // Shorter minimum height  
+  const maxWidth = 1200; // Wider maximum width
+  const maxHeight = 600; // Lower maximum height
 
-  // Character-based estimation with 10% larger sizing
+  // Character-based estimation favoring width over height
   const charCount = content.length;
   const lineCount = Math.max(1, content.split("\n").length);
 
-  // 10% more generous chars per line
-  const estimatedCharsPerLine = 42; // 47 * 0.9 (fewer chars per line = wider)
+  // More characters per line to make bubbles wider
+  const estimatedCharsPerLine = 60; // More chars per line = wider bubbles
   const estimatedWidth = Math.min(
     maxWidth,
-    Math.max(minWidth, estimatedCharsPerLine * 10 + 84)
-  ); // 9*1.1 + 76*1.1
+    Math.max(minWidth, estimatedCharsPerLine * 8 + 90)
+  );
 
-  // Calculate height with 10% larger approach
-  const actualCharsPerLine = Math.max(1, (estimatedWidth - 84) / 10);
+  // Calculate height with preference for shorter bubbles
+  const actualCharsPerLine = Math.max(1, (estimatedWidth - 90) / 8);
   const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
   const totalLines = Math.max(lineCount, wrappedLines);
 
-  // 10% larger line height and padding
+  // Shorter line height for more compact bubbles
   const estimatedHeight = Math.min(
     maxHeight,
-    Math.max(minHeight, totalLines * 24 + 106)
-  ); // 22*1.1 + 96*1.1
+    Math.max(minHeight, totalLines * 18 + 80)
+  );
 
   return {
     w: Math.round(estimatedWidth),
@@ -150,6 +150,7 @@ export default function TldrawCanvas() {
   const [currentImageSummary, setCurrentImageSummary] = useState<string>("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentCapturedShapes, setCurrentCapturedShapes] = useState<any[]>([]);
+  const [currentShapesForRemoval, setCurrentShapesForRemoval] = useState<any[]>([]);
   const [currentCapturedImageBlob, setCurrentCapturedImageBlob] = useState<Blob | null>(null);
   const [currentBubbleDimensions, setCurrentBubbleDimensions] = useState<{
     width: number;
@@ -552,6 +553,12 @@ export default function TldrawCanvas() {
                   replyText: message.text,
                 },
               });
+
+              // Check if we need to advance onboarding when a reply is received
+              const onboardingUpdate = onboardingActions.checkActionForOnboarding('message_received');
+              if (onboardingUpdate) {
+                console.log('📋 Onboarding: Advanced due to message reply');
+              }
             } else {
               console.log(
                 `📱 ❌ No matching bubble found for ${matchingContact.name}. Available bubbles:`,
@@ -698,6 +705,33 @@ export default function TldrawCanvas() {
       const editor = editorRef.current;
       if (!editor) return;
 
+      // Check for existing AI bubbles in the current captured shapes to position new bubble below them
+      let adjustedBubblePosition = bubblePosition;
+      if (currentCapturedShapes && currentCapturedShapes.length > 0) {
+        const aiBubbles = currentCapturedShapes.filter((shape: any) => shape.type === "ai-bubble");
+        if (aiBubbles.length > 0) {
+          // Find the bottommost AI bubble
+          const bottomMostBubble = aiBubbles.reduce((lowest: any, current: any) => {
+            const currentBottom = current.y + (current.props?.h || 300);
+            const lowestBottom = lowest.y + (lowest.props?.h || 300);
+            return currentBottom > lowestBottom ? current : lowest;
+          });
+          
+          // Position new bubble below the bottommost existing AI bubble with some padding
+          const padding = 20;
+          const newBubbleHeight = dimensions?.height ? dimensions.height * 2 : 300;
+          adjustedBubblePosition = {
+            x: bubblePosition.x,
+            y: bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding
+          };
+          
+          console.log("🔧 Positioning new AI bubble below existing AI bubble:", {
+            existingBubbleBottom: bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+            newBubbleY: adjustedBubblePosition.y
+          });
+        }
+      }
+
       // Create AI bubble shape in loading state
       const bubbleShapeId = createShapeId();
       console.log("🔧 Creating AI bubble shape with ID:", bubbleShapeId);
@@ -707,11 +741,11 @@ export default function TldrawCanvas() {
           {
             id: bubbleShapeId,
             type: "ai-bubble",
-            x: bubblePosition.x,
-            y: bubblePosition.y,
+            x: adjustedBubblePosition.x,
+            y: adjustedBubblePosition.y,
             props: {
-              w: dimensions?.width ? dimensions.width * 1.7 : 600, // AI bubbles are larger than message bubbles
-              h: dimensions?.height ? dimensions.height * 2 : 300,
+              w: dimensions?.width ? dimensions.width * 1.7 : 400, // Use updated default width
+              h: dimensions?.height ? dimensions.height * 2 : 150, // Use updated default height
               content: "",
               isLoading: true,
             },
@@ -725,8 +759,8 @@ export default function TldrawCanvas() {
           {
             id: bubbleShapeId,
             type: "text",
-            x: bubblePosition.x,
-            y: bubblePosition.y,
+            x: adjustedBubblePosition.x,
+            y: adjustedBubblePosition.y,
             props: {
               richText: toRichText("Asking AI..."),
             },
@@ -1526,7 +1560,7 @@ export default function TldrawCanvas() {
       await executeAddContact(
         action,
         currentImageSummary,
-        currentCapturedShapes,
+        currentShapesForRemoval,
         false
       );
     } else if (action.action === "send_message") {
@@ -1535,7 +1569,7 @@ export default function TldrawCanvas() {
       await executeSendMessage(
         action,
         currentImageSummary,
-        currentCapturedShapes,
+        currentShapesForRemoval,
         bubblePagePosition,
         false,
         currentBubbleDimensions
@@ -1546,7 +1580,7 @@ export default function TldrawCanvas() {
       await executeReadContactMessages(
         action,
         currentImageSummary,
-        currentCapturedShapes,
+        currentShapesForRemoval,
         bubblePagePosition,
         false,
         currentBubbleDimensions
@@ -1557,7 +1591,7 @@ export default function TldrawCanvas() {
       await executeCreateWebsite(
         action,
         currentImageSummary,
-        currentCapturedShapes,
+        currentShapesForRemoval,
         bubblePagePosition,
         currentCapturedImageBlob, // Need to preserve this from magic wand
         false,
@@ -1830,7 +1864,14 @@ export default function TldrawCanvas() {
           const imageSummary = aiResult.sceneDescription;
           setCurrentImageSummary(imageSummary);
           console.log("📱 DEBUG: currentImageSummary set to:", imageSummary);
+          // Separate AI bubbles from other shapes - AI bubbles should never be removed
+          const aiBubbles = shapesInLoop.filter((shape: any) => shape.type === "ai-bubble");
+          const shapesForRemoval = shapesInLoop.filter((shape: any) => shape.type !== "ai-bubble");
+          
+          // Store all shapes for positioning logic, but track which ones should be preserved
           setCurrentCapturedShapes(shapesInLoop);
+          setCurrentShapesForRemoval(shapesForRemoval);
+          console.log(`🔧 Captured ${shapesInLoop.length} shapes total: ${aiBubbles.length} AI bubbles (preserved), ${shapesForRemoval.length} other shapes`);
 
           const centerX = (minX + maxX) / 2;
           const centerY = (minY + maxY) / 2;
@@ -1891,7 +1932,7 @@ export default function TldrawCanvas() {
                 { width: scaledWidth, height: scaledHeight }
               );
             } else if (action.action === "add_contact") {
-              await executeAddContact(action, imageSummary, shapesInLoop, true);
+              await executeAddContact(action, imageSummary, shapesForRemoval, true);
             } else if (action.action === "send_message") {
               const bubblePagePosition = {
                 x: bubbleX,
@@ -1900,7 +1941,7 @@ export default function TldrawCanvas() {
               await executeSendMessage(
                 action,
                 imageSummary,
-                shapesInLoop,
+                shapesForRemoval,
                 bubblePagePosition,
                 true,
                 { width: scaledWidth, height: scaledHeight }
@@ -1913,7 +1954,7 @@ export default function TldrawCanvas() {
               await executeReadContactMessages(
                 action,
                 imageSummary,
-                shapesInLoop,
+                shapesForRemoval,
                 bubblePagePosition,
                 true,
                 { width: scaledWidth, height: scaledHeight }
@@ -1926,7 +1967,7 @@ export default function TldrawCanvas() {
               await executeCreateWebsite(
                 action,
                 imageSummary,
-                shapesInLoop,
+                shapesForRemoval,
                 bubblePagePosition,
                 result.blob, // Use the captured image blob
                 true,

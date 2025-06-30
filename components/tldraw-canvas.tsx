@@ -33,6 +33,9 @@ import {
   updateLastMessageCheck,
 } from "@/lib/message-tracking";
 import type { SmartMessage } from "@/lib/models";
+import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
+import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
 
 // Hold detection
 let holdDetector: HoldDetector | null = null;
@@ -139,6 +142,10 @@ export default function TldrawCanvas() {
     size: string;
   } | null>(null);
   const [aiProcessingAborted, setAiProcessingAborted] = useState(false);
+
+  // Onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingActions = useOnboardingActions();
 
   const [currentImageSummary, setCurrentImageSummary] = useState<string>("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -786,6 +793,12 @@ export default function TldrawCanvas() {
           },
         });
         console.log("🔧 AI bubble shape updated with new dimensions");
+
+        // Check for onboarding progression
+        const onboardingUpdate = onboardingActions.checkActionForOnboarding('ask_ai');
+        if (onboardingUpdate && onboardingUpdate.isActive) {
+          setShowOnboarding(true);
+        }
       } catch (error) {
         console.error("❌ Error calling askAI API:", error);
 
@@ -804,11 +817,11 @@ export default function TldrawCanvas() {
         });
       }
     },
-    [currentImageSummary]
+    [currentImageSummary, onboardingActions]
   );
 
   // Extracted function for executing Add Contact action
-  const executeAddContact = async (
+  const executeAddContact = useCallback(async (
     action: AIAction,
     imageSummary: string,
     shapesToRemove: any[],
@@ -871,6 +884,14 @@ export default function TldrawCanvas() {
       // Save contact to localStorage (this will update if contact exists by phone number)
       saveContact(result.contact);
 
+      // Check for onboarding progression
+      const onboardingUpdate = onboardingActions.checkActionForOnboarding('add_contact', {
+        contactName: result.contact.name
+      });
+      if (onboardingUpdate && onboardingUpdate.isActive) {
+        setShowOnboarding(true);
+      }
+
       // Get editor reference for shape operations
       const editor = editorRef.current;
       if (editor && shapesToRemove.length > 0) {
@@ -928,10 +949,10 @@ export default function TldrawCanvas() {
           "Sorry, there was an error extracting the contact information. Please try again.",
       });
     }
-  };
+  }, [onboardingActions]);
 
   // Extracted function for executing Send Message action
-  const executeSendMessage = async (
+  const executeSendMessage = useCallback(async (
     action: AIAction,
     imageSummary: string,
     shapesToRemove: any[],
@@ -1088,6 +1109,12 @@ export default function TldrawCanvas() {
 
       console.log("✅ Message bubble created and text extracted successfully");
 
+      // Check for onboarding progression
+      const onboardingUpdate = onboardingActions.checkActionForOnboarding('send_message');
+      if (onboardingUpdate && onboardingUpdate.isActive) {
+        setShowOnboarding(true);
+      }
+
       // Note: The actual sending will be handled by the MessageBubble component itself
       // which will call the /api/send-message endpoint and update its own state
     } catch (error) {
@@ -1139,7 +1166,7 @@ export default function TldrawCanvas() {
         }
       }
     }
-  };
+  }, [onboardingActions]);
 
   // Extracted function for executing Read Contact Messages action
   const executeReadContactMessages = async (
@@ -1973,6 +2000,8 @@ export default function TldrawCanvas() {
       originalStrokeProps,
       aiProcessingAborted,
       executeAskAI,
+      executeAddContact,
+      executeSendMessage,
       processReplyScenario,
     ]
   );
@@ -2058,6 +2087,13 @@ export default function TldrawCanvas() {
               // Clear corrupted data
               clearCanvasData();
             }
+          }
+
+          // Check if onboarding should be shown
+          if (shouldShowOnboarding()) {
+            console.log("📋 Showing onboarding for new user");
+            setShowOnboarding(true);
+            startOnboarding();
           }
 
           // Load saved contacts from localStorage
@@ -2351,6 +2387,16 @@ export default function TldrawCanvas() {
           />
         </a>
       </div>
+
+      <OnboardingDialog
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onStepChange={(step) => {
+          if (step === 'complete') {
+            setShowOnboarding(false);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -17,14 +17,7 @@ async def create_website_automation(
     try:
         print(f"🌐 Starting website automation for job {job_id}")
         
-        # Update progress
-        job_manager.update_job(job_id, "creating", progress=15)
-        
-        # Decode and save image temporarily
-        image_path = await save_base64_image(image_base64, job_id)
-        print(f"💾 Image saved to: {image_path}")
-        
-        # Update progress
+        # Update progress - no image handling needed for text-based approach
         job_manager.update_job(job_id, "creating", progress=20)
         
         # Get API key and credentials from environment
@@ -60,13 +53,13 @@ async def create_website_automation(
         Complete this website creation workflow step by step:
         
         1. Navigate to: {stackblitz_url}
-        2. Enter {stackblitz_email} into email input and click "Sign In:
+        2. Enter {stackblitz_email} into email input and click "Sign In"
         3. The password field will now show. Enter {stackblitz_password} into the password field. 
         4. Click Sign In again
         5. IMPORTANT: After login, if you see an "Authenticating" screen or oauth2 redirect, wait 5 seconds maximum then navigate directly to: https://bolt.new (you are likely already logged in)
-        6. Look for and click the file upload icon within the primary text area input - it should have class "i-ph:link-simple text-xl" or similar upload icon
-        7. Upload the image file located at: {image_path}
-        8. In the main text input area, enter this prompt: "Create a beautifully designed website based on the attached sketch: {description}"
+        6. Find the main text input area on the page (large text input for prompts)
+        7. In the main text input area, enter this prompt: "Create a beautifully designed website based on this detailed description of the user's sketch: {description}"
+        8. Press Enter or click the submit button to start website creation
         9. Verify that the website creation has started. You should see a panel on the left side begin creating. If so, continue to step 10. If you see a popup login modal then our sign in attempt was not valid - return to step 1.
         10. Wait for the AI to complete the website creation (watch for stop icon "i-ph:stop-circle-bold" to disappear from the left panel)
         11. Once creation is complete, click the deploy button in the top right area
@@ -78,7 +71,7 @@ async def create_website_automation(
         - Take your time with each step
         - Wait for pages to fully load before proceeding
         - DO NOT get stuck on authentication screens - if you see "Authenticating" or oauth2 URLs after login, wait max 2 seconds then go to https://bolt.new
-        - The upload might take a moment to process
+        - NO FILE UPLOAD needed - everything is text-based
         - Website generation can take 1-3 minutes
         - Deployment can take another 1-2 minutes
         - Look carefully for the URLs in the final step
@@ -116,12 +109,8 @@ async def create_website_automation(
             bolt_url=bolt_url
         )
         
-        # Clean up temporary image
-        try:
-            os.unlink(image_path)
-            print(f"🗑️ Cleaned up temporary image: {image_path}")
-        except Exception as e:
-            print(f"⚠️ Failed to clean up image: {e}")
+        # No cleanup needed for text-based approach
+        print(f"✅ Text-based website creation completed successfully")
         
     except Exception as e:
         print(f"❌ Automation failed for job {job_id}: {e}")
@@ -131,32 +120,9 @@ async def create_website_automation(
             error_message=str(e)
         )
         
-        # Clean up on error
-        try:
-            if 'image_path' in locals():
-                os.unlink(image_path)
-        except:
-            pass
+        # No cleanup needed for text-based approach
 
-async def save_base64_image(image_base64: str, job_id: str) -> str:
-    """Save base64 image to temporary file"""
-    try:
-        # Decode base64
-        image_data = base64.b64decode(image_base64)
-        
-        # Create temporary file
-        temp_dir = tempfile.gettempdir()
-        image_path = os.path.join(temp_dir, f"sketch_{job_id}.png")
-        
-        # Save image
-        with open(image_path, 'wb') as f:
-            f.write(image_data)
-        
-        print(f"💾 Saved image: {len(image_data)} bytes to {image_path}")
-        return image_path
-        
-    except Exception as e:
-        raise Exception(f"Failed to save image: {e}")
+# Image handling functions removed - using text-based approach
 
 async def run_automation_with_progress(agent, job_id: str, job_manager) -> str:
     """Run automation with progress updates"""

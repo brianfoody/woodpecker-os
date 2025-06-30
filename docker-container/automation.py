@@ -64,7 +64,7 @@ async def run_playwright_automation(
     """Run Playwright automation following the DPM steps"""
     
     async with async_playwright() as p:
-        # Launch browser with flags to disable popup blocking and other restrictions
+        # Launch browser with comprehensive flags for cloud/headless environments
         browser = await p.chromium.launch(
             headless=True,
             args=[
@@ -79,25 +79,100 @@ async def run_playwright_automation(
                 '--disable-renderer-backgrounding',
                 '--allow-running-insecure-content',
                 '--disable-features=TranslateUI',
-                '--disable-ipc-flooding-protection'
+                '--disable-ipc-flooding-protection',
+                '--disable-extensions',
+                '--disable-plugins',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-background-networking',
+                '--disable-default-apps',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--no-first-run',
+                '--safebrowsing-disable-auto-update',
+                '--disable-component-update',
+                '--disable-domain-reliability',
+                '--font-render-hinting=none',
+                '--disable-font-subpixel-positioning'
             ]
         )
         
-        # Create new context and page with popup permissions
-        context = await browser.new_context()
+        # Create new context and page with proper settings for cloud environments
+        context = await browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            locale='en-US',
+            timezone_id='America/New_York'
+        )
         page = await context.new_page()
+        
+        # Set longer default timeouts for cloud environments
+        page.set_default_timeout(60000)  # 60 seconds
         
         try:
             # Step 1: Navigate to bolt.new
             print(f"📍 Navigating to bolt.new...")
-            await page.goto("https://bolt.new")
+            await page.goto("https://bolt.new", timeout=25000, wait_until='networkidle')
+            
+            # Add extra wait for dynamic content
+            await asyncio.sleep(3)
             job_manager.update_job(job_id, "creating", progress=10)
             
+            # Debug: Check what's on the page
+            print(f"🔍 Current URL: {page.url}")
+            print(f"🔍 Page title: {await page.title()}")
+            
             # Step 2: Click "Sign In" button on main page
-            print(f"🔘 Clicking Sign In button...")
-            sign_in_button = await page.wait_for_selector('button:has-text("Sign In")')
-            await sign_in_button.click()
-            job_manager.update_job(job_id, "creating", progress=15)
+            print(f"🔘 Looking for Sign In button...")
+            
+            try:
+                # Try multiple possible selectors for the Sign In button
+                sign_in_selectors = [
+                    'button:has-text("Sign In")',
+                    'button:has-text("Sign in")',
+                    'button:has-text("LOGIN")',
+                    'a:has-text("Sign In")',
+                    'a:has-text("Sign in")',
+                    '[data-testid="sign-in"]',
+                    '.sign-in-button',
+                    'button[class*="sign"]',
+                    'button[class*="login"]'
+                ]
+                
+                # Wait for any of these selectors to appear
+                sign_in_button = None
+                for selector in sign_in_selectors:
+                    try:
+                        print(f"🔍 Trying selector: {selector}")
+                        sign_in_button = await page.wait_for_selector(selector, timeout=10000)
+                        if sign_in_button:
+                            print(f"✅ Found Sign In button with selector: {selector}")
+                            break
+                    except:
+                        continue
+                
+                if not sign_in_button:
+                    # Take a screenshot for debugging
+                    await page.screenshot(path='/tmp/bolt_page_debug.png')
+                    
+                    # Get all buttons on the page for debugging
+                    all_buttons = await page.query_selector_all('button')
+                    print(f"🔍 Found {len(all_buttons)} buttons on page:")
+                    for i, button in enumerate(all_buttons[:10]):  # Limit to first 10
+                        try:
+                            text = await button.inner_text()
+                            print(f"  Button {i}: '{text}'")
+                        except:
+                            print(f"  Button {i}: [no text]")
+                    
+                    raise Exception("Sign In button not found with any selector")
+                
+                await sign_in_button.click()
+                job_manager.update_job(job_id, "creating", progress=15)
+                
+            except Exception as signin_error:
+                print(f"❌ Failed to find/click Sign In button: {signin_error}")
+                raise signin_error
             
             # Step 3: Click "Sign In with Email and Password" in modal
             print(f"🔘 Clicking Sign In with Email and Password...")

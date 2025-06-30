@@ -1,4 +1,4 @@
-import type { Editor } from 'tldraw';
+import type { Editor } from "tldraw";
 
 // Store active polling intervals to prevent duplicates and allow cleanup
 const activePolls = new Map<string, NodeJS.Timeout>();
@@ -20,6 +20,7 @@ export const startWebsiteJobPolling = (
   const pollInterval = setInterval(async () => {
     try {
       // Check if shape still exists (user might have deleted it)
+      // @ts-ignore
       const shape = editor.getShape(shapeId);
       if (!shape) {
         console.log(`🗑️ Shape ${shapeId} no longer exists, stopping poll`);
@@ -38,14 +39,16 @@ export const startWebsiteJobPolling = (
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         console.error("❌ Polling API returned error:", result.error);
         return;
       }
 
       const status = result.status;
-      console.log(`📊 Job ${jobId} status: ${status} (progress: ${result.progress || 0}%)`);
+      console.log(
+        `📊 Job ${jobId} status: ${status} (progress: ${result.progress || 0}%)`
+      );
 
       // Update shape with new status
       editor.updateShape({
@@ -79,7 +82,7 @@ export const startWebsiteJobPolling = (
       console.error("❌ Polling error:", error);
       // Don't stop polling on error - might be temporary network issue
     }
-  }, 3000); // Poll every 3 seconds
+  }, 7500); // Poll every 7.5 seconds
 
   // Store the interval for cleanup
   activePolls.set(jobId, pollInterval);
@@ -95,7 +98,9 @@ export const stopWebsiteJobPolling = (jobId: string) => {
 };
 
 export const stopAllWebsitePolling = () => {
-  console.log(`⏹️ Stopping all website polling (${activePolls.size} active polls)`);
+  console.log(
+    `⏹️ Stopping all website polling (${activePolls.size} active polls)`
+  );
   activePolls.forEach((interval, jobId) => {
     clearInterval(interval);
     console.log(`⏹️ Stopped poll for job ${jobId}`);
@@ -110,7 +115,7 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
     reader.onload = () => {
       const result = reader.result as string;
       // Extract just the base64 part (remove data:image/png;base64, prefix)
-      const base64 = result.split(',')[1];
+      const base64 = result.split(",")[1];
       resolve(base64);
     };
     reader.onerror = reject;

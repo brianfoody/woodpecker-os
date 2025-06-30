@@ -61,7 +61,7 @@ async def create_website_automation(
         
         1. Navigate to: {stackblitz_url}
         2. Sign in with email: {stackblitz_email} and password: {stackblitz_password}
-        3. After successful login, navigate to: https://bolt.new
+        3. IMPORTANT: After login, if you see an "Authenticating" screen or oauth2 redirect, wait 5 seconds maximum then navigate directly to: https://bolt.new (you are likely already logged in)
         4. Look for and click the file upload icon (should have class "i-ph:link-simple text-xl" or similar upload icon)
         5. Upload the image file located at: {image_path}
         6. In the main text input area, enter this prompt: "Create a beautifully designed website based on the attached sketch: {description}"
@@ -74,6 +74,7 @@ async def create_website_automation(
         IMPORTANT: 
         - Take your time with each step
         - Wait for pages to fully load before proceeding
+        - DO NOT get stuck on authentication screens - if you see "Authenticating" or oauth2 URLs after login, wait max 5 seconds then go to https://bolt.new
         - The upload might take a moment to process
         - Website generation can take 1-3 minutes
         - Deployment can take another 1-2 minutes

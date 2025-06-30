@@ -27,12 +27,17 @@ async def create_website_automation(
         # Update progress
         job_manager.update_job(job_id, "creating", progress=20)
         
-        # Get API key from environment
+        # Get API key and credentials from environment
         groq_api_key = os.getenv("GROQ_API_KEY")
         openai_api_key = os.getenv("OPENAI_API_KEY")
+        stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
+        stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         
         if not groq_api_key and not openai_api_key:
             raise Exception("No API key found. Set GROQ_API_KEY or OPENAI_API_KEY environment variable")
+        
+        if not stackblitz_email or not stackblitz_password:
+            raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
         
         # Use GROQ if available, otherwise OpenAI
         if groq_api_key:
@@ -52,7 +57,7 @@ async def create_website_automation(
         Complete this website creation workflow step by step:
         
         1. Navigate to: {stackblitz_url}
-        2. Sign in with email: {credentials['email']} and password: {credentials['password']}
+        2. Sign in with email: {stackblitz_email} and password: {stackblitz_password}
         3. After successful login, navigate to: https://bolt.new
         4. Look for and click the file upload icon (should have class "i-ph:link-simple text-xl" or similar upload icon)
         5. Upload the image file located at: {image_path}

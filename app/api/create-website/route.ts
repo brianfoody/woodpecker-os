@@ -61,10 +61,7 @@ export async function POST(request: NextRequest) {
         jobId,
         imageBase64,
         description,
-        credentials: {
-          email: process.env.BOLT_EMAIL,
-          password: process.env.BOLT_PASSWORD,
-        },
+        credentials: {}, // Render service uses its own env vars
       }),
       // 10 second timeout for the initial request
       signal: AbortSignal.timeout(10000),

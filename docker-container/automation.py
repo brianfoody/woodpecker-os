@@ -39,15 +39,18 @@ async def create_website_automation(
         if not stackblitz_email or not stackblitz_password:
             raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
         
-        # Use GROQ if available, otherwise OpenAI
-        if groq_api_key:
-            from groq import Groq
-            client = Groq(api_key=groq_api_key)
-            llm = client  # Browser Use with GROQ
-        else:
+        # Browser Use requires specific LLM interfaces
+        # For now, use OpenAI interface which is properly supported
+        if openai_api_key:
             llm = ChatOpenAI(model="gpt-4", api_key=openai_api_key)
+        elif groq_api_key:
+            # Use OpenAI interface with GROQ API endpoint (if supported)
+            # For now, fall back to requiring OpenAI API key
+            raise Exception("Browser Use currently requires OpenAI API key. Please set OPENAI_API_KEY environment variable")
+        else:
+            raise Exception("OpenAI API key required for Browser Use. Please set OPENAI_API_KEY environment variable")
         
-        print(f"🤖 Using LLM: {'GROQ' if groq_api_key else 'OpenAI'}")
+        print(f"🤖 Using LLM: OpenAI (required for Browser Use)")
         
         # Construct the StackBlitz URL (from your requirements)
         stackblitz_url = "https://stackblitz.com/sign_in?redirect_to=%2Foauth%2Fauthorize%3Fclient_id%3Dbolt%26response_type%3Dcode%26redirect_uri%3Dhttps%253A%252F%252Fbolt.new%252Foauth2%26code_challenge_method%3DS256%26code_challenge%3DgNZVFMfZyeHAs4wPk9ISUdkuxaC0VVoM19aar-IzHn8%26state%3D2258c671-46c1-4b10-a2f6-c432ac89ee09%26scope%3Dpublic%26bolt_oauth_provider%3Dlogin_password%26ad_conversions_data_token%3D2b6c65ba-e237-4c97-97fc-09d773559bea%26bolt_auth_handeled%3Dtrue"

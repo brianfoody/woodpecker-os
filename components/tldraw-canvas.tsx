@@ -1471,7 +1471,7 @@ export default function TldrawCanvas() {
 
       toast({
         title: "Website Creation Started",
-        description: "Your website is being created from the sketch. This may take a few minutes.",
+        description: "Your website is being created from the sketch. This takes about 10 minutes - grab a coffee!",
       });
 
       console.log("✅ Website creation process initiated successfully");

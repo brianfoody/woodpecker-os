@@ -86,6 +86,7 @@ async def create_website_automation(
             task=task,
             llm=llm,
             max_steps=30,
+            agent_name=f"WebsiteAgent_{job_id}",
         )
         
         print(f"🤖 Starting browser automation...")
@@ -156,22 +157,25 @@ async def run_automation_with_progress(agent, job_id: str, job_manager) -> str:
         raise
 
 async def update_progress_during_automation(job_id: str, job_manager):
-    """Update progress during the long-running automation"""
+    """Update progress during the long-running automation (realistic 10-minute timeline)"""
     try:
-        # Simulate realistic progress updates
-        await asyncio.sleep(10)  # Sign in phase
+        # Realistic progress updates for 10-minute process
+        await asyncio.sleep(30)  # Sign in and navigation (30s)
+        job_manager.update_job(job_id, "creating", progress=40)
+        
+        await asyncio.sleep(60)  # Finding input and entering prompt (1.5min total)
         job_manager.update_job(job_id, "creating", progress=50)
         
-        await asyncio.sleep(15)  # Navigation and upload
-        job_manager.update_job(job_id, "creating", progress=60)
+        await asyncio.sleep(180)  # Website generation - this takes the longest (4.5min total)
+        job_manager.update_job(job_id, "creating", progress=70)
         
-        await asyncio.sleep(30)  # Website generation
-        job_manager.update_job(job_id, "creating", progress=75)
+        await asyncio.sleep(120)  # Finding deploy button and starting deployment (6.5min total)
+        job_manager.update_job(job_id, "deploying", progress=80)
         
-        await asyncio.sleep(20)  # Deployment prep
-        job_manager.update_job(job_id, "deploying", progress=85)
+        await asyncio.sleep(120)  # Deployment process (8.5min total)
+        job_manager.update_job(job_id, "deploying", progress=90)
         
-        await asyncio.sleep(15)  # Final deployment
+        await asyncio.sleep(90)   # Extracting URLs and finishing (10min total)
         job_manager.update_job(job_id, "deploying", progress=95)
         
     except Exception as e:

@@ -39,10 +39,10 @@ async def create_website_automation(
         if not stackblitz_email or not stackblitz_password:
             raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
         
-        # Browser Use requires specific LLM interfaces
-        # For now, use OpenAI interface which is properly supported
+        # Browser Use requires specific LLM interfaces and structured outputs support
+        # Use gpt-4.1 which supports structured outputs
         if openai_api_key:
-            llm = ChatOpenAI(model="gpt-4", api_key=openai_api_key)
+            llm = ChatOpenAI(model="gpt-4.1", api_key=openai_api_key)
         elif groq_api_key:
             # Use OpenAI interface with GROQ API endpoint (if supported)
             # For now, fall back to requiring OpenAI API key

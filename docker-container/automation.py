@@ -60,16 +60,19 @@ async def create_website_automation(
         Complete this website creation workflow step by step:
         
         1. Navigate to: {stackblitz_url}
-        2. Sign in with email: {stackblitz_email} and password: {stackblitz_password}
-        3. IMPORTANT: After login, if you see an "Authenticating" screen or oauth2 redirect, wait 2 seconds maximum then navigate directly to: https://bolt.new (you are likely already logged in)
-        4. Look for and click the file upload icon (should have class "i-ph:link-simple text-xl" or similar upload icon)
-        5. Upload the image file located at: {image_path}
-        6. In the main text input area, enter this prompt: "Create a beautifully designed website based on the attached sketch: {description}"
-        7. Wait for the AI to complete the website creation (watch for stop icon "i-ph:stop-circle-bold" to disappear from the left panel)
-        8. Once creation is complete, click the deploy button in the top right area
-        9. Wait for deployment to complete (stop icon disappears again)
-        10. Extract the Netlify URL from the chat area (format: "https://<site-prefix>.netlify.app")
-        11. Get the current browser URL (this will be the Bolt project URL)
+        2. Enter {stackblitz_email} into email input and click "Sign In:
+        3. The password field will now show. Enter {stackblitz_password} into the password field. 
+        4. Click Sign In again
+        5. IMPORTANT: After login, if you see an "Authenticating" screen or oauth2 redirect, wait 5 seconds maximum then navigate directly to: https://bolt.new (you are likely already logged in)
+        6. Look for and click the file upload icon within the primary text area input - it should have class "i-ph:link-simple text-xl" or similar upload icon
+        7. Upload the image file located at: {image_path}
+        8. In the main text input area, enter this prompt: "Create a beautifully designed website based on the attached sketch: {description}"
+        9. Verify that the website creation has started. You should see a panel on the left side begin creating. If so, continue to step 10. If you see a popup login modal then our sign in attempt was not valid - return to step 1.
+        10. Wait for the AI to complete the website creation (watch for stop icon "i-ph:stop-circle-bold" to disappear from the left panel)
+        11. Once creation is complete, click the deploy button in the top right area
+        12. Wait for deployment to complete (stop icon disappears again)
+        13. Extract the Netlify URL from the chat area (format: "https://<site-prefix>.netlify.app")
+        14. Get the current browser URL (this will be the Bolt project URL)
         
         IMPORTANT: 
         - Take your time with each step

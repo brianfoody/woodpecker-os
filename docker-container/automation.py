@@ -85,6 +85,7 @@ async def create_website_automation(
         agent = Agent(
             task=task,
             llm=llm,
+            max_steps=30,
         )
         
         print(f"🤖 Starting browser automation...")

@@ -64,9 +64,28 @@ async def run_playwright_automation(
     """Run Playwright automation following the DPM steps"""
     
     async with async_playwright() as p:
-        # Launch browser
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        # Launch browser with flags to disable popup blocking and other restrictions
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-popup-blocking',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--allow-running-insecure-content',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection'
+            ]
+        )
+        
+        # Create new context and page with popup permissions
+        context = await browser.new_context()
+        page = await context.new_page()
         
         try:
             # Step 1: Navigate to bolt.new
@@ -87,14 +106,32 @@ async def run_playwright_automation(
             # Store reference to original tab
             original_page = page
             
-            # Wait for new tab to open when clicking the button
-            async with page.context.expect_page() as new_page_info:
-                await email_password_button.click()
+            # Add some debugging info
+            print(f"🔍 Current page count: {len(context.pages)}")
             
-            # Switch to the new tab for login
-            login_page = await new_page_info.value
-            await login_page.wait_for_load_state()
-            job_manager.update_job(job_id, "creating", progress=20)
+            try:
+                # Wait for new tab to open when clicking the button
+                print(f"⏳ Waiting for new tab to open...")
+                async with context.expect_page(timeout=15000) as new_page_info:
+                    await email_password_button.click()
+                
+                # Switch to the new tab for login
+                login_page = await new_page_info.value
+                print(f"✅ New tab opened: {login_page.url}")
+                await login_page.wait_for_load_state()
+                print(f"🔍 New page count: {len(context.pages)}")
+                job_manager.update_job(job_id, "creating", progress=20)
+                
+            except Exception as popup_error:
+                print(f"❌ Failed to open popup: {popup_error}")
+                print(f"🔄 Attempting direct navigation to StackBlitz login...")
+                
+                # Fallback: navigate directly to StackBlitz login URL
+                stackblitz_url = "https://stackblitz.com/sign_in?redirect_to=%2Foauth%2Fauthorize%3Fclient_id%3Dbolt%26response_type%3Dcode%26redirect_uri%3Dhttps%253A%252F%252Fbolt.new%252Foauth2%26code_challenge_method%3DS256%26code_challenge%3DgNZVFMfZyeHAs4wPk9ISUdkuxaC0VVoM19aar-IzHn8%26state%3D2258c671-46c1-4b10-a2f6-c432ac89ee09%26scope%3Dpublic%26bolt_oauth_provider%3Dlogin_password"
+                login_page = await context.new_page()
+                await login_page.goto(stackblitz_url)
+                await login_page.wait_for_load_state()
+                job_manager.update_job(job_id, "creating", progress=20)
             
             # Step 4: Enter email on StackBlitz login page
             print(f"📧 Entering email...")
@@ -119,38 +156,84 @@ async def run_playwright_automation(
             await sign_in_button.click()
             job_manager.update_job(job_id, "creating", progress=40)
             
-            # Step 8: Wait for login tab to close and switch back to original tab
-            print(f"⏱️ Waiting for login tab to close...")
-            await login_page.wait_for_event('close', timeout=60000)
-            print(f"✅ Login tab closed, switching back to original bolt.new tab...")
+            # Step 8: Handle tab closure and switch back to original tab
+            print(f"⏱️ Waiting for authentication to complete...")
+            
+            try:
+                # Try to wait for tab to close (popup scenario)
+                await login_page.wait_for_event('close', timeout=60000)
+                print(f"✅ Login tab closed automatically, switching back to original bolt.new tab...")
+            except Exception:
+                print(f"⏳ Tab didn't close automatically, waiting for redirect or manually closing...")
+                # In fallback scenario, wait for redirect or manually close the tab
+                try:
+                    await login_page.wait_for_url("https://bolt.new*", timeout=30000)
+                    print(f"✅ Redirected to bolt.new, closing login tab...")
+                except:
+                    print(f"⏳ No redirect detected, assuming login completed, closing tab...")
+                
+                # Manually close the tab
+                await login_page.close()
             
             # Switch back to original tab
             page = original_page
             await page.bring_to_front()
-            job_manager.update_job(job_id, "creating", progress=45)
+            # Reload the original tab to ensure we're authenticated
+            await page.reload()
+            await page.wait_for_load_state('networkidle')
+            
+            # Wait a bit more for any dynamic content to load
+            await asyncio.sleep(2)
+            job_manager.update_job(job_id, "creating", progress=42)
             
             # Step 9: Enter description
             print(f"📝 Entering description...")
-            textarea = await page.wait_for_selector('textarea[placeholder="How can Bolt help you today?"]')
-            prompt = f"Create a beautifully designed minimal website based on this detailed description the user has provided in sketch form: {description}"
-            await textarea.fill(prompt)
-            job_manager.update_job(job_id, "creating", progress=50)
+            
+            # Check if we're authenticated by looking for the textarea or sign-in button
+            try:
+                # Wait for either the textarea (authenticated) or sign-in button (not authenticated)
+                await page.wait_for_selector('textarea[placeholder="How can Bolt help you today?"], button:has-text("Sign In")', timeout=10000)
+                
+                # Check if we see the sign-in button (meaning we're not authenticated)
+                sign_in_visible = await page.locator('button:has-text("Sign In")').is_visible()
+                if sign_in_visible:
+                    raise Exception("Still not authenticated after login process")
+                
+                # Wait for the textarea to be ready
+                print(f"🔍 Looking for textarea...")
+                textarea = await page.wait_for_selector('textarea[placeholder="How can Bolt help you today?"]', state='visible', timeout=10000)
+                
+                # Double-check the element is attached before filling
+                is_attached = await textarea.is_attached()
+                if not is_attached:
+                    raise Exception("Textarea element is not attached to DOM")
+                
+                print(f"✅ Textarea found and attached, filling with description...")
+                prompt = f"Create a beautifully designed minimal website based on this detailed description the user has provided in sketch form: {description}"
+                await textarea.fill(prompt)
+                job_manager.update_job(job_id, "creating", progress=44)
+                
+            except Exception as e:
+                print(f"❌ Error with textarea: {e}")
+                print(f"🔍 Current URL: {page.url}")
+                print(f"🔍 Page title: {await page.title()}")
+                raise e
             
             # Step 10: Click submit button
             print(f"🚀 Clicking submit button...")
             submit_button = await page.wait_for_selector('button:has(div.i-ph\\:arrow-right)')
             await submit_button.click()
-            job_manager.update_job(job_id, "creating", progress=55)
+            job_manager.update_job(job_id, "creating", progress=46)
             
             # Step 11: Wait for creation to start and complete
             print(f"⏳ Waiting for website creation to complete...")
-            stop_icon = await page.wait_for_selector('div.i-ph\\:stop-circle-bold', timeout=10000)
-            job_manager.update_job(job_id, "creating", progress=65)
+            await page.wait_for_selector('div.i-ph\\:stop-circle-bold', timeout=10000)
+            job_manager.update_job(job_id, "creating", progress=50)
             
             # Wait for stop icon to disappear (creation complete)
             print(f"⏳ Waiting for creation to finish...")
             await page.wait_for_selector('div.i-ph\\:stop-circle-bold', state='detached', timeout=180000)  # 3 min timeout
-            job_manager.update_job(job_id, "creating", progress=80)
+            job_manager.update_job(job_id, "creating", progress=70)
             
             # Step 12: Click Deploy button
             print(f"🚀 Clicking Deploy button...")

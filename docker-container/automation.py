@@ -18,6 +18,8 @@ async def create_website_automation(
         job_manager.update_job(job_id, "creating", progress=10)
         
         # Get credentials from environment
+        # stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
+        # stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
         stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
         
@@ -25,6 +27,18 @@ async def create_website_automation(
         proxy_server = os.getenv("PROXY_SERVER")  # e.g., "http://proxy.example.com:8080"
         proxy_username = os.getenv("PROXY_USERNAME")
         proxy_password = os.getenv("PROXY_PASSWORD")
+        
+        # Multiple fallback proxy servers (Decodo provides multiple ports)
+        fallback_proxies = []
+        if proxy_server and "decodo.com" in proxy_server:
+            base_server = proxy_server.replace(":10000", "")
+            fallback_proxies = [
+                f"{base_server}:10001",
+                f"{base_server}:10002", 
+                f"{base_server}:10003",
+                f"{base_server}:10004",
+                f"{base_server}:10005"
+            ]
         
         if not stackblitz_email or not stackblitz_password:
             raise Exception("StackBlitz credentials not found. Set STACKBLITZ_EMAIL and STACKBLITZ_PASSWORD environment variables")
@@ -39,7 +53,7 @@ async def create_website_automation(
         # Start automation with progress updates
         netlify_url, bolt_url = await run_playwright_automation(
             job_id, description, stackblitz_email, stackblitz_password, job_manager,
-            proxy_server, proxy_username, proxy_password
+            proxy_server, proxy_username, proxy_password, fallback_proxies
         )
         
         print(f"✅ Website creation completed!")
@@ -73,7 +87,8 @@ async def run_playwright_automation(
     job_manager,
     proxy_server: str = None,
     proxy_username: str = None,
-    proxy_password: str = None
+    proxy_password: str = None,
+    fallback_proxies: list = None
 ) -> tuple[str, str]:
     """
     Run Playwright automation following the DPM steps
@@ -92,7 +107,7 @@ async def run_playwright_automation(
     async with async_playwright() as p:
         # Launch browser with comprehensive flags for cloud/headless environments
         browser = await p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 '--disable-popup-blocking',
                 '--disable-web-security',
@@ -151,6 +166,17 @@ async def run_playwright_automation(
                 proxy_config['password'] = proxy_password
             context_options['proxy'] = proxy_config
             print(f"🌐 Proxy configured: {proxy_server} (authenticated: {bool(proxy_username)})")
+            
+            # Test proxy connection before proceeding
+            try:
+                test_page = await browser.new_page()
+                await test_page.goto("https://httpbin.org/ip", timeout=30000)
+                ip_response = await test_page.content()
+                print(f"🔍 Proxy IP test response: {ip_response[:200]}...")
+                await test_page.close()
+            except Exception as proxy_test_error:
+                print(f"❌ Proxy test failed: {proxy_test_error}")
+                # Continue anyway - might still work for main site
         
         # Create new context and page with proxy support
         context = await browser.new_context(**context_options)

@@ -13,7 +13,7 @@ class WebsiteCreationRequest(BaseModel):
     jobId: str
     imageBase64: str
     description: str
-    credentials: dict
+    credentials: Optional[dict] = {}
 
 class JobStatusResponse(BaseModel):
     jobId: str
@@ -40,12 +40,8 @@ async def start_website_creation(
     try:
         print(f"🌐 Starting website creation for job: {request.jobId}")
         
-        # Validate credentials
-        if not request.credentials.get("email") or not request.credentials.get("password"):
-            raise HTTPException(
-                status_code=400, 
-                detail="Email and password credentials are required"
-            )
+        # Credentials are loaded from environment variables in automation.py
+        print("🔑 Using credentials from environment variables")
         
         # Store job as "creating"
         job_manager.create_job(request.jobId, "creating", progress=10)

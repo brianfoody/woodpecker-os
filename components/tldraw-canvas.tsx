@@ -1364,6 +1364,9 @@ export default function TldrawCanvas() {
       : "👤 User executing";
     console.log(`${logPrefix} Create Website action:`, action);
 
+    let websiteBubbleShapeId: any = null;
+    const editor = editorRef.current;
+
     try {
       if (!imageSummary || imageSummary.trim() === "") {
         throw new Error("No image summary available for website creation");
@@ -1374,13 +1377,12 @@ export default function TldrawCanvas() {
       }
 
       // Get editor reference for shape operations
-      const editor = editorRef.current;
       if (!editor) {
         throw new Error("Editor not available");
       }
 
       // Step 1: Create website bubble shape in creating state
-      const websiteBubbleShapeId = createShapeId();
+      websiteBubbleShapeId = createShapeId();
       console.log(
         "🌐 Creating website bubble shape with ID:",
         websiteBubbleShapeId
@@ -1405,20 +1407,8 @@ export default function TldrawCanvas() {
         },
       ]);
 
-      // Step 2: Remove the scribbled text
-      if (shapesToRemove.length > 0) {
-        console.log(
-          `🗑️ Removing ${shapesToRemove.length} shapes after creating website bubble`
-        );
-
-        shapesToRemove.forEach((shape) => {
-          try {
-            editor.deleteShape(shape.id);
-          } catch (error) {
-            console.warn("⚠️ Failed to delete shape:", shape.id, error);
-          }
-        });
-      }
+      // Step 2: Keep the original sketch - users want to preserve their notes
+      console.log("📝 Preserving original sketch for user reference");
 
       // Step 3: Convert image to base64 and start job
       console.log("🌐 Converting image to base64 and starting website creation...");
@@ -1460,6 +1450,16 @@ export default function TldrawCanvas() {
       console.log("✅ Website creation process initiated successfully");
     } catch (error) {
       console.error("❌ Error executing create website:", error);
+
+      // Remove the website bubble if it was created
+      if (websiteBubbleShapeId) {
+        try {
+          editor.deleteShape(websiteBubbleShapeId);
+          console.log("🗑️ Removed failed website bubble");
+        } catch (deleteError) {
+          console.warn("⚠️ Failed to remove website bubble:", deleteError);
+        }
+      }
 
       toast({
         variant: "destructive",

@@ -152,7 +152,7 @@ export default function WebsiteBubble({
         {/* Sketch description */}
         <div className="mb-4">
           <p className="text-sm text-gray-600 italic">
-            "{sketchDescription}"
+            &ldquo;{sketchDescription}&rdquo;
           </p>
         </div>
 

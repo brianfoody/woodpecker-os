@@ -12,15 +12,15 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
   getDefaultProps(): AIBubbleShape['props'] {
     console.log('🔧 AIBubbleShapeUtil: getDefaultProps called');
     return {
-      w: 400,
-      h: 150,
+      w: 360, // 25% smaller: 480 * 0.75 = 360 (wider than before)
+      h: 100, // 25% smaller: 135 * 0.75 ≈ 100 (less tall)
       content: '',
       isLoading: false,
     }
   }
 
   getMinDimensions() {
-    return { width: 200, height: 80 }
+    return { width: 180, height: 60 } // 25% smaller minimums
   }
 
   getMaxDimensions() {

@@ -90,32 +90,32 @@ async function triggerMagicWandGesture(
 
 // Helper function to calculate AI bubble dimensions based on content
 function calculateAIBubbleDimensions(content: string) {
-  // Updated to prioritize wider, shorter bubbles
-  const minWidth = 450; // Wider minimum width
-  const minHeight = 120; // Shorter minimum height  
-  const maxWidth = 1200; // Wider maximum width
-  const maxHeight = 600; // Lower maximum height
+  // Updated to prioritize wider, shorter bubbles with 25% overall size reduction
+  const minWidth = 340; // 25% smaller: 450 * 0.75 = 337.5 ≈ 340
+  const minHeight = 75;  // 25% smaller: 120 * 0.75 = 90, but make it even shorter
+  const maxWidth = 900;  // 25% smaller: 1200 * 0.75 = 900
+  const maxHeight = 350; // 25% smaller: 600 * 0.75 = 450, but make it shorter
 
   // Character-based estimation favoring width over height
   const charCount = content.length;
   const lineCount = Math.max(1, content.split("\n").length);
 
-  // More characters per line to make bubbles wider
-  const estimatedCharsPerLine = 60; // More chars per line = wider bubbles
+  // Even more characters per line to make bubbles wider relative to height
+  const estimatedCharsPerLine = 75; // Increased from 60 to make wider
   const estimatedWidth = Math.min(
     maxWidth,
-    Math.max(minWidth, estimatedCharsPerLine * 8 + 90)
+    Math.max(minWidth, estimatedCharsPerLine * 6 + 70) // Reduced multiplier for 25% smaller
   );
 
-  // Calculate height with preference for shorter bubbles
-  const actualCharsPerLine = Math.max(1, (estimatedWidth - 90) / 8);
+  // Calculate height with strong preference for shorter bubbles
+  const actualCharsPerLine = Math.max(1, (estimatedWidth - 70) / 6);
   const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
   const totalLines = Math.max(lineCount, wrappedLines);
 
-  // Shorter line height for more compact bubbles
+  // Much shorter line height for very compact bubbles
   const estimatedHeight = Math.min(
     maxHeight,
-    Math.max(minHeight, totalLines * 18 + 80)
+    Math.max(minHeight, totalLines * 14 + 60) // Reduced from 18 + 80 for shorter bubbles
   );
 
   return {

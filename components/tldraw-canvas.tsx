@@ -57,6 +57,11 @@ let globalMagicWandCallback:
     ) => Promise<void>)
   | null = null;
 
+// Global callback for onboarding actions - will be set by React component
+let globalOnboardingCallback:
+  | ((actionType: string, additionalData?: any) => void)
+  | null = null;
+
 function cancelHoldDetection() {
   if (holdDetector) {
     holdDetector.cancelHoldDetection();
@@ -2305,6 +2310,23 @@ export default function TldrawCanvas() {
     ]
   );
 
+  // Handler for onboarding actions
+  const handleOnboardingAction = useCallback(
+    (actionType: string, additionalData?: any) => {
+      console.log("📋 Onboarding action triggered:", actionType, additionalData);
+      const onboardingUpdate = onboardingActions.checkActionForOnboarding(
+        actionType,
+        additionalData
+      );
+      if (onboardingUpdate && onboardingUpdate.isActive) {
+        setTimeout(() => {
+          setShowOnboarding(true);
+        }, 1000);
+      }
+    },
+    [onboardingActions]
+  );
+
   // Register the magic wand callback via useEffect to handle React strict mode
   useEffect(() => {
     globalMagicWandCallback = handleMagicWandGesture;
@@ -2320,6 +2342,22 @@ export default function TldrawCanvas() {
       }
     };
   }, [handleMagicWandGesture]);
+
+  // Register the onboarding callback via useEffect to handle React strict mode
+  useEffect(() => {
+    globalOnboardingCallback = handleOnboardingAction;
+    console.log(
+      "📋 Onboarding callback registered via useEffect:",
+      !!globalOnboardingCallback
+    );
+
+    return () => {
+      if (globalOnboardingCallback === handleOnboardingAction) {
+        globalOnboardingCallback = null;
+        console.log("🧹 Cleaned up onboarding callback via useEffect");
+      }
+    };
+  }, [handleOnboardingAction]);
 
   // Debug spinner position changes
   useEffect(() => {
@@ -2715,4 +2753,13 @@ export default function TldrawCanvas() {
       />
     </div>
   );
+}
+
+// Export the global onboarding callback for use in shape utils
+export function triggerOnboardingAction(actionType: string, additionalData?: any) {
+  if (globalOnboardingCallback) {
+    globalOnboardingCallback(actionType, additionalData);
+  } else {
+    console.warn("⚠️ Onboarding callback not available:", actionType);
+  }
 }

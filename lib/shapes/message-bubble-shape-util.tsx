@@ -1,6 +1,7 @@
 import { ShapeUtil, HTMLContainer, Rectangle2d, toDomPrecision } from "tldraw";
 import { MessageBubbleShape } from "./message-bubble-shape";
 import MessageBubble from "@/components/message-bubble";
+import { triggerOnboardingAction } from "@/components/tldraw-canvas";
 
 export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
   static override type = "message-bubble" as const;
@@ -125,6 +126,9 @@ export class MessageBubbleShapeUtil extends ShapeUtil<MessageBubbleShape> {
                       state: "reply",
                     },
                   });
+                  
+                  // Trigger onboarding action for viewing reply
+                  triggerOnboardingAction("view_reply");
                 }}
                 onStateChange={(newState) => {
                   // Update the shape state when component state changes

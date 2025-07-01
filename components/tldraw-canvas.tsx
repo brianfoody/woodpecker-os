@@ -14,7 +14,11 @@ import "tldraw/tldraw.css";
 import { AIActionsContextMenu } from "@/components/ai-actions-context-menu";
 import type { AIAction } from "@/lib/models";
 import { PointSpinner } from "@/components/point-spinner";
-import { AIBubbleShapeUtil, MessageBubbleShapeUtil, WebsiteBubbleShapeUtil } from "@/lib/shapes";
+import {
+  AIBubbleShapeUtil,
+  MessageBubbleShapeUtil,
+  WebsiteBubbleShapeUtil,
+} from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
 import { HoldDetector } from "@/lib/hold-detection";
@@ -90,32 +94,32 @@ async function triggerMagicWandGesture(
 
 // Helper function to calculate AI bubble dimensions based on content
 function calculateAIBubbleDimensions(content: string) {
-  // Adjusted to be 25% less wide and accommodate more height
-  const minWidth = 255; // 25% less wide: 340 * 0.75 = 255
-  const minHeight = 75;  
-  const maxWidth = 675;  // 25% less wide: 900 * 0.75 = 675
-  const maxHeight = 500; // Increased max height to accommodate narrower width
+  // Reduced by additional 30% for more compact bubbles
+  const minWidth = 180; // 30% smaller: 255 * 0.7 = 178.5 ≈ 180
+  const minHeight = 55; // 30% smaller: 75 * 0.7 = 52.5 ≈ 55
+  const maxWidth = 470; // 30% smaller: 675 * 0.7 = 472.5 ≈ 470
+  const maxHeight = 350; // 30% smaller: 500 * 0.7 = 350
 
-  // Character-based estimation with narrower width preference
+  // Character-based estimation with more compact sizing
   const charCount = content.length;
   const lineCount = Math.max(1, content.split("\n").length);
 
-  // Fewer characters per line since we're making it narrower
-  const estimatedCharsPerLine = 56; // Reduced from 75 to account for narrower width
+  // Fewer characters per line for more compact bubbles
+  const estimatedCharsPerLine = 40; // Reduced from 56 for smaller bubbles
   const estimatedWidth = Math.min(
     maxWidth,
-    Math.max(minWidth, estimatedCharsPerLine * 6 + 70)
+    Math.max(minWidth, estimatedCharsPerLine * 4.2 + 50) // Reduced multiplier and padding
   );
 
-  // Calculate height to accommodate more lines due to narrower width
-  const actualCharsPerLine = Math.max(1, (estimatedWidth - 70) / 6);
+  // Calculate height with compact sizing
+  const actualCharsPerLine = Math.max(1, (estimatedWidth - 50) / 4.2);
   const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
   const totalLines = Math.max(lineCount, wrappedLines);
 
-  // Increased line height since we need more vertical space
+  // Reduced line height and padding for more compact bubbles
   const estimatedHeight = Math.min(
     maxHeight,
-    Math.max(minHeight, totalLines * 16 + 70) // Increased line height and padding
+    Math.max(minHeight, totalLines * 11 + 50) // Reduced line height and padding by 30%
   );
 
   return {
@@ -150,8 +154,11 @@ export default function TldrawCanvas() {
   const [currentImageSummary, setCurrentImageSummary] = useState<string>("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentCapturedShapes, setCurrentCapturedShapes] = useState<any[]>([]);
-  const [currentShapesForRemoval, setCurrentShapesForRemoval] = useState<any[]>([]);
-  const [currentCapturedImageBlob, setCurrentCapturedImageBlob] = useState<Blob | null>(null);
+  const [currentShapesForRemoval, setCurrentShapesForRemoval] = useState<any[]>(
+    []
+  );
+  const [currentCapturedImageBlob, setCurrentCapturedImageBlob] =
+    useState<Blob | null>(null);
   const [currentBubbleDimensions, setCurrentBubbleDimensions] = useState<{
     width: number;
     height: number;
@@ -555,9 +562,10 @@ export default function TldrawCanvas() {
               });
 
               // Check if we need to advance onboarding when a reply is received
-              const onboardingUpdate = onboardingActions.checkActionForOnboarding('message_received');
+              const onboardingUpdate =
+                onboardingActions.checkActionForOnboarding("message_received");
               if (onboardingUpdate) {
-                console.log('📋 Onboarding: Advanced due to message reply');
+                console.log("📋 Onboarding: Advanced due to message reply");
               }
             } else {
               console.log(
@@ -708,26 +716,35 @@ export default function TldrawCanvas() {
       // Check for existing AI bubbles in the current captured shapes to position new bubble below them
       let adjustedBubblePosition = bubblePosition;
       if (currentCapturedShapes && currentCapturedShapes.length > 0) {
-        const aiBubbles = currentCapturedShapes.filter((shape: any) => shape.type === "ai-bubble");
+        const aiBubbles = currentCapturedShapes.filter(
+          (shape: any) => shape.type === "ai-bubble"
+        );
         if (aiBubbles.length > 0) {
           // Find the bottommost AI bubble
-          const bottomMostBubble = aiBubbles.reduce((lowest: any, current: any) => {
-            const currentBottom = current.y + (current.props?.h || 300);
-            const lowestBottom = lowest.y + (lowest.props?.h || 300);
-            return currentBottom > lowestBottom ? current : lowest;
-          });
-          
+          const bottomMostBubble = aiBubbles.reduce(
+            (lowest: any, current: any) => {
+              const currentBottom = current.y + (current.props?.h || 300);
+              const lowestBottom = lowest.y + (lowest.props?.h || 300);
+              return currentBottom > lowestBottom ? current : lowest;
+            }
+          );
+
           // Position new bubble below the bottommost existing AI bubble with some padding
           const padding = 20;
           adjustedBubblePosition = {
             x: bubblePosition.x,
-            y: bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding
+            y:
+              bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding,
           };
-          
-          console.log("🔧 Positioning new AI bubble below existing AI bubble:", {
-            existingBubbleBottom: bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
-            newBubbleY: adjustedBubblePosition.y
-          });
+
+          console.log(
+            "🔧 Positioning new AI bubble below existing AI bubble:",
+            {
+              existingBubbleBottom:
+                bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+              newBubbleY: adjustedBubblePosition.y,
+            }
+          );
         }
       }
 
@@ -828,7 +845,8 @@ export default function TldrawCanvas() {
         console.log("🔧 AI bubble shape updated with new dimensions");
 
         // Check for onboarding progression
-        const onboardingUpdate = onboardingActions.checkActionForOnboarding('ask_ai');
+        const onboardingUpdate =
+          onboardingActions.checkActionForOnboarding("ask_ai");
         if (onboardingUpdate && onboardingUpdate.isActive) {
           setTimeout(() => {
             setShowOnboarding(true);
@@ -875,26 +893,35 @@ export default function TldrawCanvas() {
       // Check for existing AI bubbles in the current captured shapes to position new bubble below them
       let adjustedBubblePosition = bubblePosition;
       if (currentCapturedShapes && currentCapturedShapes.length > 0) {
-        const aiBubbles = currentCapturedShapes.filter((shape: any) => shape.type === "ai-bubble");
+        const aiBubbles = currentCapturedShapes.filter(
+          (shape: any) => shape.type === "ai-bubble"
+        );
         if (aiBubbles.length > 0) {
           // Find the bottommost AI bubble
-          const bottomMostBubble = aiBubbles.reduce((lowest: any, current: any) => {
-            const currentBottom = current.y + (current.props?.h || 300);
-            const lowestBottom = lowest.y + (lowest.props?.h || 300);
-            return currentBottom > lowestBottom ? current : lowest;
-          });
-          
+          const bottomMostBubble = aiBubbles.reduce(
+            (lowest: any, current: any) => {
+              const currentBottom = current.y + (current.props?.h || 300);
+              const lowestBottom = lowest.y + (lowest.props?.h || 300);
+              return currentBottom > lowestBottom ? current : lowest;
+            }
+          );
+
           // Position new bubble below the bottommost existing AI bubble with some padding
           const padding = 20;
           adjustedBubblePosition = {
             x: bubblePosition.x,
-            y: bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding
+            y:
+              bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding,
           };
-          
-          console.log("🔧 Positioning new search bubble below existing AI bubble:", {
-            existingBubbleBottom: bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
-            newBubbleY: adjustedBubblePosition.y
-          });
+
+          console.log(
+            "🔧 Positioning new search bubble below existing AI bubble:",
+            {
+              existingBubbleBottom:
+                bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+              newBubbleY: adjustedBubblePosition.y,
+            }
+          );
         }
       }
 
@@ -926,7 +953,7 @@ export default function TldrawCanvas() {
       try {
         // Extract the search query from the action text or use the summary
         const searchQuery = action.text || imageSummary || "search query";
-        
+
         console.log("🔍 Performing search for:", searchQuery);
 
         // Call the search API endpoint
@@ -959,7 +986,7 @@ export default function TldrawCanvas() {
 
         if (!searchAnswer || searchAnswer.trim() === "") {
           console.log("❌ No answer found in search results");
-          
+
           // Remove the search bubble since we have no answer
           try {
             editor.deleteShape(bubbleShapeId);
@@ -971,9 +998,10 @@ export default function TldrawCanvas() {
           toast({
             variant: "destructive",
             title: "No Results Found",
-            description: "Sorry, couldn't find any information about your search query.",
+            description:
+              "Sorry, couldn't find any information about your search query.",
           });
-          
+
           return;
         }
 
@@ -993,7 +1021,6 @@ export default function TldrawCanvas() {
           },
         });
         console.log("🔧 Search result bubble updated with results");
-
       } catch (error) {
         console.error("❌ Error calling search API:", error);
 
@@ -1008,7 +1035,8 @@ export default function TldrawCanvas() {
         toast({
           variant: "destructive",
           title: "Search Failed",
-          description: "Something went wrong with the search. Please try again.",
+          description:
+            "Something went wrong with the search. Please try again.",
         });
       }
     },
@@ -1016,89 +1044,210 @@ export default function TldrawCanvas() {
   );
 
   // Extracted function for executing Add Contact action
-  const executeAddContact = useCallback(async (
-    action: AIAction,
-    imageSummary: string,
-    shapesToRemove: any[],
-    isAutoExecution = false
-  ) => {
-    const logPrefix = isAutoExecution
-      ? "🤖 Auto-executing"
-      : "👤 User executing";
-    console.log(`${logPrefix} Add Contact action:`, action);
+  const executeAddContact = useCallback(
+    async (
+      action: AIAction,
+      imageSummary: string,
+      shapesToRemove: any[],
+      isAutoExecution = false
+    ) => {
+      const logPrefix = isAutoExecution
+        ? "🤖 Auto-executing"
+        : "👤 User executing";
+      console.log(`${logPrefix} Add Contact action:`, action);
 
-    try {
-      console.log("📱 DEBUG: imageSummary passed to function:", imageSummary);
-      console.log("📱 DEBUG: imageSummary length:", imageSummary.length);
+      try {
+        console.log("📱 DEBUG: imageSummary passed to function:", imageSummary);
+        console.log("📱 DEBUG: imageSummary length:", imageSummary.length);
 
-      if (!imageSummary || imageSummary.trim() === "") {
-        throw new Error("No image summary available for contact extraction");
-      }
+        if (!imageSummary || imageSummary.trim() === "") {
+          throw new Error("No image summary available for contact extraction");
+        }
 
-      console.log(
-        "📱 Calling extractContact API with summary:",
-        imageSummary.substring(0, 100) + "..."
-      );
-
-      // Call the extract-contact API endpoint
-      const apiResponse = await fetch("/api/extract-contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_summary: imageSummary,
-        }),
-      });
-
-      if (!apiResponse.ok) {
-        throw new Error(`API request failed with status ${apiResponse.status}`);
-      }
-
-      const result = await apiResponse.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "API request failed");
-      }
-
-      console.log("📱 Contact extracted from API:", result.contact);
-
-      // Check if this is the first contact and if we're updating an existing one
-      const existingContacts = loadContacts();
-      const isFirstContact = existingContacts.length === 0;
-
-      // Check if we're updating an existing contact (by name)
-      const existingContact = existingContacts.find(
-        (contact) =>
-          contact.name.toLowerCase() === result.contact.name.toLowerCase()
-      );
-      const isUpdate = !!existingContact;
-      const phoneNumberChanged =
-        isUpdate && existingContact.phoneNumber !== result.contact.phoneNumber;
-
-      // Save contact to localStorage (this will update if contact exists by phone number)
-      saveContact(result.contact);
-
-      // Check for onboarding progression
-      const onboardingUpdate = onboardingActions.checkActionForOnboarding('add_contact', {
-        contactName: result.contact.name
-      });
-      if (onboardingUpdate && onboardingUpdate.isActive) {
-        setTimeout(() => {
-          setShowOnboarding(true);
-        }, 3000);
-      }
-
-      // Get editor reference for shape operations
-      const editor = editorRef.current;
-      if (editor && shapesToRemove.length > 0) {
-        // Remove the shapes that were used to extract the contact
         console.log(
-          `🗑️ Removing ${shapesToRemove.length} shapes after contact extraction`
+          "📱 Calling extractContact API with summary:",
+          imageSummary.substring(0, 100) + "..."
         );
 
-        // Use tldraw's batch operation to ensure this can be undone as a single action
-        editor.batch(() => {
+        // Call the extract-contact API endpoint
+        const apiResponse = await fetch("/api/extract-contact", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image_summary: imageSummary,
+          }),
+        });
+
+        if (!apiResponse.ok) {
+          throw new Error(
+            `API request failed with status ${apiResponse.status}`
+          );
+        }
+
+        const result = await apiResponse.json();
+
+        if (!result.success) {
+          throw new Error(result.error || "API request failed");
+        }
+
+        console.log("📱 Contact extracted from API:", result.contact);
+
+        // Check if this is the first contact and if we're updating an existing one
+        const existingContacts = loadContacts();
+        const isFirstContact = existingContacts.length === 0;
+
+        // Check if we're updating an existing contact (by name)
+        const existingContact = existingContacts.find(
+          (contact) =>
+            contact.name.toLowerCase() === result.contact.name.toLowerCase()
+        );
+        const isUpdate = !!existingContact;
+        const phoneNumberChanged =
+          isUpdate &&
+          existingContact.phoneNumber !== result.contact.phoneNumber;
+
+        // Save contact to localStorage (this will update if contact exists by phone number)
+        saveContact(result.contact);
+
+        // Check for onboarding progression
+        const onboardingUpdate = onboardingActions.checkActionForOnboarding(
+          "add_contact",
+          {
+            contactName: result.contact.name,
+          }
+        );
+        if (onboardingUpdate && onboardingUpdate.isActive) {
+          setTimeout(() => {
+            setShowOnboarding(true);
+          }, 3000);
+        }
+
+        // Get editor reference for shape operations
+        const editor = editorRef.current;
+        if (editor && shapesToRemove.length > 0) {
+          // Remove the shapes that were used to extract the contact
+          console.log(
+            `🗑️ Removing ${shapesToRemove.length} shapes after contact extraction`
+          );
+
+          // Use tldraw's batch operation to ensure this can be undone as a single action
+          editor.batch(() => {
+            shapesToRemove.forEach((shape) => {
+              try {
+                editor.deleteShape(shape.id);
+              } catch (error) {
+                console.warn("⚠️ Failed to delete shape:", shape.id, error);
+              }
+            });
+          });
+        }
+
+        // Show success toast with different message based on the action
+        let title: string;
+        let description: string;
+
+        if (isUpdate) {
+          if (phoneNumberChanged) {
+            title = "Contact Updated";
+            description = `${result.contact.name}'s phone number has been updated to ${result.contact.phoneNumber}.`;
+          } else {
+            title = "Contact Updated";
+            description = `${result.contact.name} (${result.contact.phoneNumber}) contact information has been refreshed.`;
+          }
+        } else if (isFirstContact) {
+          title = "Contact Added";
+          description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts (use undo to restore your writing if you wish).`;
+        } else {
+          title = "Contact Added";
+          description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts.`;
+        }
+
+        toast({
+          title,
+          description,
+        });
+
+        console.log("✅ Contact successfully added and saved");
+      } catch (error) {
+        console.error("❌ Error executing add contact:", error);
+
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Failed to add contact",
+          description:
+            "Sorry, there was an error extracting the contact information. Please try again.",
+        });
+      }
+    },
+    [onboardingActions]
+  );
+
+  // Extracted function for executing Send Message action
+  const executeSendMessage = useCallback(
+    async (
+      action: AIAction,
+      imageSummary: string,
+      shapesToRemove: any[],
+      shapePosition: { x: number; y: number },
+      isAutoExecution = false,
+      dimensions?: { width: number; height: number }
+    ) => {
+      const logPrefix = isAutoExecution
+        ? "🤖 Auto-executing"
+        : "👤 User executing";
+      console.log(`${logPrefix} Send Message action:`, action);
+
+      try {
+        console.log("💬 DEBUG: imageSummary passed to function:", imageSummary);
+        console.log("💬 DEBUG: imageSummary length:", imageSummary.length);
+
+        if (!imageSummary || imageSummary.trim() === "") {
+          throw new Error("No image summary available for message extraction");
+        }
+
+        // Get editor reference for shape operations
+        const editor = editorRef.current;
+        if (!editor) {
+          throw new Error("Editor not available");
+        }
+
+        // Step 1: Create message bubble shape in sending state
+        const messageBubbleShapeId = createShapeId();
+        console.log(
+          "💬 Creating message bubble shape with ID:",
+          messageBubbleShapeId
+        );
+
+        editor.mark("create-message-bubble");
+
+        editor.createShapes([
+          {
+            id: messageBubbleShapeId,
+            type: "message-bubble",
+            x: shapePosition.x,
+            y: shapePosition.y,
+            props: {
+              w: dimensions?.width || 350,
+              h: dimensions?.height || 150,
+              personName: "...", // Will be updated when message is extracted
+              text: "Extracting message...",
+              state: "sending",
+              priority: "normal",
+            },
+          },
+        ]);
+
+        // Step 2: Delete the scribbled text (this allows undo without removing message bubble)
+        editor.mark("delete-original-text");
+
+        if (shapesToRemove.length > 0) {
+          console.log(
+            `🗑️ Removing ${shapesToRemove.length} shapes after message bubble creation`
+          );
+
           shapesToRemove.forEach((shape) => {
             try {
               editor.deleteShape(shape.id);
@@ -1106,243 +1255,148 @@ export default function TldrawCanvas() {
               console.warn("⚠️ Failed to delete shape:", shape.id, error);
             }
           });
-        });
-      }
-
-      // Show success toast with different message based on the action
-      let title: string;
-      let description: string;
-
-      if (isUpdate) {
-        if (phoneNumberChanged) {
-          title = "Contact Updated";
-          description = `${result.contact.name}'s phone number has been updated to ${result.contact.phoneNumber}.`;
-        } else {
-          title = "Contact Updated";
-          description = `${result.contact.name} (${result.contact.phoneNumber}) contact information has been refreshed.`;
         }
-      } else if (isFirstContact) {
-        title = "Contact Added";
-        description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts (use undo to restore your writing if you wish).`;
-      } else {
-        title = "Contact Added";
-        description = `${result.contact.name} (${result.contact.phoneNumber}) has been saved to your contacts.`;
-      }
 
-      toast({
-        title,
-        description,
-      });
+        // Step 3: Extract message from image summary
+        console.log("💬 Calling extractMessage API with summary and contacts");
 
-      console.log("✅ Contact successfully added and saved");
-    } catch (error) {
-      console.error("❌ Error executing add contact:", error);
+        const contacts = loadContacts();
 
-      // Show error toast
-      toast({
-        variant: "destructive",
-        title: "Failed to add contact",
-        description:
-          "Sorry, there was an error extracting the contact information. Please try again.",
-      });
-    }
-  }, [onboardingActions]);
+        // First check if we have any contacts at all
+        if (contacts.length === 0) {
+          // Delete the message bubble we just created
+          editor.deleteShape(messageBubbleShapeId);
 
-  // Extracted function for executing Send Message action
-  const executeSendMessage = useCallback(async (
-    action: AIAction,
-    imageSummary: string,
-    shapesToRemove: any[],
-    shapePosition: { x: number; y: number },
-    isAutoExecution = false,
-    dimensions?: { width: number; height: number }
-  ) => {
-    const logPrefix = isAutoExecution
-      ? "🤖 Auto-executing"
-      : "👤 User executing";
-    console.log(`${logPrefix} Send Message action:`, action);
+          toast({
+            variant: "destructive",
+            title: "No Contacts Found",
+            description:
+              "You need to add contacts first before sending messages. Try adding a contact by circling a name and phone number.",
+          });
+          return;
+        }
 
-    try {
-      console.log("💬 DEBUG: imageSummary passed to function:", imageSummary);
-      console.log("💬 DEBUG: imageSummary length:", imageSummary.length);
+        const extractResponse = await fetch("/api/extract-message", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image_summary: imageSummary,
+            contacts: contacts,
+          }),
+        });
 
-      if (!imageSummary || imageSummary.trim() === "") {
-        throw new Error("No image summary available for message extraction");
-      }
+        if (!extractResponse.ok) {
+          throw new Error(
+            `Extract message API failed with status ${extractResponse.status}`
+          );
+        }
 
-      // Get editor reference for shape operations
-      const editor = editorRef.current;
-      if (!editor) {
-        throw new Error("Editor not available");
-      }
+        const extractResult = await extractResponse.json();
 
-      // Step 1: Create message bubble shape in sending state
-      const messageBubbleShapeId = createShapeId();
-      console.log(
-        "💬 Creating message bubble shape with ID:",
-        messageBubbleShapeId
-      );
+        if (!extractResult.success) {
+          throw new Error(extractResult.error || "Message extraction failed");
+        }
 
-      editor.mark("create-message-bubble");
+        const message = extractResult.message;
+        console.log("💬 Message extracted:", message);
 
-      editor.createShapes([
-        {
+        // Verify the extracted contact exists in our saved contacts
+        const matchingContact = contacts.find(
+          (contact) =>
+            contact.phoneNumber === message.phoneNumber ||
+            contact.name.toLowerCase() === message.name.toLowerCase()
+        );
+
+        if (!matchingContact) {
+          // Delete the message bubble we just created
+          editor.deleteShape(messageBubbleShapeId);
+
+          toast({
+            variant: "destructive",
+            title: "Contact Not Found",
+            description: `"${message.name}" is not in your contacts. Please add them as a contact first, or check the spelling.`,
+          });
+          return;
+        }
+
+        console.log("✅ Contact verified:", matchingContact);
+
+        // Step 4: Update message bubble with extracted message
+        // Mark a separate undo point for message update so it doesn't revert on text undo
+        editor.mark("update-message-content");
+
+        editor.updateShape({
           id: messageBubbleShapeId,
           type: "message-bubble",
-          x: shapePosition.x,
-          y: shapePosition.y,
           props: {
-            w: dimensions?.width || 350,
-            h: dimensions?.height || 150,
-            personName: "...", // Will be updated when message is extracted
-            text: "Extracting message...",
-            state: "sending",
+            personName: message.name,
+            text: message.text,
+            phoneNumber: message.phoneNumber, // Add phone number for API call
+            state: "sending", // Still sending, will be updated by the bubble itself
             priority: "normal",
           },
-        },
-      ]);
+        });
 
-      // Step 2: Delete the scribbled text (this allows undo without removing message bubble)
-      editor.mark("delete-original-text");
+        // Add a delay to ensure the message update is committed to undo history
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-      if (shapesToRemove.length > 0) {
         console.log(
-          `🗑️ Removing ${shapesToRemove.length} shapes after message bubble creation`
+          "✅ Message bubble created and text extracted successfully"
         );
 
-        shapesToRemove.forEach((shape) => {
+        // Check for onboarding progression
+        const onboardingUpdate =
+          onboardingActions.checkActionForOnboarding("send_message");
+        if (onboardingUpdate && onboardingUpdate.isActive) {
+          setTimeout(() => {
+            setShowOnboarding(true);
+          }, 3000);
+        }
+
+        // Note: The actual sending will be handled by the MessageBubble component itself
+        // which will call the /api/send-message endpoint and update its own state
+      } catch (error) {
+        console.error("❌ Error executing send message:", error);
+
+        // If we created a message bubble, update it to show error state
+        // Otherwise show a toast
+        const editor = editorRef.current;
+        if (editor) {
           try {
-            editor.deleteShape(shape.id);
-          } catch (error) {
-            console.warn("⚠️ Failed to delete shape:", shape.id, error);
-          }
-        });
-      }
+            // Try to find any message bubble shapes and update them to failed state
+            const allShapes = editor.getCurrentPageShapes();
+            const messageBubbles = allShapes.filter(
+              (shape: TLShape) => shape.type === "message-bubble"
+            );
 
-      // Step 3: Extract message from image summary
-      console.log("💬 Calling extractMessage API with summary and contacts");
-
-      const contacts = loadContacts();
-
-      // First check if we have any contacts at all
-      if (contacts.length === 0) {
-        // Delete the message bubble we just created
-        editor.deleteShape(messageBubbleShapeId);
-
-        toast({
-          variant: "destructive",
-          title: "No Contacts Found",
-          description:
-            "You need to add contacts first before sending messages. Try adding a contact by circling a name and phone number.",
-        });
-        return;
-      }
-
-      const extractResponse = await fetch("/api/extract-message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_summary: imageSummary,
-          contacts: contacts,
-        }),
-      });
-
-      if (!extractResponse.ok) {
-        throw new Error(
-          `Extract message API failed with status ${extractResponse.status}`
-        );
-      }
-
-      const extractResult = await extractResponse.json();
-
-      if (!extractResult.success) {
-        throw new Error(extractResult.error || "Message extraction failed");
-      }
-
-      const message = extractResult.message;
-      console.log("💬 Message extracted:", message);
-
-      // Verify the extracted contact exists in our saved contacts
-      const matchingContact = contacts.find(
-        (contact) =>
-          contact.phoneNumber === message.phoneNumber ||
-          contact.name.toLowerCase() === message.name.toLowerCase()
-      );
-
-      if (!matchingContact) {
-        // Delete the message bubble we just created
-        editor.deleteShape(messageBubbleShapeId);
-
-        toast({
-          variant: "destructive",
-          title: "Contact Not Found",
-          description: `"${message.name}" is not in your contacts. Please add them as a contact first, or check the spelling.`,
-        });
-        return;
-      }
-
-      console.log("✅ Contact verified:", matchingContact);
-
-      // Step 4: Update message bubble with extracted message
-      // Mark a separate undo point for message update so it doesn't revert on text undo
-      editor.mark("update-message-content");
-
-      editor.updateShape({
-        id: messageBubbleShapeId,
-        type: "message-bubble",
-        props: {
-          personName: message.name,
-          text: message.text,
-          phoneNumber: message.phoneNumber, // Add phone number for API call
-          state: "sending", // Still sending, will be updated by the bubble itself
-          priority: "normal",
-        },
-      });
-
-      // Add a delay to ensure the message update is committed to undo history
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      console.log("✅ Message bubble created and text extracted successfully");
-
-      // Check for onboarding progression
-      const onboardingUpdate = onboardingActions.checkActionForOnboarding('send_message');
-      if (onboardingUpdate && onboardingUpdate.isActive) {
-        setTimeout(() => {
-          setShowOnboarding(true);
-        }, 3000);
-      }
-
-      // Note: The actual sending will be handled by the MessageBubble component itself
-      // which will call the /api/send-message endpoint and update its own state
-    } catch (error) {
-      console.error("❌ Error executing send message:", error);
-
-      // If we created a message bubble, update it to show error state
-      // Otherwise show a toast
-      const editor = editorRef.current;
-      if (editor) {
-        try {
-          // Try to find any message bubble shapes and update them to failed state
-          const allShapes = editor.getCurrentPageShapes();
-          const messageBubbles = allShapes.filter(
-            (shape: TLShape) => shape.type === "message-bubble"
-          );
-
-          if (messageBubbles.length > 0) {
-            const latestBubble = messageBubbles[messageBubbles.length - 1];
-            editor.updateShape({
-              id: latestBubble.id,
-              type: "message-bubble",
-              props: {
-                ...latestBubble.props,
-                state: "failed",
-                text: "Failed to extract message. Please try again.",
-              },
-            });
-          } else {
-            // No message bubble to update, show error toast
+            if (messageBubbles.length > 0) {
+              const latestBubble = messageBubbles[messageBubbles.length - 1];
+              editor.updateShape({
+                id: latestBubble.id,
+                type: "message-bubble",
+                props: {
+                  ...latestBubble.props,
+                  state: "failed",
+                  text: "Failed to extract message. Please try again.",
+                },
+              });
+            } else {
+              // No message bubble to update, show error toast
+              toast({
+                variant: "destructive",
+                title: "Failed to Send Message",
+                description:
+                  "Sorry, there was an error extracting the message information. Please try again.",
+              });
+            }
+          } catch (updateError) {
+            console.error(
+              "❌ Failed to update message bubble with error:",
+              updateError
+            );
+            // Fallback to toast
             toast({
               variant: "destructive",
               title: "Failed to Send Message",
@@ -1350,22 +1404,11 @@ export default function TldrawCanvas() {
                 "Sorry, there was an error extracting the message information. Please try again.",
             });
           }
-        } catch (updateError) {
-          console.error(
-            "❌ Failed to update message bubble with error:",
-            updateError
-          );
-          // Fallback to toast
-          toast({
-            variant: "destructive",
-            title: "Failed to Send Message",
-            description:
-              "Sorry, there was an error extracting the message information. Please try again.",
-          });
         }
       }
-    }
-  }, [onboardingActions]);
+    },
+    [onboardingActions]
+  );
 
   // Extracted function for executing Read Contact Messages action
   const executeReadContactMessages = async (
@@ -1614,7 +1657,9 @@ export default function TldrawCanvas() {
         websiteBubbleShapeId
       );
 
-      const jobId = `website_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const jobId = `website_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       editor.createShapes([
         {
@@ -1637,7 +1682,9 @@ export default function TldrawCanvas() {
       console.log("📝 Preserving original sketch for user reference");
 
       // Step 3: Convert image to base64 and start job
-      console.log("🌐 Converting image to base64 and starting website creation...");
+      console.log(
+        "🌐 Converting image to base64 and starting website creation..."
+      );
 
       const imageBase64 = await blobToBase64(capturedImageBlob);
 
@@ -1670,7 +1717,8 @@ export default function TldrawCanvas() {
 
       toast({
         title: "Website Creation Started",
-        description: "Your website is being created from the sketch. This takes about 5-6 minutes with our new automation!",
+        description:
+          "Your website is being created from the sketch. This takes about 5-6 minutes with our new automation!",
       });
 
       console.log("✅ Website creation process initiated successfully");
@@ -2034,13 +2082,19 @@ export default function TldrawCanvas() {
           setCurrentImageSummary(imageSummary);
           console.log("📱 DEBUG: currentImageSummary set to:", imageSummary);
           // Separate AI bubbles from other shapes - AI bubbles should never be removed
-          const aiBubbles = shapesInLoop.filter((shape: any) => shape.type === "ai-bubble");
-          const shapesForRemoval = shapesInLoop.filter((shape: any) => shape.type !== "ai-bubble");
-          
+          const aiBubbles = shapesInLoop.filter(
+            (shape: any) => shape.type === "ai-bubble"
+          );
+          const shapesForRemoval = shapesInLoop.filter(
+            (shape: any) => shape.type !== "ai-bubble"
+          );
+
           // Store all shapes for positioning logic, but track which ones should be preserved
           setCurrentCapturedShapes(shapesInLoop);
           setCurrentShapesForRemoval(shapesForRemoval);
-          console.log(`🔧 Captured ${shapesInLoop.length} shapes total: ${aiBubbles.length} AI bubbles (preserved), ${shapesForRemoval.length} other shapes`);
+          console.log(
+            `🔧 Captured ${shapesInLoop.length} shapes total: ${aiBubbles.length} AI bubbles (preserved), ${shapesForRemoval.length} other shapes`
+          );
 
           const centerX = (minX + maxX) / 2;
           const centerY = (minY + maxY) / 2;
@@ -2101,7 +2155,12 @@ export default function TldrawCanvas() {
                 { width: scaledWidth, height: scaledHeight }
               );
             } else if (action.action === "add_contact") {
-              await executeAddContact(action, imageSummary, shapesForRemoval, true);
+              await executeAddContact(
+                action,
+                imageSummary,
+                shapesForRemoval,
+                true
+              );
             } else if (action.action === "send_message") {
               const bubblePagePosition = {
                 x: bubbleX,
@@ -2284,7 +2343,11 @@ export default function TldrawCanvas() {
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
-        shapeUtils={[AIBubbleShapeUtil, MessageBubbleShapeUtil, WebsiteBubbleShapeUtil]}
+        shapeUtils={[
+          AIBubbleShapeUtil,
+          MessageBubbleShapeUtil,
+          WebsiteBubbleShapeUtil,
+        ]}
         overrides={uiOverrides}
         onMount={(editor) => {
           console.log("tldraw mounted");
@@ -2318,12 +2381,25 @@ export default function TldrawCanvas() {
             }
           }
 
-          // Check if onboarding should be shown
-          if (shouldShowOnboarding()) {
-            console.log("📋 Showing onboarding for new user");
-            setShowOnboarding(true);
-            startOnboarding();
-          }
+          // Check if onboarding should be shown (with small delay to ensure localStorage is ready)
+          setTimeout(() => {
+            console.log(
+              "🔍 Canvas Debug - Checking if onboarding should be shown..."
+            );
+            const shouldShow = shouldShowOnboarding();
+            console.log(
+              "🔍 Canvas Debug - shouldShowOnboarding result:",
+              shouldShow
+            );
+
+            if (shouldShow) {
+              console.log("📋 Showing onboarding for new user");
+              setShowOnboarding(true);
+              startOnboarding();
+            } else {
+              console.log("🔍 Canvas Debug - Not showing onboarding");
+            }
+          }, 100); // Small delay to ensure everything is ready
 
           // Load saved contacts from localStorage
           try {
@@ -2621,7 +2697,7 @@ export default function TldrawCanvas() {
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
         onStepChange={(step) => {
-          if (step === 'complete') {
+          if (step === "complete") {
             setShowOnboarding(false);
           }
         }}

@@ -92,7 +92,7 @@ export const startWebsiteJobPolling = (
       console.error("❌ Polling error:", error);
       // Don't stop polling on error - might be temporary network issue
     }
-  }, 7500); // Poll every 7.5 seconds
+  }, 2500); // Poll every 7.5 seconds
 
   // Store the interval for cleanup
   activePolls.set(jobId, pollInterval);

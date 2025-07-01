@@ -18,8 +18,10 @@ async def create_website_automation(
         job_manager.update_job(job_id, "creating", progress=10)
         
         # Get credentials from environment
-        stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
-        stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
+        # stackblitz_email = os.getenv("STACKBLITZ_EMAIL")
+        # stackblitz_password = os.getenv("STACKBLITZ_PASSWORD")
+        stackblitz_email = "brian@verticalai.com.au"
+        stackblitz_password = "akaoa!llaa022;a2A"
         
         # Get proxy settings from environment
         proxy_server = os.getenv("PROXY_SERVER")  # e.g., "http://proxy.example.com:8080"
@@ -93,7 +95,7 @@ async def run_playwright_automation(
     async with async_playwright() as p:
         # Launch browser with comprehensive flags for cloud/headless environments
         browser = await p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 '--disable-popup-blocking',
                 '--disable-web-security',

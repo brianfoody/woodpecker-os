@@ -18,7 +18,10 @@ export interface OnboardingState {
 const STORAGE_KEY = 'woodpecker-onboarding';
 
 export function getOnboardingState(): OnboardingState {
+  console.log('🔍 Onboarding Debug - getOnboardingState() called');
+  
   if (typeof window === 'undefined') {
+    console.log('🔍 Window undefined, returning default state');
     return {
       currentStep: 'welcome',
       isActive: false,
@@ -28,8 +31,11 @@ export function getOnboardingState(): OnboardingState {
 
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
+    console.log('🔍 localStorage data:', stored);
+    
     if (stored) {
       const parsed = JSON.parse(stored);
+      console.log('🔍 Parsed state:', parsed);
       return {
         currentStep: parsed.currentStep || 'welcome',
         isActive: parsed.isActive || false,
@@ -38,9 +44,10 @@ export function getOnboardingState(): OnboardingState {
       };
     }
   } catch (error) {
-    console.warn('Failed to load onboarding state:', error);
+    console.warn('🔍 Failed to load onboarding state:', error);
   }
 
+  console.log('🔍 No stored data, returning default state');
   return {
     currentStep: 'welcome',
     isActive: false,
@@ -96,5 +103,12 @@ export function dismissOnboarding(): OnboardingState {
 
 export function shouldShowOnboarding(): boolean {
   const state = getOnboardingState();
+  console.log('🔍 Onboarding Debug - shouldShowOnboarding():', {
+    state,
+    hasCompletedOnboarding: state.hasCompletedOnboarding,
+    shouldShow: !state.hasCompletedOnboarding,
+    windowDefined: typeof window !== 'undefined',
+    localStorageAvailable: typeof window !== 'undefined' && !!window.localStorage
+  });
   return !state.hasCompletedOnboarding;
 }

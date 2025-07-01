@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Environment variables for container service
-const CONTAINER_SERVICE_URL = process.env.CONTAINER_SERVICE_URL || "http://localhost:8000";
+const CONTAINER_SERVICE_URL =
+  process.env.CONTAINER_SERVICE_URL || "http://localhost:8000";
 
 // Mock job data for development (when container service is not available)
 const mockJobs = new Map<string, any>();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { jobId } = params;
+    const { jobId } = await params;
 
     if (!jobId) {
       return NextResponse.json(
@@ -23,12 +24,15 @@ export async function GET(
     console.log(`📊 Polling job status for: ${jobId}`);
 
     // Check if container service is configured
-    if (!CONTAINER_SERVICE_URL || CONTAINER_SERVICE_URL === "http://localhost:8000") {
+    if (
+      !CONTAINER_SERVICE_URL ||
+      CONTAINER_SERVICE_URL === "http://localhost:8000"
+    ) {
       console.log("📊 Using mock job status for development");
-      
+
       // Mock progression for development/testing
       let mockJob = mockJobs.get(jobId);
-      
+
       if (!mockJob) {
         // Initialize mock job
         mockJob = {
@@ -42,7 +46,7 @@ export async function GET(
 
       // Simulate progression
       const elapsed = Date.now() - mockJob.createdAt.getTime();
-      
+
       if (elapsed < 10000) {
         // First 10 seconds: creating
         mockJob.status = "creating";
@@ -107,7 +111,7 @@ export async function GET(
       errorMessage: jobStatus.errorMessage,
     });
   } catch (error) {
-    console.error(`❌ Error polling job ${params.jobId}:`, error);
+    console.error(`❌ Error polling job:`, error);
 
     // Handle specific error types
     if (error instanceof Error) {

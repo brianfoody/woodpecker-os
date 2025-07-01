@@ -589,6 +589,7 @@ export default function TldrawCanvas() {
     } catch (error) {
       console.error("❌ Error checking for new messages:", error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Make debug and force functions globally accessible
@@ -870,6 +871,7 @@ export default function TldrawCanvas() {
         });
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentImageSummary, onboardingActions]
   );
 
@@ -1795,15 +1797,24 @@ export default function TldrawCanvas() {
     } else if (action.action === "create_website") {
       // Use the center of the circled area for consistent positioning
       const bubblePagePosition = currentCircledAreaCenter;
-      await executeCreateWebsite(
-        action,
-        currentImageSummary,
-        currentShapesForRemoval,
-        bubblePagePosition,
-        currentCapturedImageBlob, // Need to preserve this from magic wand
-        false,
-        currentBubbleDimensions
-      );
+      if (currentCapturedImageBlob) {
+        await executeCreateWebsite(
+          action,
+          currentImageSummary,
+          currentShapesForRemoval,
+          bubblePagePosition,
+          currentCapturedImageBlob, // Need to preserve this from magic wand
+          false,
+          currentBubbleDimensions
+        );
+      } else {
+        console.error("❌ No captured image blob available for website creation");
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No image captured for website creation. Please try again.",
+        });
+      }
     } else if (action.action === "search") {
       // Use the center of the circled area for consistent positioning
       const bubblePagePosition = currentCircledAreaCenter;

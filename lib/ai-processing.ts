@@ -78,7 +78,7 @@ export async function sendToAI(
           return { text: text.trim(), x, y };
         })
         .filter(({ text }) => text.length > 0)
-        .map(({ text, x, y }) => text);
+        .map(({ text }) => text);
 
       const textContent =
         meaningfulTextEntries.length > 0

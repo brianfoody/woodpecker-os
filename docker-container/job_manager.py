@@ -6,8 +6,8 @@ from datetime import datetime
 
 class JobManager:
     # TODO Put back to /app/data when not local
-    def __init__(self, data_dir: str = "/Users/brianfoody/apps/personal/bolt-woodpecker/docker-container/app/data"):
-    # def __init__(self, data_dir: str = "/app/data"):
+    # def __init__(self, data_dir: str = "/Users/brianfoody/apps/personal/bolt-woodpecker/docker-container/app/data"):
+    def __init__(self, data_dir: str = "/app/data"):
         self.data_dir = data_dir
         self.jobs_file = os.path.join(data_dir, "jobs.json")
         self.jobs: Dict[str, dict] = {}

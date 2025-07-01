@@ -400,7 +400,7 @@ async def run_playwright_automation(
                 
                 # Wait for the textarea to be ready and fill it
                 print(f"🔍 Looking for textarea...")
-                textarea_locator = page.locator('textarea[placeholder="How can Bolt help you today?"]')
+                textarea_locator = page.locator('textarea')
                 await textarea_locator.wait_for(state='visible', timeout=15000)
                 
                 print(f"✅ Textarea found, filling with description...")

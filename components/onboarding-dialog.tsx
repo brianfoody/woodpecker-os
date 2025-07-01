@@ -51,6 +51,14 @@ const stepContent = {
           Just write your name and number on the canvas, circle it and hold.
         </p>
         <p className="text-lg">Woodpecker will take care of the rest.</p>
+        <p className="text-sm hidden md:block">
+          Hint: On desktop, press the T key to input text. Then press D to
+          revert back to pen for circling.
+        </p>
+        <p className="text-sm md:hidden">
+          Hint: You can tap the text icon to type text and then tap the pen icon
+          to circle.
+        </p>
       </div>
     ),
     buttonText: "Got it",
@@ -80,7 +88,7 @@ const stepContent = {
     title: "Research time",
     content: (
       <div className="space-y-4">
-        <p className="text-lg text-gray-600">
+        <p className="text-lg">
           Great. Now you&apos;ve messaged your colleague without disrupting your
           morning.
         </p>

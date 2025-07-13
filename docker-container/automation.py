@@ -93,8 +93,8 @@ async def run_playwright_automation(
     async with async_playwright() as p:
         # Launch browser with comprehensive flags for cloud/headless environments
         browser = await p.chromium.launch(
-            headless=True,
-            # headless=False,
+            headless=True,  # Must be True for deployed environments
+            # headless=False,  # Must be True for deployed environments
             args=[
                 '--disable-popup-blocking',
                 '--disable-web-security',
@@ -121,7 +121,13 @@ async def run_playwright_automation(
                 '--disable-component-update',
                 '--disable-domain-reliability',
                 '--font-render-hinting=none',
-                '--disable-font-subpixel-positioning'
+                '--disable-font-subpixel-positioning',
+                '--disable-popup-blocking',  # Duplicate for emphasis
+                '--allow-popups',
+                '--disable-features=BlockInsecurePrivateNetworkRequests',
+                '--disable-features=VizDisplayCompositor',
+                '--enable-automation',
+                '--disable-blink-features=AutomationControlled'
             ]
         )
         
@@ -313,29 +319,71 @@ async def run_playwright_automation(
             # Add some debugging info
             print(f"🔍 Current page count: {len(context.pages)}")
             
+            # Try multiple approaches to handle the login popup
+            login_page = None
+            popup_success = False
+            
+            # Method 1: Try to wait for popup with shorter timeout
             try:
-                # Wait for new tab to open when clicking the button
-                print(f"⏳ Waiting for new tab to open...")
-                async with context.expect_page(timeout=15000) as new_page_info:
+                print(f"⏳ Method 1: Waiting for new tab to open...")
+                async with context.expect_page(timeout=10000) as new_page_info:
                     await email_password_button.click()
                 
-                # Switch to the new tab for login
                 login_page = await new_page_info.value
                 print(f"✅ New tab opened: {login_page.url}")
                 await login_page.wait_for_load_state()
-                print(f"🔍 New page count: {len(context.pages)}")
-                job_manager.update_job(job_id, "creating", progress=20)
+                popup_success = True
                 
             except Exception as popup_error:
-                print(f"❌ Failed to open popup: {popup_error}")
-                print(f"🔄 Attempting direct navigation to StackBlitz login...")
+                print(f"❌ Method 1 failed: {popup_error}")
                 
-                # Fallback: navigate directly to StackBlitz login URL
-                stackblitz_url = "https://stackblitz.com/sign_in?redirect_to=%2Foauth%2Fauthorize%3Fclient_id%3Dbolt%26response_type%3Dcode%26redirect_uri%3Dhttps%253A%252F%252Fbolt.new%252Foauth2%26code_challenge_method%3DS256%26code_challenge%3DgNZVFMfZyeHAs4wPk9ISUdkuxaC0VVoM19aar-IzHn8%26state%3D2258c671-46c1-4b10-a2f6-c432ac89ee09%26scope%3Dpublic%26bolt_oauth_provider%3Dlogin_password"
-                login_page = await context.new_page()
-                await login_page.goto(stackblitz_url)
-                await login_page.wait_for_load_state()
-                job_manager.update_job(job_id, "creating", progress=20)
+                # Method 2: Check if popup opened without event detection
+                print(f"🔄 Method 2: Checking for existing popup...")
+                await asyncio.sleep(2)  # Wait for popup to potentially open
+                
+                if len(context.pages) > 1:
+                    # Find the login page among open pages
+                    for page_candidate in context.pages:
+                        if page_candidate != original_page:
+                            page_url = page_candidate.url
+                            if "stackblitz.com" in page_url or "sign_in" in page_url:
+                                login_page = page_candidate
+                                print(f"✅ Found existing popup: {page_url}")
+                                popup_success = True
+                                break
+                
+                # Method 3: Force click and wait for any new page
+                if not popup_success:
+                    print(f"🔄 Method 3: Force click and wait...")
+                    try:
+                        await email_password_button.click()
+                        await asyncio.sleep(3)  # Wait longer for popup
+                        
+                        if len(context.pages) > 1:
+                            for page_candidate in context.pages:
+                                if page_candidate != original_page:
+                                    login_page = page_candidate
+                                    print(f"✅ Found page after force click: {login_page.url}")
+                                    popup_success = True
+                                    break
+                    except Exception as force_error:
+                        print(f"❌ Method 3 failed: {force_error}")
+                
+                # Method 4: Direct navigation fallback
+                if not popup_success:
+                    print(f"🔄 Method 4: Direct navigation fallback...")
+                    stackblitz_url = "https://stackblitz.com/sign_in?redirect_to=%2Foauth%2Fauthorize%3Fclient_id%3Dbolt%26response_type%3Dcode%26redirect_uri%3Dhttps%253A%252F%252Fbolt.new%252Foauth2%26code_challenge_method%3DS256%26code_challenge%3DgNZVFMfZyeHAs4wPk9ISUdkuxaC0VVoM19aar-IzHn8%26state%3D2258c671-46c1-4b10-a2f6-c432ac89ee09%26scope%3Dpublic%26bolt_oauth_provider%3Dlogin_password"
+                    login_page = await context.new_page()
+                    await login_page.goto(stackblitz_url)
+                    await login_page.wait_for_load_state()
+                    popup_success = True
+                    
+            if not popup_success or not login_page:
+                raise Exception("Failed to open login page with all methods")
+                
+            print(f"🔍 Login page URL: {login_page.url}")
+            print(f"🔍 Total pages: {len(context.pages)}")
+            job_manager.update_job(job_id, "creating", progress=20)
             
             # Step 4: Enter email on StackBlitz login page
             print(f"📧 Entering email...")

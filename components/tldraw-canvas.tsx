@@ -1813,11 +1813,14 @@ export default function TldrawCanvas() {
           currentBubbleDimensions
         );
       } else {
-        console.error("❌ No captured image blob available for website creation");
+        console.error(
+          "❌ No captured image blob available for website creation"
+        );
         toast({
           variant: "destructive",
           title: "Error",
-          description: "No image captured for website creation. Please try again.",
+          description:
+            "No image captured for website creation. Please try again.",
         });
       }
     } else if (action.action === "search") {
@@ -2313,7 +2316,11 @@ export default function TldrawCanvas() {
   // Handler for onboarding actions
   const handleOnboardingAction = useCallback(
     (actionType: string, additionalData?: any) => {
-      console.log("📋 Onboarding action triggered:", actionType, additionalData);
+      console.log(
+        "📋 Onboarding action triggered:",
+        actionType,
+        additionalData
+      );
       const onboardingUpdate = onboardingActions.checkActionForOnboarding(
         actionType,
         additionalData
@@ -2725,23 +2732,6 @@ export default function TldrawCanvas() {
         onOpenChange={setContextMenuOpen}
       />
 
-      {/* Built with Bolt Badge */}
-      <div className="absolute bottom-12 right-4 z-10">
-        <a
-          href="https://bolt.new"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/black_circle_360x360.png"
-            alt="Built with Bolt"
-            className="h-20 w-auto hover:opacity-80 transition-opacity"
-          />
-        </a>
-      </div>
-
       <OnboardingDialog
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
@@ -2756,7 +2746,10 @@ export default function TldrawCanvas() {
 }
 
 // Export the global onboarding callback for use in shape utils
-export function triggerOnboardingAction(actionType: string, additionalData?: any) {
+export function triggerOnboardingAction(
+  actionType: string,
+  additionalData?: any
+) {
   if (globalOnboardingCallback) {
     globalOnboardingCallback(actionType, additionalData);
   } else {

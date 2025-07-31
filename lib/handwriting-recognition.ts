@@ -6,7 +6,7 @@
 // 2. Check iink-ts documentation for v3 API changes
 // 3. Update the Editor initialization code below
 
-import * as iink from "iink-ts";
+import { Editor, type TInteractiveInkEditorOptions } from "iink-ts";
 
 export interface RecognitionResult {
   text: string;
@@ -32,30 +32,32 @@ export class HandwritingRecognitionService {
       document.body.appendChild(this.offscreenElement);
 
       // Create configuration for recognition
-      const configuration = {
-        server: {
-          scheme: 'https',
-          host: 'cloud.myscript.com',
-          applicationKey: process.env.NEXT_PUBLIC_MYSCRIPT_APP_KEY || '',
-          hmacKey: process.env.NEXT_PUBLIC_MYSCRIPT_HMAC_KEY || '',
-        },
-        recognition: {
-          type: 'TEXT',
-          protocol: 'WEBSOCKET',
-          lang: 'en_US',
-        },
-        rendering: {
-          renderer: 'canvas',
+      const configuration: TInteractiveInkEditorOptions = {
+        configuration: {
+          server: {
+            scheme: 'https',
+            host: 'cloud.myscript.com',
+            applicationKey: process.env.NEXT_PUBLIC_MYSCRIPT_APP_KEY || '',
+            hmacKey: process.env.NEXT_PUBLIC_MYSCRIPT_HMAC_KEY || '',
+          },
+          recognition: {
+            type: 'TEXT',
+            lang: 'en_US',
+          },
         },
       };
 
-      // Initialize editor with DOM element
-      const Editor = (iink as any).Editor;
-      this.editor = new Editor(this.offscreenElement, configuration);
+      // Initialize editor with DOM element - v3 API
+      this.editor = await Editor.load(this.offscreenElement, 'INTERACTIVEINK', configuration);
       
       // Wait for editor to be ready
       await new Promise((resolve) => {
-        this.editor.events.addEventListener('loaded', resolve, { once: true });
+        if (this.editor.events && this.editor.events.addEventListener) {
+          this.editor.events.addEventListener('loaded', resolve, { once: true });
+        } else {
+          // For v3, the editor might be ready immediately
+          resolve(true);
+        }
       });
       
       this.isInitialized = true;
@@ -83,14 +85,35 @@ export class HandwritingRecognitionService {
 
       // Add pointer events to the editor
       for (const event of pointerEvents) {
-        await this.editor.pointerEvent(event);
+        if (event.eventType === 'pointerdown') {
+          await this.editor.pointerDown({
+            x: event.x,
+            y: event.y,
+            t: event.t,
+            p: event.p || 0.5,
+          });
+        } else if (event.eventType === 'pointermove') {
+          await this.editor.pointerMove({
+            x: event.x,
+            y: event.y,
+            t: event.t,
+            p: event.p || 0.5,
+          });
+        } else if (event.eventType === 'pointerup') {
+          await this.editor.pointerUp({
+            x: event.x,
+            y: event.y,
+            t: event.t,
+            p: event.p || 0.5,
+          });
+        }
       }
 
       // Wait for recognition to complete
       await this.editor.waitForIdle();
 
       // Get exports (recognition results)
-      const exports = await this.editor.export_(['text/plain']);
+      const exports = await this.editor.export(['text/plain']);
 
       // Extract plain text
       const text = exports?.['text/plain'] || "";
@@ -108,7 +131,7 @@ export class HandwritingRecognitionService {
 
   destroy() {
     if (this.editor) {
-      this.editor.close();
+      this.editor.destroy();
       this.editor = null;
     }
     if (this.offscreenElement && this.offscreenElement.parentNode) {

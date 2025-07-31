@@ -41,7 +41,7 @@ import type { SmartMessage } from "@/lib/models";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
 import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
-import { HandwritingContextManager } from "@/lib/handwriting-context-manager";
+import { HandwritingContextManagerV2 } from "@/lib/handwriting-context-manager-v2";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 
 // Hold detection
@@ -139,7 +139,7 @@ function calculateAIBubbleDimensions(content: string) {
 export default function TldrawCanvas() {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
-  const handwritingManagerRef = useRef<HandwritingContextManager | null>(null);
+  const handwritingManagerRef = useRef<HandwritingContextManagerV2 | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
   const isProcessingHandwritingResponseRef = useRef(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
@@ -2432,7 +2432,7 @@ export default function TldrawCanvas() {
           editorRef.current = editor;
 
           // Initialize handwriting recognition
-          handwritingManagerRef.current = new HandwritingContextManager();
+          handwritingManagerRef.current = new HandwritingContextManagerV2(editor);
           responseRendererRef.current = new HandwrittenResponseRenderer(editor);
 
           // Set up intent detection callback
@@ -2561,6 +2561,11 @@ export default function TldrawCanvas() {
                   (record: any) =>
                     record.typeName === "shape" && record.type === "draw"
                 );
+              
+              // Sync handwriting recognition if draw shapes changed
+              if (isDrawOperation && handwritingManagerRef.current) {
+                handwritingManagerRef.current.sync();
+              }
 
               // Check if any shapes were deleted (immediate save for deletions)
               const hasDeletedShapes = removedRecords.some(
@@ -2576,38 +2581,6 @@ export default function TldrawCanvas() {
               }
             }
 
-            // Track draw shapes for handwriting recognition
-            if (handwritingManagerRef.current) {
-              // Handle new draw shapes
-              const newDrawShapes = addedRecords
-                .filter((record: any) => 
-                  record.typeName === "shape" && record.type === "draw"
-                ) as any[];
-
-              newDrawShapes.forEach((shape) => {
-                handwritingManagerRef.current!.addStroke(shape);
-              });
-
-              // Handle updated draw shapes
-              const updatedDrawShapes = updatedRecords
-                .filter((record: any) => 
-                  record.typeName === "shape" && record.type === "draw"
-                ) as any[];
-
-              updatedDrawShapes.forEach((shape) => {
-                handwritingManagerRef.current!.updateStroke(shape);
-              });
-
-              // Handle removed draw shapes
-              const removedDrawShapes = removedRecords
-                .filter((record: any) => 
-                  record.typeName === "shape" && record.type === "draw"
-                ) as any[];
-
-              removedDrawShapes.forEach((shape) => {
-                handwritingManagerRef.current!.removeStroke(shape.id);
-              });
-            }
           });
 
           // Set pen tool as default IMMEDIATELY

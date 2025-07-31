@@ -1,4 +1,4 @@
-import { handwritingRecognitionService } from './handwriting-recognition-simple';
+import { handwritingRecognitionService } from './handwriting-recognition';
 import { 
   TLDrawStroke, 
   convertMultipleStrokes, 

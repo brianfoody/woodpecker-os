@@ -193,7 +193,7 @@ export function OnboardingDialog({
       }
     };
 
-    const interval = setInterval(checkForUpdates, 100);
+    const interval = setInterval(checkForUpdates, 1000); // Check once per second instead of 10x per second
     return () => clearInterval(interval);
   }, [onboardingState.currentStep]);
 

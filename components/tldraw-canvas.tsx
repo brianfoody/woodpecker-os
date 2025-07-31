@@ -18,6 +18,7 @@ import {
   AIBubbleShapeUtil,
   MessageBubbleShapeUtil,
   WebsiteBubbleShapeUtil,
+  HandwrittenTextShapeUtil,
 } from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
@@ -40,6 +41,8 @@ import type { SmartMessage } from "@/lib/models";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
 import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
+import { HandwritingContextManager } from "@/lib/handwriting-context-manager";
+import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 
 // Hold detection
 let holdDetector: HoldDetector | null = null;
@@ -136,6 +139,9 @@ function calculateAIBubbleDimensions(content: string) {
 export default function TldrawCanvas() {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
+  const handwritingManagerRef = useRef<HandwritingContextManager | null>(null);
+  const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
+  const isProcessingHandwritingResponseRef = useRef(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [contextMenuActions, setContextMenuActions] = useState<AIAction[]>([]);
   const [contextMenuPosition, setContextMenuPosition] = useState<{
@@ -2403,6 +2409,7 @@ export default function TldrawCanvas() {
           AIBubbleShapeUtil,
           MessageBubbleShapeUtil,
           WebsiteBubbleShapeUtil,
+          HandwrittenTextShapeUtil,
         ]}
         overrides={uiOverrides}
         onMount={(editor) => {
@@ -2423,6 +2430,62 @@ export default function TldrawCanvas() {
 
           // Store editor reference
           editorRef.current = editor;
+
+          // Initialize handwriting recognition
+          handwritingManagerRef.current = new HandwritingContextManager();
+          responseRendererRef.current = new HandwrittenResponseRenderer(editor);
+
+          // Set up intent detection callback
+          handwritingManagerRef.current.onIntentDetected = async (result) => {
+            console.log('🤖 AI intent detected:', result);
+            
+            // Prevent concurrent AI responses
+            if (isProcessingHandwritingResponseRef.current) {
+              console.log('⏳ Already processing handwriting response, skipping...');
+              return;
+            }
+            
+            isProcessingHandwritingResponseRef.current = true;
+            
+            if (responseRendererRef.current && result.responsePosition) {
+              // Show typing cursor
+              await responseRendererRef.current.showTypingCursor(result.responsePosition);
+              
+              // Get AI response
+              try {
+                const response = await fetch('/api/ask-ai', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    image_summary: result.fullQuestion, // Pass the question as the summary
+                    task: result.fullQuestion,
+                  }),
+                });
+
+                if (!response.ok) throw new Error('Failed to get AI response');
+                
+                const data = await response.json();
+                if (data.success && data.response) {
+                  // Render handwritten response
+                  await responseRendererRef.current.renderResponse(
+                    data.response,
+                    result.responsePosition,
+                    { font: 'kalam', size: 'm', speed: 25 }
+                  );
+                  
+                  // Update conversation history
+                  handwritingManagerRef.current?.updateLastResponse(data.response);
+                }
+              } catch (error) {
+                console.error('Failed to get AI response:', error);
+                responseRendererRef.current.hideCursor();
+              } finally {
+                isProcessingHandwritingResponseRef.current = false;
+              }
+            } else {
+              isProcessingHandwritingResponseRef.current = false;
+            }
+          };
 
           // Load saved canvas data
           const savedData = loadCanvasData();
@@ -2475,14 +2538,16 @@ export default function TldrawCanvas() {
 
           // Listen for changes to auto-save with immediate save for draw operations
           const unsubscribe = editor.store.listen((event) => {
+            // Extract records at the top level
+            const addedRecords = Object.values(event.changes.added);
+            const updatedRecords = Object.values(event.changes.updated).map(
+              ([, record]) => record
+            );
+            const removedRecords = Object.values(event.changes.removed);
+
+            // Handle auto-save
             if (autoSaverRef.current) {
               // Check if this is a draw operation for immediate save
-              const addedRecords = Object.values(event.changes.added);
-              const updatedRecords = Object.values(event.changes.updated).map(
-                ([, record]) => record
-              );
-              const removedRecords = Object.values(event.changes.removed);
-
               const isDrawOperation =
                 addedRecords.some(
                   (record: any) =>
@@ -2509,6 +2574,39 @@ export default function TldrawCanvas() {
                 // Use debounced save for other operations
                 autoSaverRef.current.scheduleAutoSave();
               }
+            }
+
+            // Track draw shapes for handwriting recognition
+            if (handwritingManagerRef.current) {
+              // Handle new draw shapes
+              const newDrawShapes = addedRecords
+                .filter((record: any) => 
+                  record.typeName === "shape" && record.type === "draw"
+                ) as any[];
+
+              newDrawShapes.forEach((shape) => {
+                handwritingManagerRef.current!.addStroke(shape);
+              });
+
+              // Handle updated draw shapes
+              const updatedDrawShapes = updatedRecords
+                .filter((record: any) => 
+                  record.typeName === "shape" && record.type === "draw"
+                ) as any[];
+
+              updatedDrawShapes.forEach((shape) => {
+                handwritingManagerRef.current!.updateStroke(shape);
+              });
+
+              // Handle removed draw shapes
+              const removedDrawShapes = removedRecords
+                .filter((record: any) => 
+                  record.typeName === "shape" && record.type === "draw"
+                ) as any[];
+
+              removedDrawShapes.forEach((shape) => {
+                handwritingManagerRef.current!.removeStroke(shape.id);
+              });
             }
           });
 
@@ -2710,6 +2808,14 @@ export default function TldrawCanvas() {
             }
 
             cancelHoldDetection();
+
+            // Cleanup handwriting recognition
+            if (handwritingManagerRef.current) {
+              handwritingManagerRef.current.clear();
+            }
+            if (responseRendererRef.current) {
+              responseRendererRef.current.clearResponses();
+            }
 
             // Cleanup store listener
             unsubscribe();

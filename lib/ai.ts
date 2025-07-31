@@ -184,7 +184,7 @@ The user has highlighted a section of the display and asked for a reply.
 
 A description of the highlighted section will be provided as well as the task the user has confirmed to be actioned
 
-Please answer the user. Output your response in an html div.`,
+Please answer the user. Provide a clear, concise response without any HTML formatting or markup.`,
       },
       {
         role: "user",

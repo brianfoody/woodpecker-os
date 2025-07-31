@@ -48,11 +48,6 @@ export class TLDrawInkSynchronizer {
     // We'll handle them in the sync method after calling export
   }
 
-  private getLastStroke(): TLShape | null {
-    const shapes = this.editor.getCurrentPageShapes();
-    const drawShapes = shapes.filter((s) => s.type === "draw");
-    return drawShapes.length > 0 ? drawShapes[drawShapes.length - 1] : null;
-  }
 
   async sync() {
     if (!this.recognizer || this.isProcessing) return;
@@ -131,13 +126,33 @@ export class TLDrawInkSynchronizer {
             }
 
             if (textToProcess && this.onTextRecognized) {
-              // Get position from the last stroke
-              const lastStroke = this.getLastStroke();
-              if (lastStroke) {
-                this.onTextRecognized(textToProcess, {
-                  x: lastStroke.x,
-                  y: lastStroke.y + 50, // Position below the text
-                });
+              // Calculate bounding box of all new strokes
+              if (newStrokes.length > 0) {
+                let minX = Infinity;
+                let maxY = -Infinity;
+                
+                // Find bounds of all new strokes
+                for (const stroke of newStrokes) {
+                  // Get the actual bounds from TLDraw
+                  const bounds = this.editor.getShapePageBounds(stroke);
+                  
+                  if (bounds) {
+                    minX = Math.min(minX, bounds.x);
+                    maxY = Math.max(maxY, bounds.y + bounds.height);
+                  } else {
+                    // Fallback if bounds not available
+                    minX = Math.min(minX, stroke.x);
+                    maxY = Math.max(maxY, stroke.y + 30);
+                  }
+                }
+                
+                // Ensure we have valid coordinates
+                if (minX !== Infinity && maxY !== -Infinity) {
+                  this.onTextRecognized(textToProcess, {
+                    x: minX,
+                    y: maxY + 20, // Add padding below the text
+                  });
+                }
               }
             }
           }

@@ -99,10 +99,12 @@ export class HandwrittenTextShapeUtil extends ShapeUtil<HandwrittenTextShape> {
   override canResize = () => true;
 
   override onResize = (shape: HandwrittenTextShape, info: any) => {
+    const { scaleX, scaleY } = info;
+    
     return {
       props: {
-        w: Math.max(info.bounds.width, 50),
-        h: Math.max(info.bounds.height, 20),
+        w: Math.max(50, shape.props.w * scaleX),
+        h: Math.max(20, shape.props.h * scaleY),
       },
     };
   };

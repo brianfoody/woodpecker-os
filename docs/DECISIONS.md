@@ -8,11 +8,13 @@ This document records important technical decisions made during the development 
 
 **Date**: January 2025
 
-**Context**: 
+**Context**:
+
 - Needed robust handwriting recognition for the e-ink notepad interface
 - Evaluated both offline and online approaches
 
 **Decision Details**:
+
 - **Web App**: Use iink-ts with WebSocket connection to MyScript cloud
   - Provides best accuracy and real-time recognition
   - Requires internet connection
@@ -23,11 +25,13 @@ This document records important technical decisions made during the development 
   - No internet connection required
 
 **Alternatives Considered**:
+
 - TensorFlow.js for browser-based offline recognition (rejected: accuracy concerns)
 - Hybrid online/offline web approach (rejected: complexity vs benefit)
 - Other OCR libraries (rejected: not optimized for handwriting)
 
 **Implications**:
+
 - Web app requires internet connection for handwriting features
 - Mobile apps will have full offline capability
 - Consistent recognition quality across platforms when online
@@ -40,17 +44,20 @@ This document records important technical decisions made during the development 
 
 **Date**: January 2025
 
-**Context**: 
+**Context**:
+
 - Wanted AI responses to feel natural on the e-ink notepad
 - Needed to maintain the handwritten aesthetic
 
 **Decision Details**:
+
 - Created custom `handwritten-text` TLDraw shape
 - Use Kalam and Caveat fonts for handwritten appearance
 - Implement typewriter animation for natural feel
 - Position responses spatially near questions
 
 **Implications**:
+
 - Natural integration with handwritten notes
 - Maintains sketching metaphor throughout
 
@@ -63,12 +70,13 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - Need to detect when users expect AI responses without explicit commands
 - Balance between responsiveness and avoiding false triggers
 
 **Decision Details**:
-- 250ms debounce for handwriting recognition
-- 500ms debounce for WebSocket sync
+
+- 1000ms (1 second) debounce for WebSocket sync
 - Context-aware intent detection using:
   - Temporal context (last 30 seconds)
   - Spatial context (nearby text)
@@ -76,6 +84,7 @@ This document records important technical decisions made during the development 
 - 70% confidence threshold for triggering responses
 
 **Implications**:
+
 - Natural interaction without manual triggers
 - Reduced false positives
 - Maintains conversation context
@@ -89,11 +98,13 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - Originally only had magic wand for AI interactions
 - Added automatic handwriting detection
 - Decided to keep both methods
 
 **Decision Details**:
+
 - Magic wand remains for:
   - Selecting specific areas for AI analysis
   - Forcing AI interaction when automatic detection fails
@@ -103,6 +114,7 @@ This document records important technical decisions made during the development 
   - Conversational flow
 
 **Implications**:
+
 - Users have multiple ways to interact with AI
 - Fallback method always available
 - Supports different interaction preferences
@@ -116,16 +128,19 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - Need to preserve user's work between sessions
 - Privacy and simplicity considerations
 
 **Decision Details**:
+
 - Auto-save to localStorage every 3 seconds
 - Immediate save for draw operations
 - Store complete TLDraw document state
 - No user accounts or cloud sync initially
 
 **Implications**:
+
 - Work persists locally only
 - No cross-device sync
 - Simple implementation
@@ -140,16 +155,19 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - Building modern web application
 - Need flexible canvas/drawing capabilities
 
 **Decision Details**:
+
 - **Next.js 15**: Latest features, App Router, React 19 support
 - **TLDraw**: Powerful canvas with built-in tools, extensible
 - **Tailwind CSS v4**: Modern styling approach
 - **TypeScript**: Type safety throughout
 
 **Implications**:
+
 - Modern development experience
 - Good performance and SEO capabilities
 - Extensive customization options
@@ -163,10 +181,12 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - Need fast, capable AI for various features
 - Cost and performance considerations
 
 **Decision Details**:
+
 - Groq API for text generation
 - Llama models for different tasks:
   - `llama-3.3-70b-versatile` for general queries
@@ -174,6 +194,7 @@ This document records important technical decisions made during the development 
 - Custom prompts for intent detection
 
 **Implications**:
+
 - Fast response times
 - Good accuracy for intended use cases
 - Reasonable API costs
@@ -187,12 +208,14 @@ This document records important technical decisions made during the development 
 **Date**: January 2025
 
 **Context**:
+
 - MyScript WebSocket SSR maintains a persistent session with all strokes
 - Server accumulation is **session-only** - lost on page reload/reconnection
 - When adding new strokes, the server returns recognition for ALL accumulated strokes
 - Writing "Boop!" would return "Hello\n\nBoop!" if "Hello" was written earlier in the same session
 
 **Decision Details**:
+
 - **Why filter**: The e-ink notepad metaphor expects discrete writing actions, especially for AI interactions
 - **How it works**:
   - Track the last recognized text in the InkRecognizer class
@@ -201,22 +224,26 @@ This document records important technical decisions made during the development 
 - **Key insight**: We're not fighting iink's design - we're adapting it for our use case where users expect each writing gesture to be processed independently
 
 **Implementation**:
+
 - `extractNewText()`: Compares full text with last recognized text
 - `updateLastRecognizedText()`: Updates tracking after each recognition
 - `resetTextTracking()`: Clears tracking on canvas clear
 
 **Alternatives Considered**:
+
 - Using full accumulated context (rejected: would confuse AI intent detection with old text)
 - Creating new content parts on server (rejected: not supported by WebSocket SSR API)
 - Clearing and re-sending all strokes (rejected: inefficient and poor UX)
 - Using REST API instead of WebSocket (rejected: loses real-time recognition)
 
 **Implications**:
+
 - Clean separation of new text from accumulated history
 - Better AI intent detection accuracy (processes only what user just wrote)
 - Maintains handwriting recognition benefits (server still has full context)
 - Works within MyScript WebSocket SSR limitations
 
 **Future Considerations**:
+
 - Could add toggle for "continuous mode" (show all accumulated text) vs "discrete mode" (current behavior)
 - May need adjustment if MyScript adds content part management to WebSocket API

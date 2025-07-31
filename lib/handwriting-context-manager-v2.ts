@@ -42,7 +42,7 @@ export class HandwritingContextManagerV2 {
   private lastRecognizedPosition: { x: number; y: number } = { x: 0, y: 0 };
 
   // Configuration
-  private readonly DEBOUNCE_DELAY = 500; // ms - increased for WebSocket
+  private readonly DEBOUNCE_DELAY = 1000; // ms - 1 second for WebSocket sync
   private readonly CONTEXT_WINDOW_TIME = 30000; // 30 seconds
   private readonly SPATIAL_PROXIMITY_THRESHOLD = 200; // pixels
   private readonly MAX_BUFFER_SIZE = 100; // Max segments to keep

@@ -102,32 +102,37 @@ async function triggerMagicWandGesture(
 
 // Helper function to calculate AI bubble dimensions based on content
 function calculateAIBubbleDimensions(content: string) {
-  // Reduced by additional 30% for more compact bubbles
-  const minWidth = 180; // 30% smaller: 255 * 0.7 = 178.5 ≈ 180
-  const minHeight = 55; // 30% smaller: 75 * 0.7 = 52.5 ≈ 55
-  const maxWidth = 470; // 30% smaller: 675 * 0.7 = 472.5 ≈ 470
-  const maxHeight = 350; // 30% smaller: 500 * 0.7 = 350
+  // Much smaller minimum dimensions for tight fit
+  const minWidth = 80;
+  const minHeight = 30;
+  const maxWidth = 300; // Reduced max width significantly
+  const maxHeight = 200; // Reduced max height significantly
 
-  // Character-based estimation with more compact sizing
+  // Character-based estimation with tight sizing
   const charCount = content.length;
   const lineCount = Math.max(1, content.split("\n").length);
 
-  // Fewer characters per line for more compact bubbles
-  const estimatedCharsPerLine = 40; // Reduced from 56 for smaller bubbles
+  // Calculate width based on content - more aggressive sizing
+  const charsPerLine = 35; // Tighter character estimate
+  const charWidth = 3.5; // Smaller character width
+  const padding = 30; // Reduced padding
+  
   const estimatedWidth = Math.min(
     maxWidth,
-    Math.max(minWidth, estimatedCharsPerLine * 4.2 + 50) // Reduced multiplier and padding
+    Math.max(minWidth, Math.min(charCount * charWidth + padding, charsPerLine * charWidth + padding))
   );
 
-  // Calculate height with compact sizing
-  const actualCharsPerLine = Math.max(1, (estimatedWidth - 50) / 4.2);
+  // Calculate height based on wrapped lines - tighter fit
+  const actualCharsPerLine = Math.max(1, (estimatedWidth - padding) / charWidth);
   const wrappedLines = Math.ceil(charCount / actualCharsPerLine);
   const totalLines = Math.max(lineCount, wrappedLines);
 
-  // Reduced line height and padding for more compact bubbles
+  const lineHeight = 14; // Tighter line height
+  const verticalPadding = 20; // Reduced vertical padding
+  
   const estimatedHeight = Math.min(
     maxHeight,
-    Math.max(minHeight, totalLines * 11 + 50) // Reduced line height and padding by 30%
+    Math.max(minHeight, totalLines * lineHeight + verticalPadding)
   );
 
   return {

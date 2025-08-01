@@ -12,15 +12,15 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
   getDefaultProps(): AIBubbleShape['props'] {
     console.log('🔧 AIBubbleShapeUtil: getDefaultProps called');
     return {
-      w: 190, // 30% smaller: 270 * 0.7 = 189 ≈ 190
-      h: 85,  // 30% smaller: 120 * 0.7 = 84 ≈ 85
+      w: 120, // Much smaller default width
+      h: 50,  // Much smaller default height
       content: '',
       isLoading: false,
     }
   }
 
   getMinDimensions() {
-    return { width: 125, height: 45 } // 30% smaller minimums: 180*0.7=126, 60*0.7=42
+    return { width: 80, height: 30 } // Smaller minimum dimensions
   }
 
   getMaxDimensions() {
@@ -60,14 +60,14 @@ export class AIBubbleShapeUtil extends ShapeUtil<AIBubbleShape> {
             backgroundColor: isDarkMode ? '#1f1f1f' : '#ffffff',
             border: `3px solid ${isDarkMode ? '#666666' : '#999999'}`,
             borderRadius: '12px',
-            padding: `${Math.max(8, Math.min(16, bounds.height * 0.08))}px`,
+            padding: `${Math.max(6, Math.min(12, bounds.height * 0.06))}px`,
             fontSize: `${fontSize}px`,
             fontFamily: 'var(--tl-font-mono)',
             color: isDarkMode ? '#ffffff' : '#000000',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center', // Vertical centering
+            justifyContent: 'flex-start', // Start from top instead of center
             boxSizing: 'border-box',
             minHeight: '0',
           }}

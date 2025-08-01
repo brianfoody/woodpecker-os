@@ -3,7 +3,7 @@
  * Converts TLDraw strokes to iink format and handles recognition
  */
 
-import { Editor, type TLShape } from "tldraw";
+import { Editor } from "tldraw";
 import { Stroke, type TPointer, DefaultPenStyle } from "iink-ts";
 import { InkRecognizer } from "./iink-recognizer";
 
@@ -22,15 +22,15 @@ export class TLDrawInkSynchronizer {
 
   constructor(editor: Editor, options?: { skipExistingStrokes?: boolean }) {
     this.editor = editor;
-    
+
     // If skipExistingStrokes is true, mark all current strokes as already processed
     if (options?.skipExistingStrokes) {
       const shapes = this.editor.getCurrentPageShapes();
       const drawShapes = shapes.filter((s) => s.type === "draw");
       console.log(`⏭️ Skipping ${drawShapes.length} existing strokes`);
-      
+
       // Add them to the map so they won't be processed
-      drawShapes.forEach(shape => {
+      drawShapes.forEach((shape) => {
         this.strokeIdMap.set(shape.id, shape.id);
       });
     }
@@ -47,7 +47,6 @@ export class TLDrawInkSynchronizer {
     // For SSR, export updates come through the message callback
     // We'll handle them in the sync method after calling export
   }
-
 
   async sync() {
     if (!this.recognizer || this.isProcessing) return;
@@ -96,7 +95,7 @@ export class TLDrawInkSynchronizer {
 
           // Handle both JIIX and plain text formats
           let fullText = "";
-          
+
           if (exportResult["application/vnd.myscript.jiix"]) {
             const jiixData = exportResult["application/vnd.myscript.jiix"];
             fullText = jiixData.label || "";
@@ -114,8 +113,11 @@ export class TLDrawInkSynchronizer {
               typeof this.recognizer.extractNewText === "function"
             ) {
               textToProcess = this.recognizer.extractNewText(fullText);
-              console.log("✂️ Filtered text (new only):", JSON.stringify(textToProcess));
-              
+              console.log(
+                "✂️ Filtered text (new only):",
+                JSON.stringify(textToProcess)
+              );
+
               // Update the last recognized text for next time
               if (
                 "updateLastRecognizedText" in this.recognizer &&
@@ -130,12 +132,12 @@ export class TLDrawInkSynchronizer {
               if (newStrokes.length > 0) {
                 let minX = Infinity;
                 let maxY = -Infinity;
-                
+
                 // Find bounds of all new strokes
                 for (const stroke of newStrokes) {
                   // Get the actual bounds from TLDraw
                   const bounds = this.editor.getShapePageBounds(stroke);
-                  
+
                   if (bounds) {
                     minX = Math.min(minX, bounds.x);
                     maxY = Math.max(maxY, bounds.y + bounds.height);
@@ -145,7 +147,7 @@ export class TLDrawInkSynchronizer {
                     maxY = Math.max(maxY, stroke.y + 30);
                   }
                 }
-                
+
                 // Ensure we have valid coordinates
                 if (minX !== Infinity && maxY !== -Infinity) {
                   this.onTextRecognized(textToProcess, {

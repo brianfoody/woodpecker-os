@@ -1,12 +1,12 @@
-export type OnboardingStep = 
-  | 'welcome'
-  | 'add_contact'
-  | 'send_message'
-  | 'ask_ai'
-  | 'ask_ai_followup'
-  | 'wait_for_reply'
-  | 'view_reply'
-  | 'complete';
+export type OnboardingStep =
+  | "welcome"
+  | "add_contact"
+  | "send_message"
+  | "ask_ai"
+  | "ask_ai_followup"
+  | "wait_for_reply"
+  | "view_reply"
+  | "complete";
 
 export interface OnboardingState {
   currentStep: OnboardingStep;
@@ -15,15 +15,15 @@ export interface OnboardingState {
   hasCompletedOnboarding: boolean;
 }
 
-const STORAGE_KEY = 'woodpecker-onboarding';
+const STORAGE_KEY = "woodpecker-onboarding";
 
 export function getOnboardingState(): OnboardingState {
   // console.log('🔍 Onboarding Debug - getOnboardingState() called');
-  
-  if (typeof window === 'undefined') {
+
+  if (typeof window === "undefined") {
     // console.log('🔍 Window undefined, returning default state');
     return {
-      currentStep: 'welcome',
+      currentStep: "welcome",
       isActive: false,
       hasCompletedOnboarding: false,
     };
@@ -32,42 +32,42 @@ export function getOnboardingState(): OnboardingState {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     // console.log('🔍 localStorage data:', stored);
-    
+
     if (stored) {
       const parsed = JSON.parse(stored);
       // console.log('🔍 Parsed state:', parsed);
       return {
-        currentStep: parsed.currentStep || 'welcome',
+        currentStep: parsed.currentStep || "welcome",
         isActive: parsed.isActive || false,
         contactName: parsed.contactName,
         hasCompletedOnboarding: parsed.hasCompletedOnboarding || false,
       };
     }
   } catch (error) {
-    // console.warn('🔍 Failed to load onboarding state:', error);
+    console.warn("🔍 Failed to load onboarding state:", error);
   }
 
   // console.log('🔍 No stored data, returning default state');
   return {
-    currentStep: 'welcome',
+    currentStep: "welcome",
     isActive: false,
     hasCompletedOnboarding: false,
   };
 }
 
 export function saveOnboardingState(state: OnboardingState): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (error) {
-    console.warn('Failed to save onboarding state:', error);
+    console.warn("Failed to save onboarding state:", error);
   }
 }
 
 export function startOnboarding(): OnboardingState {
   const state: OnboardingState = {
-    currentStep: 'welcome',
+    currentStep: "welcome",
     isActive: true,
     hasCompletedOnboarding: false,
   };
@@ -84,8 +84,8 @@ export function advanceOnboardingStep(
     ...currentState,
     currentStep: newStep,
     contactName: contactName || currentState.contactName,
-    hasCompletedOnboarding: newStep === 'complete',
-    isActive: newStep !== 'complete',
+    hasCompletedOnboarding: newStep === "complete",
+    isActive: newStep !== "complete",
   };
   saveOnboardingState(newState);
   return newState;
@@ -93,7 +93,7 @@ export function advanceOnboardingStep(
 
 export function dismissOnboarding(): OnboardingState {
   const state: OnboardingState = {
-    currentStep: 'complete',
+    currentStep: "complete",
     isActive: false,
     hasCompletedOnboarding: true,
   };

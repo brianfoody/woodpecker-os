@@ -720,7 +720,9 @@ export default function TldrawCanvas() {
       bubblePosition: { x: number; y: number },
       isAutoExecution = false,
       imageSummary?: string, // Optional parameter for direct summary passing
-      dimensions?: { width: number; height: number }
+      dimensions?: { width: number; height: number },
+      strokeId?: string, // Optional stroke ID to delete when response starts
+      clearSpinner?: () => void // Optional function to clear spinner when response starts
     ) => {
       const logPrefix = isAutoExecution
         ? "🤖 Auto-executing"
@@ -733,12 +735,12 @@ export default function TldrawCanvas() {
       // Check for existing AI bubbles in the current captured shapes to position new bubble below them
       let adjustedBubblePosition = bubblePosition;
       if (currentCapturedShapes && currentCapturedShapes.length > 0) {
-        const aiBubbles = currentCapturedShapes.filter(
-          (shape: any) => shape.type === "ai-bubble"
+        const aiResponses = currentCapturedShapes.filter(
+          (shape: any) => shape.type === "handwritten-text" // Look for handwritten responses instead
         );
-        if (aiBubbles.length > 0) {
+        if (aiResponses.length > 0) {
           // Find the bottommost AI bubble
-          const bottomMostBubble = aiBubbles.reduce(
+          const bottomMostResponse = aiResponses.reduce(
             (lowest: any, current: any) => {
               const currentBottom = current.y + (current.props?.h || 300);
               const lowestBottom = lowest.y + (lowest.props?.h || 300);
@@ -751,56 +753,29 @@ export default function TldrawCanvas() {
           adjustedBubblePosition = {
             x: bubblePosition.x,
             y:
-              bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding,
+              bottomMostResponse.y + (bottomMostResponse.props?.h || 200) + padding,
           };
 
           console.log(
             "🔧 Positioning new AI bubble below existing AI bubble:",
             {
-              existingBubbleBottom:
-                bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+              existingResponseBottom:
+                bottomMostResponse.y + (bottomMostResponse.props?.h || 200),
               newBubbleY: adjustedBubblePosition.y,
             }
           );
         }
       }
 
-      // Create AI bubble shape in loading state
-      const bubbleShapeId = createShapeId();
-      console.log("🔧 Creating AI bubble shape with ID:", bubbleShapeId);
-
-      try {
-        editor.createShapes([
-          {
-            id: bubbleShapeId,
-            type: "ai-bubble",
-            x: adjustedBubblePosition.x,
-            y: adjustedBubblePosition.y,
-            props: {
-              w: dimensions?.width ? dimensions.width * 1.7 : 400, // Use updated default width
-              h: dimensions?.height ? dimensions.height * 2 : 150, // Use updated default height
-              content: "",
-              isLoading: true,
-            },
-          },
-        ]);
-        console.log("✅ AI bubble shape created successfully");
-      } catch (error) {
-        console.error("❌ Failed to create AI bubble shape:", error);
-        // Fall back to text shape
-        editor.createShapes([
-          {
-            id: bubbleShapeId,
-            type: "text",
-            x: adjustedBubblePosition.x,
-            y: adjustedBubblePosition.y,
-            props: {
-              richText: toRichText("Asking AI..."),
-            },
-          },
-        ]);
+      // Show typing cursor at the position
+      console.log("🔧 Showing typing cursor for AI response");
+      
+      if (!responseRendererRef.current) {
+        console.error("❌ Response renderer not available");
         return;
       }
+
+      await responseRendererRef.current.showTypingCursor(adjustedBubblePosition);
 
       try {
         // Use passed imageSummary or fall back to currentImageSummary
@@ -842,24 +817,32 @@ export default function TldrawCanvas() {
 
         // Strip HTML tags and get clean text content
         const cleanText = result.response.replace(/<[^>]*>/g, "").trim();
+        
+        console.log("🔧 Rendering handwritten AI response");
 
-        // Calculate appropriate dimensions for the content
-        const dimensions = calculateAIBubbleDimensions(cleanText);
-        console.log("🔧 Calculated dimensions for AI response:", dimensions);
-        console.log("🔧 Content length:", cleanText.length);
+        // Clear spinner and delete highlighted stroke before starting the response
+        if (clearSpinner) {
+          clearSpinner();
+          console.log("🚫 Spinner cleared before response");
+        }
 
-        // Update the AI bubble shape with the response and auto-sized dimensions
-        editor.updateShape({
-          id: bubbleShapeId,
-          type: "ai-bubble",
-          props: {
-            content: cleanText,
-            isLoading: false,
-            w: dimensions.w,
-            h: dimensions.h,
-          },
-        });
-        console.log("🔧 AI bubble shape updated with new dimensions");
+        if (strokeId) {
+          try {
+            editor.deleteShape(strokeId);
+            console.log("🗑️ Highlighted stroke removed before response");
+          } catch (error) {
+            console.log("❌ Failed to remove highlighted stroke:", error);
+          }
+        }
+
+        // Render handwritten response with typewriter effect
+        await responseRendererRef.current.renderResponse(
+          cleanText,
+          adjustedBubblePosition,
+          { font: 'kalam', size: 'm', speed: 25 }
+        );
+        
+        console.log("✅ Handwritten AI response rendered successfully");
 
         // Check for onboarding progression
         const onboardingUpdate =
@@ -872,12 +855,8 @@ export default function TldrawCanvas() {
       } catch (error) {
         console.error("❌ Error calling askAI API:", error);
 
-        // Delete the shape and show a toast instead of inline error
-        try {
-          editor.deleteShape(bubbleShapeId);
-        } catch (deleteError) {
-          console.error("❌ Failed to delete error shape:", deleteError);
-        }
+        // Hide cursor and show error toast
+        responseRendererRef.current?.hideCursor();
 
         // Show error toast
         toast({
@@ -898,7 +877,9 @@ export default function TldrawCanvas() {
       bubblePosition: { x: number; y: number },
       isAutoExecution = false,
       imageSummary?: string,
-      dimensions?: { width: number; height: number }
+      dimensions?: { width: number; height: number },
+      strokeId?: string, // Optional stroke ID to delete when response starts
+      clearSpinner?: () => void // Optional function to clear spinner when response starts
     ) => {
       const logPrefix = isAutoExecution
         ? "🤖 Auto-executing"
@@ -911,12 +892,12 @@ export default function TldrawCanvas() {
       // Check for existing AI bubbles in the current captured shapes to position new bubble below them
       let adjustedBubblePosition = bubblePosition;
       if (currentCapturedShapes && currentCapturedShapes.length > 0) {
-        const aiBubbles = currentCapturedShapes.filter(
-          (shape: any) => shape.type === "ai-bubble"
+        const aiResponses = currentCapturedShapes.filter(
+          (shape: any) => shape.type === "handwritten-text" // Look for handwritten responses instead
         );
-        if (aiBubbles.length > 0) {
+        if (aiResponses.length > 0) {
           // Find the bottommost AI bubble
-          const bottomMostBubble = aiBubbles.reduce(
+          const bottomMostResponse = aiResponses.reduce(
             (lowest: any, current: any) => {
               const currentBottom = current.y + (current.props?.h || 300);
               const lowestBottom = lowest.y + (lowest.props?.h || 300);
@@ -929,44 +910,29 @@ export default function TldrawCanvas() {
           adjustedBubblePosition = {
             x: bubblePosition.x,
             y:
-              bottomMostBubble.y + (bottomMostBubble.props?.h || 300) + padding,
+              bottomMostResponse.y + (bottomMostResponse.props?.h || 200) + padding,
           };
 
           console.log(
             "🔧 Positioning new search bubble below existing AI bubble:",
             {
-              existingBubbleBottom:
-                bottomMostBubble.y + (bottomMostBubble.props?.h || 300),
+              existingResponseBottom:
+                bottomMostResponse.y + (bottomMostResponse.props?.h || 200),
               newBubbleY: adjustedBubblePosition.y,
             }
           );
         }
       }
 
-      // Create AI bubble shape in loading state
-      const bubbleShapeId = createShapeId();
-      console.log("🔧 Creating search result bubble with ID:", bubbleShapeId);
-
-      try {
-        editor.createShapes([
-          {
-            id: bubbleShapeId,
-            type: "ai-bubble",
-            x: adjustedBubblePosition.x,
-            y: adjustedBubblePosition.y,
-            props: {
-              w: dimensions?.width ? dimensions.width * 1.7 : 400,
-              h: dimensions?.height ? dimensions.height * 2 : 150,
-              content: "",
-              isLoading: true,
-            },
-          },
-        ]);
-        console.log("✅ Search result bubble created successfully");
-      } catch (error) {
-        console.error("❌ Failed to create search result bubble:", error);
+      // Show typing cursor at the position
+      console.log("🔧 Showing typing cursor for search response");
+      
+      if (!responseRendererRef.current) {
+        console.error("❌ Response renderer not available");
         return;
       }
+
+      await responseRendererRef.current.showTypingCursor(adjustedBubblePosition);
 
       try {
         // Extract the search query from the action text or use the summary
@@ -1005,12 +971,8 @@ export default function TldrawCanvas() {
         if (!searchAnswer || searchAnswer.trim() === "") {
           console.log("❌ No answer found in search results");
 
-          // Remove the search bubble since we have no answer
-          try {
-            editor.deleteShape(bubbleShapeId);
-          } catch (deleteError) {
-            console.error("❌ Failed to delete search bubble:", deleteError);
-          }
+          // Hide cursor since we have no answer
+          responseRendererRef.current?.hideCursor();
 
           // Show toast indicating no results found
           toast({
@@ -1023,31 +985,36 @@ export default function TldrawCanvas() {
           return;
         }
 
-        // Calculate appropriate dimensions for the content
-        const dimensions = calculateAIBubbleDimensions(searchAnswer);
-        console.log("🔧 Calculated dimensions for search results:", dimensions);
+        console.log("🔧 Rendering handwritten search response");
 
-        // Update the AI bubble shape with the search results
-        editor.updateShape({
-          id: bubbleShapeId,
-          type: "ai-bubble",
-          props: {
-            content: searchAnswer,
-            isLoading: false,
-            w: dimensions.w,
-            h: dimensions.h,
-          },
-        });
-        console.log("🔧 Search result bubble updated with results");
+        // Clear spinner and delete highlighted stroke before starting the response
+        if (clearSpinner) {
+          clearSpinner();
+          console.log("🚫 Spinner cleared before search response");
+        }
+
+        if (strokeId) {
+          try {
+            editor.deleteShape(strokeId);
+            console.log("🗑️ Highlighted stroke removed before search response");
+          } catch (error) {
+            console.log("❌ Failed to remove highlighted stroke:", error);
+          }
+        }
+
+        // Render handwritten search response with typewriter effect
+        await responseRendererRef.current.renderResponse(
+          searchAnswer,
+          adjustedBubblePosition,
+          { font: 'kalam', size: 'm', speed: 25 }
+        );
+        
+        console.log("✅ Handwritten search response rendered successfully");
       } catch (error) {
         console.error("❌ Error calling search API:", error);
 
-        // Delete the shape and show a toast instead of inline error
-        try {
-          editor.deleteShape(bubbleShapeId);
-        } catch (deleteError) {
-          console.error("❌ Failed to delete error shape:", deleteError);
-        }
+        // Hide cursor and show error toast
+        responseRendererRef.current?.hideCursor();
 
         // Show error toast
         toast({
@@ -1767,10 +1734,10 @@ export default function TldrawCanvas() {
     setContextMenuOpen(false);
 
     if (action.action === "ask_ai") {
-      // Use the center of the circled area for consistent positioning
+      // Use the bottom-left of the circled area for AI responses
       const bubblePagePosition = currentCircledAreaCenter;
       console.log(
-        "🔧 AI bubble position: using circled area center",
+        "🔧 AI response position: using circled area bottom-left",
         bubblePagePosition
       );
 
@@ -1835,7 +1802,7 @@ export default function TldrawCanvas() {
         });
       }
     } else if (action.action === "search") {
-      // Use the center of the circled area for consistent positioning
+      // Use the bottom-left of the circled area for search responses
       const bubblePagePosition = currentCircledAreaCenter;
       await executeSearch(
         action,
@@ -2111,19 +2078,19 @@ export default function TldrawCanvas() {
           const imageSummary = aiResult.sceneDescription;
           setCurrentImageSummary(imageSummary);
           console.log("📱 DEBUG: currentImageSummary set to:", imageSummary);
-          // Separate AI bubbles from other shapes - AI bubbles should never be removed
-          const aiBubbles = shapesInLoop.filter(
-            (shape: any) => shape.type === "ai-bubble"
+          // Separate AI responses from other shapes - AI responses should never be removed
+          const aiResponses = shapesInLoop.filter(
+            (shape: any) => shape.type === "handwritten-text"
           );
           const shapesForRemoval = shapesInLoop.filter(
-            (shape: any) => shape.type !== "ai-bubble"
+            (shape: any) => shape.type !== "handwritten-text"
           );
 
           // Store all shapes for positioning logic, but track which ones should be preserved
           setCurrentCapturedShapes(shapesInLoop);
           setCurrentShapesForRemoval(shapesForRemoval);
           console.log(
-            `🔧 Captured ${shapesInLoop.length} shapes total: ${aiBubbles.length} AI bubbles (preserved), ${shapesForRemoval.length} other shapes`
+            `🔧 Captured ${shapesInLoop.length} shapes total: ${aiResponses.length} AI responses (preserved), ${shapesForRemoval.length} other shapes`
           );
 
           const centerX = (minX + maxX) / 2;
@@ -2131,9 +2098,11 @@ export default function TldrawCanvas() {
           const areaWidth = maxX - minX;
           const areaHeight = maxY - minY;
 
-          // Center bubble in the circled area
-          const bubbleX = centerX;
-          const bubbleY = centerY;
+          // Position response in bottom-left of circled area with 5% inset
+          const insetX = areaWidth * 0.05;
+          const insetY = areaHeight * 0.05;
+          const bubbleX = minX + insetX;
+          const bubbleY = maxY - insetY;
 
           // Scale bubble size based on circled area size
           // Base size is 350x150, scale it relative to the area size
@@ -2156,15 +2125,19 @@ export default function TldrawCanvas() {
             width: scaledWidth,
             height: scaledHeight,
           });
-          setCurrentCircledAreaCenter({ x: centerX, y: centerY });
+          setCurrentCircledAreaCenter({ x: bubbleX, y: bubbleY });
 
           const bubbleScreenPos = eventEditor.pageToScreen({
             x: bubbleX,
             y: bubbleY,
           });
 
+          // Track if auto-execution happens (stroke will be deleted during execution)
+          let autoExecuted = false;
+
           // Check if we have a single decisive task that should be auto-executed
           if (aiResult.actions.length === 1) {
+            autoExecuted = true;
             console.log(
               "🤖 Single decisive task detected, auto-executing:",
               aiResult.actions[0]
@@ -2182,7 +2155,9 @@ export default function TldrawCanvas() {
                 bubblePagePosition,
                 true,
                 imageSummary,
-                { width: scaledWidth, height: scaledHeight }
+                { width: scaledWidth, height: scaledHeight },
+                stroke.id,
+                () => setSpinnerPosition(null)
               );
             } else if (action.action === "add_contact") {
               await executeAddContact(
@@ -2241,7 +2216,9 @@ export default function TldrawCanvas() {
                 bubblePagePosition,
                 true,
                 imageSummary,
-                { width: scaledWidth, height: scaledHeight }
+                { width: scaledWidth, height: scaledHeight },
+                stroke.id,
+                () => setSpinnerPosition(null)
               );
             } else {
               // TODO: Implement other action types for auto-execution
@@ -2266,16 +2243,20 @@ export default function TldrawCanvas() {
             );
           }
 
-          // Remove the gesture stroke
-          try {
-            eventEditor.deleteShape(stroke.id);
-            console.log("🗑️ Magic wand gesture shape removed");
-          } catch (error) {
-            console.log("❌ Failed to remove gesture shape:", error);
+          // Remove the gesture stroke (only if it wasn't auto-executed, since auto-execution handles its own stroke deletion)
+          if (!autoExecuted) {
+            try {
+              eventEditor.deleteShape(stroke.id);
+              console.log("🗑️ Magic wand gesture shape removed");
+            } catch (error) {
+              console.log("❌ Failed to remove gesture shape:", error);
+            }
           }
 
-          // Clear loading state
-          setSpinnerPosition(null);
+          // Clear loading state (only if it wasn't auto-executed, since auto-execution handles its own spinner clearing)
+          if (!autoExecuted) {
+            setSpinnerPosition(null);
+          }
           setOriginalStrokeProps(null);
         } else {
           console.log("❌ Failed to generate image");
@@ -2291,7 +2272,9 @@ export default function TldrawCanvas() {
               console.log("❌ Failed to restore stroke:", error);
             }
           }
-          setSpinnerPosition(null);
+          if (!autoExecuted) {
+            setSpinnerPosition(null);
+          }
           setOriginalStrokeProps(null);
         }
       } catch (error) {
@@ -2309,7 +2292,9 @@ export default function TldrawCanvas() {
             console.log("❌ Failed to restore stroke:", error);
           }
         }
-        setSpinnerPosition(null);
+        if (!autoExecuted) {
+          setSpinnerPosition(null);
+        }
         setOriginalStrokeProps(null);
       }
     },

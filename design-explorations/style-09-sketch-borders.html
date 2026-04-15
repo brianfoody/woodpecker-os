@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 09 — Sketch Borders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f5f4f0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Nunito', sans-serif;
+    color: #333;
+  }
+
+  .canvas {
+    max-width: 620px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .bubble {
+    position: relative;
+    padding: 20px 24px;
+    background: #fff;
+  }
+
+  /* Hand-drawn border using SVG filter for rough edges */
+  .bubble::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 2.5px solid #555;
+    border-radius: 8px 12px 10px 14px;
+    /* Rough corners via different radii */
+    pointer-events: none;
+  }
+
+  .bubble.user::before {
+    border-color: #7a8a6a;
+    border-radius: 12px 8px 14px 10px;
+    border-width: 2px;
+  }
+
+  .bubble.ai::before {
+    border-color: #6a7a8a;
+    border-radius: 10px 14px 8px 12px;
+    border-width: 2px;
+    border-style: solid;
+  }
+
+  /* Simulated sketch effect — overlapping slightly offset borders */
+  .bubble::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 1.5px solid rgba(0,0,0,0.06);
+    border-radius: 10px 8px 12px 6px;
+    pointer-events: none;
+    transform: translate(1px, 1px);
+  }
+
+  .label {
+    font-family: 'Architects Daughter', cursive;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: #888;
+  }
+
+  .user .label { color: #6a7a5a; }
+  .ai .label { color: #5a6a7a; }
+
+  .text {
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .user .text {
+    color: #2a3a1a;
+  }
+
+  .ai .text {
+    color: #2a2a3a;
+  }
+
+  .connector {
+    display: flex;
+    justify-content: center;
+    margin: -8px 0;
+  }
+
+  /* Hand-drawn arrow */
+  .connector svg {
+    width: 24px;
+    height: 32px;
+  }
+
+  .connector svg path {
+    fill: none;
+    stroke: #aaa;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .section-break {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    color: #ccc;
+  }
+
+  .squiggle {
+    width: 80px;
+    height: 8px;
+  }
+
+  .squiggle path {
+    fill: none;
+    stroke: #ccc;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  ul {
+    padding-left: 18px;
+    margin: 6px 0;
+  }
+
+  li {
+    line-height: 1.65;
+    margin-bottom: 2px;
+  }
+
+  code {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    background: #f0eeea;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #5a5040;
+  }
+
+  .code-block {
+    font-family: 'Courier New', monospace;
+    background: #faf9f6;
+    padding: 12px 14px;
+    margin: 10px 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #555;
+    white-space: pre;
+    border: 1.5px dashed #ccc;
+    border-radius: 6px 10px 8px 12px;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <div class="bubble user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 24 32">
+      <path d="M12 2 C11 10, 13 14, 12 22"/>
+      <path d="M8 18 L12 24 L16 18"/>
+    </svg>
+  </div>
+
+  <div class="bubble ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 24 32">
+      <path d="M12 2 C13 10, 11 14, 12 22"/>
+      <path d="M8 18 L12 24 L16 18"/>
+    </svg>
+  </div>
+
+  <div class="bubble ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-break">
+    <svg class="squiggle" viewBox="0 0 80 8">
+      <path d="M2 4 C10 1, 14 7, 22 4 S34 1, 42 4 S54 7, 62 4 S74 1, 78 4"/>
+    </svg>
+  </div>
+
+  <div class="bubble user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 24 32">
+      <path d="M12 2 C11 10, 13 14, 12 22"/>
+      <path d="M8 18 L12 24 L16 18"/>
+    </svg>
+  </div>
+
+  <div class="bubble ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 24 32">
+      <path d="M12 2 C13 10, 11 14, 12 22"/>
+      <path d="M8 18 L12 24 L16 18"/>
+    </svg>
+  </div>
+
+  <div class="bubble ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

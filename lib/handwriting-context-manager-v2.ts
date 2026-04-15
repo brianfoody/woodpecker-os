@@ -40,9 +40,12 @@ export class HandwritingContextManagerV2 {
   private isProcessingIntent = false;
   private lastRecognizedText = "";
   private lastRecognizedPosition: { x: number; y: number } = { x: 0, y: 0 };
+  private chatMode = false;
 
-  // Configuration
-  private readonly DEBOUNCE_DELAY = 1000; // ms - 1 second for WebSocket sync
+  // Configuration - defaults (overridden in chat mode)
+  private debounceDelay = 1000; // ms - 1 second for WebSocket sync
+  private confidenceThreshold = 0.7;
+  private conversationHistoryLimit = 3;
   private readonly CONTEXT_WINDOW_TIME = 30000; // 30 seconds
   private readonly SPATIAL_PROXIMITY_THRESHOLD = 200; // pixels
   private readonly MAX_BUFFER_SIZE = 100; // Max segments to keep
@@ -108,6 +111,26 @@ export class HandwritingContextManagerV2 {
   }
 
   /**
+   * Enable or disable chat mode
+   */
+  setChatMode(enabled: boolean) {
+    this.chatMode = enabled;
+    if (enabled) {
+      this.debounceDelay = 500;
+      this.confidenceThreshold = 0.3;
+      this.conversationHistoryLimit = 10;
+    } else {
+      this.debounceDelay = 1000;
+      this.confidenceThreshold = 0.7;
+      this.conversationHistoryLimit = 3;
+    }
+  }
+
+  getChatMode(): boolean {
+    return this.chatMode;
+  }
+
+  /**
    * Trigger synchronization when editor changes
    */
   sync() {
@@ -118,7 +141,7 @@ export class HandwritingContextManagerV2 {
 
     this.recognitionTimer = setTimeout(() => {
       this.synchronizer.sync();
-    }, this.DEBOUNCE_DELAY);
+    }, this.debounceDelay);
   }
 
   /**
@@ -168,23 +191,25 @@ export class HandwritingContextManagerV2 {
     const context = this.buildContextWindow(newSegment);
 
     try {
-      const response = await fetch("/api/detect-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          current: newSegment.text,
-          temporal: context.temporal,
-          spatial: context.spatial,
-          conversation: context.conversation,
-        }),
-      });
+      // Local intent detection — no API call needed.
+      // In chat mode, always respond. Otherwise, respond if text looks like a question.
+      const text = newSegment.text.trim();
+      const looksLikeQuestion =
+        text.endsWith("?") ||
+        /^(what|who|how|why|when|where|which|can|could|would|should|is|are|do|does|did|will|tell|explain|describe|show)\b/i.test(text);
 
-      if (!response.ok)
-        throw new Error(`Intent detection failed: ${response.status}`);
+      const shouldRespond = this.chatMode || looksLikeQuestion;
+      const fullQuestion = context.temporal
+        ? `${context.temporal} ${text}`
+        : text;
 
-      const result: IntentDetectionResult = await response.json();
+      const result: IntentDetectionResult = {
+        shouldRespond,
+        fullQuestion,
+        confidence: shouldRespond ? 0.9 : 0.3,
+      };
 
-      if (result.shouldRespond && result.confidence > 0.7) {
+      if (result.shouldRespond && result.confidence > this.confidenceThreshold) {
         // Calculate response position (below the question)
         result.responsePosition = {
           x: newSegment.bounds.x,
@@ -229,7 +254,7 @@ export class HandwritingContextManagerV2 {
 
     // Conversation context: recent Q&As
     const conversationContext = this.conversationHistory
-      .slice(-3)
+      .slice(-this.conversationHistoryLimit)
       .map((conv) => `Q: ${conv.question}\nA: ${conv.answer}`)
       .join("\n\n");
 

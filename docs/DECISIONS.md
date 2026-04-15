@@ -247,3 +247,84 @@ This document records important technical decisions made during the development 
 
 - Could add toggle for "continuous mode" (show all accumulated text) vs "discrete mode" (current behavior)
 - May need adjustment if MyScript adds content part management to WebSocket API
+
+## 7. Email, Teams & Interactive Chat Integration
+
+**Decision**: OAuth-based Gmail/Outlook/Teams integration with read-only + reply-only permissions, encrypted token storage, and interactive chat mode
+
+**Date**: March 2026
+
+**Context**:
+
+- Users want to check important emails and Teams messages from the canvas without picking up a phone
+- Must be safe: no accidental deletions, no composing new messages, reply-only
+- Single-user personal tool, so minimal auth infrastructure needed
+
+**Decision Details**:
+
+- **OAuth Scopes**: Intentionally restricted
+  - Google: `gmail.readonly` + `gmail.send` (no `gmail.modify` which would allow deletion)
+  - Microsoft: `Mail.Read` + `Mail.Send` + `Chat.Read` + `ChatMessage.Send` (no `Mail.ReadWrite`)
+- **Token Storage**: Local encrypted JSON file using AES-256-GCM, no cloud database
+  - Path configurable via `WOODPECKER_TOKEN_PATH` env var
+  - Encryption key via `WOODPECKER_ENCRYPTION_KEY` (32-byte hex)
+  - Tokens auto-refresh, so one-time OAuth consent only
+- **API Clients**: Direct fetch to Gmail API and Microsoft Graph (no heavy SDK wrappers)
+  - Matches existing pattern of lightweight API calls
+- **AI Summarization**: Emails/Teams messages summarized by Groq with importance classification (high/medium/low)
+  - Calm, distraction-free tone matching the Woodpecker philosophy
+- **Reply Flow**: Two-step confirmation — AI generates draft, user circles draft to send
+- **Chat Mode**: Toggle that lowers intent detection thresholds for rapid back-and-forth
+  - Debounce: 1000ms -> 500ms, confidence threshold: 0.7 -> 0.3, history window: 3 -> 10
+- **New SmartActions**: `check_emails`, `check_teams`, `reply_email`, `reply_teams`
+  - Integrated into existing magic wand gesture pipeline
+  - Responses rendered as handwritten text (consistent with existing AI responses)
+
+**Alternatives Considered**:
+
+- IMAP/SMTP directly: More complex, no Teams support, harder auth
+- Full email client: Over-engineered for a distraction-free tool
+- API keys only: Not possible for Gmail/Outlook/Teams
+
+**Implications**:
+
+- Requires Google Cloud Console and Azure AD app registration for OAuth credentials
+- Settings page (`/settings`) provides one-time account connection flow
+- Safety guardrails at both OAuth scope level (can't delete even if code has bugs) and application level (no delete/compose functions exist)
+
+---
+
+## 9. Moss & Bark Themed Canvas (`/v2`)
+
+**Decision**: Create a themed variant of the interactive canvas at `/v2` using the Moss & Bark design tokens, leaving the original `/` untouched
+
+**Date**: April 2026
+
+**Context**:
+
+- The `/explore` page has a polished Moss & Bark visual theme but is purely decorative
+- The main canvas at `/` has full interactivity but no visual theme
+- Wanted to merge both: full interactive canvas with Moss & Bark styling
+
+**Decision Details**:
+
+- **Theme prop approach**: Thread a `WoodpeckerCanvasTheme` through the existing component tree via optional props
+- When theme is absent, all components render identically to today (backward-compatible)
+- When present, AI response shapes render as styled cards (cream bg, bark accent border, "WOODPECKER" label, DM Sans font)
+- Canvas background uses warm off-white (`#f8f7f4`)
+- Gesture frame uses tldraw `"green"` color (closest to moss) instead of `"light-blue"`
+- Independent `storageKey` param on persistence functions so `/v2` canvas state is separate from `/`
+- Card styling props added to `HandwrittenTextShape` with null/0 defaults (backward-compatible with existing serialized shapes)
+
+**Alternatives Considered**:
+
+- Fork `TldrawCanvas` into a separate component (rejected: massive duplication, maintenance burden)
+- CSS-only theming with global variables (rejected: card styling on shapes requires per-shape props)
+- Replace `/` with themed version (rejected: preserve existing experience, allow A/B comparison)
+
+**Implications**:
+
+- Both `/` and `/v2` are fully functional interactive canvases
+- Theme tokens sourced from existing `earthMossBark` design exploration
+- Future themes can be created by implementing `WoodpeckerCanvasTheme`
+- No changes to existing serialized canvas data format

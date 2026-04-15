@@ -122,7 +122,7 @@ export class HandwrittenResponseRenderer {
   ): Promise<TLShapeId> {
     const {
       speed = 30,
-      font = 'kalam', // Default to Kalam handwriting font
+      font = 'sans',
       size = 'm',
       color = 'black',
     } = options;
@@ -141,12 +141,12 @@ export class HandwrittenResponseRenderer {
       y: position.y,
       props: {
         text: '',
-        font: font as 'kalam' | 'caveat',
+        font: font as 'kalam' | 'caveat' | 'sans',
         size,
         color,
         autoSize: true,
-        w: 600, // Initial width - increased for better text visibility
-        h: 200,  // Initial height - increased to accommodate longer responses
+        w: 500,
+        h: 200,
       },
     }]);
 
@@ -240,7 +240,7 @@ export class HandwrittenResponseRenderer {
       y: position.y,
       props: {
         text,
-        font: (options.font || 'kalam') as 'kalam' | 'caveat',
+        font: (options.font || 'sans') as 'kalam' | 'caveat' | 'sans',
         size: options.size || 'm',
         color: options.color || 'black',
         autoSize: true,

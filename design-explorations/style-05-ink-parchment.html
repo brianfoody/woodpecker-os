@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 05 — Ink & Parchment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #c4b8a4;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'EB Garamond', Georgia, serif;
+    color: #3a2e1e;
+  }
+
+  .parchment {
+    max-width: 640px;
+    width: 100%;
+    background: #f5ecd7;
+    padding: 56px 52px;
+    position: relative;
+    box-shadow:
+      0 2px 20px rgba(0,0,0,0.12),
+      inset 0 0 60px rgba(139,119,86,0.08);
+    border: 1px solid #d4c9ae;
+  }
+
+  /* Aged edges */
+  .parchment::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to right, rgba(180,160,120,0.1) 0%, transparent 3%, transparent 97%, rgba(180,160,120,0.1) 100%),
+      linear-gradient(to bottom, rgba(180,160,120,0.08) 0%, transparent 3%, transparent 97%, rgba(180,160,120,0.08) 100%);
+    pointer-events: none;
+  }
+
+  .message {
+    margin-bottom: 28px;
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  .user .label {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    font-weight: 600;
+    color: #7a5c30;
+    margin-bottom: 4px;
+  }
+
+  .user .text {
+    color: #2a1e10;
+    font-style: italic;
+  }
+
+  .ai .label {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    font-weight: 600;
+    color: #5a4a2e;
+    margin-bottom: 4px;
+  }
+
+  .ai .text {
+    color: #3a2e1e;
+  }
+
+  .thin-rule {
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      #b8a882 20%,
+      #b8a882 80%,
+      transparent
+    );
+    margin: 8px 0;
+  }
+
+  .ornament {
+    text-align: center;
+    margin: 32px 0;
+    color: #b8a882;
+    font-size: 18px;
+    letter-spacing: 0.5em;
+  }
+
+  .connector {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0;
+  }
+
+  .connector svg {
+    width: 20px;
+    height: 24px;
+    stroke: #b8a882;
+    fill: none;
+    stroke-width: 1.5;
+  }
+
+  ul {
+    padding-left: 20px;
+    margin: 8px 0;
+    list-style: none;
+  }
+
+  li {
+    line-height: 1.75;
+    margin-bottom: 2px;
+    position: relative;
+    padding-left: 16px;
+  }
+
+  li::before {
+    content: '\2022';
+    position: absolute;
+    left: 0;
+    color: #a08c60;
+  }
+
+  code {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    color: #5a3e1e;
+    background: rgba(160,140,96,0.1);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .code-block {
+    font-family: 'Courier New', monospace;
+    background: rgba(160,140,96,0.07);
+    border-top: 1px solid #d4c9ae;
+    border-bottom: 1px solid #d4c9ae;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #5a4a30;
+    white-space: pre;
+  }
+
+  .drop-cap::first-letter {
+    font-size: 2.2em;
+    float: left;
+    line-height: 1;
+    margin-right: 6px;
+    margin-top: 4px;
+    color: #5a3e1e;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="parchment">
+
+  <div class="message user">
+    <div class="label">You write —</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <hr class="thin-rule">
+
+  <div class="message ai">
+    <div class="label">Woodpecker replies —</div>
+    <div class="text drop-cap">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 20 24"><path d="M10 2 L10 22 M6 18 L10 22 L14 18"/></svg>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker continues —</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="ornament">~ ~ ~</div>
+
+  <div class="message user">
+    <div class="label">You write —</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <hr class="thin-rule">
+
+  <div class="message ai">
+    <div class="label">Woodpecker replies —</div>
+    <div class="text drop-cap">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector">
+    <svg viewBox="0 0 20 24"><path d="M10 2 L10 22 M6 18 L10 22 L14 18"/></svg>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker continues —</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

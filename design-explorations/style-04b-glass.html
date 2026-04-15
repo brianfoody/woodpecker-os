@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 04b — Glass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: linear-gradient(135deg, #e8ecf0 0%, #dde3ea 50%, #e0e6ed 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: #2c3340;
+  }
+
+  .conversation {
+    max-width: 600px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .card {
+    border-radius: 16px;
+    padding: 20px 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .card.user {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+  }
+
+  .card.ai {
+    background: rgba(255, 255, 255, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  .user .label {
+    color: #6b7a8d;
+  }
+
+  .ai .label {
+    color: #7b8a9d;
+  }
+
+  .text {
+    font-size: 15px;
+    line-height: 1.65;
+    font-weight: 400;
+    color: #2c3340;
+  }
+
+  .ai .text {
+    color: #3a4555;
+  }
+
+  .section-gap {
+    height: 20px;
+  }
+
+  ul {
+    padding-left: 18px;
+    margin: 8px 0;
+  }
+
+  li {
+    line-height: 1.65;
+    margin-bottom: 4px;
+    font-size: 15px;
+    color: #3a4555;
+  }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 13px;
+    background: rgba(100, 120, 150, 0.1);
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: #4a5a70;
+  }
+
+  .code-block {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 0 4px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #4a5a70;
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<div class="conversation">
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

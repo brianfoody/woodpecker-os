@@ -1,6 +1,6 @@
 import { TLStore } from "tldraw";
 
-const STORAGE_KEY = "woodpecker-canvas-data";
+const DEFAULT_STORAGE_KEY = "woodpecker-canvas-data";
 const AUTO_SAVE_DELAY = 1000; // 1 second delay for auto-save
 
 /**
@@ -18,7 +18,7 @@ function isValidSnapshot(snapshot: any): boolean {
 /**
  * Saves the canvas data to localStorage
  */
-export function saveCanvasData(store: TLStore): void {
+export function saveCanvasData(store: TLStore, storageKey = DEFAULT_STORAGE_KEY): void {
   try {
     if (!store) {
       console.warn("⚠️ Cannot save: store is null or undefined");
@@ -43,7 +43,7 @@ export function saveCanvasData(store: TLStore): void {
       return;
     }
 
-    localStorage.setItem(STORAGE_KEY, serializedData);
+    localStorage.setItem(storageKey, serializedData);
     console.log("💾 Canvas data saved to localStorage");
   } catch (error) {
     if (error instanceof Error && error.name === "QuotaExceededError") {
@@ -57,9 +57,9 @@ export function saveCanvasData(store: TLStore): void {
 /**
  * Loads canvas data from localStorage
  */
-export function loadCanvasData(): any | null {
+export function loadCanvasData(storageKey = DEFAULT_STORAGE_KEY): any | null {
   try {
-    const serializedData = localStorage.getItem(STORAGE_KEY);
+    const serializedData = localStorage.getItem(storageKey);
     if (!serializedData) {
       console.log("📝 No saved canvas data found");
       return null;
@@ -77,9 +77,9 @@ export function loadCanvasData(): any | null {
 /**
  * Clears canvas data from localStorage
  */
-export function clearCanvasData(): void {
+export function clearCanvasData(storageKey = DEFAULT_STORAGE_KEY): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     console.log("🗑️ Canvas data cleared from localStorage");
   } catch (error) {
     console.error("❌ Failed to clear canvas data:", error);
@@ -89,12 +89,38 @@ export function clearCanvasData(): void {
 /**
  * Auto-save functionality with debouncing
  */
+const REPLAY_WATERMARKS_KEY = "woodpecker-replay-watermarks";
+
+export function getReplayWatermark(sessionId: string): number {
+  try {
+    const raw = localStorage.getItem(REPLAY_WATERMARKS_KEY);
+    if (!raw) return 0;
+    const watermarks = JSON.parse(raw);
+    return watermarks[sessionId] ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setReplayWatermark(sessionId: string, count: number): void {
+  try {
+    const raw = localStorage.getItem(REPLAY_WATERMARKS_KEY);
+    const watermarks = raw ? JSON.parse(raw) : {};
+    watermarks[sessionId] = count;
+    localStorage.setItem(REPLAY_WATERMARKS_KEY, JSON.stringify(watermarks));
+  } catch (error) {
+    console.error("Failed to save replay watermark:", error);
+  }
+}
+
 export class CanvasAutoSaver {
   private saveTimer: NodeJS.Timeout | null = null;
   private store: TLStore;
+  private storageKey: string;
 
-  constructor(store: TLStore) {
+  constructor(store: TLStore, storageKey = DEFAULT_STORAGE_KEY) {
     this.store = store;
+    this.storageKey = storageKey;
   }
 
   /**
@@ -108,7 +134,7 @@ export class CanvasAutoSaver {
 
     // Schedule new save
     this.saveTimer = setTimeout(() => {
-      saveCanvasData(this.store);
+      saveCanvasData(this.store, this.storageKey);
       this.saveTimer = null;
     }, AUTO_SAVE_DELAY);
   }
@@ -121,7 +147,7 @@ export class CanvasAutoSaver {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    saveCanvasData(this.store);
+    saveCanvasData(this.store, this.storageKey);
   }
 
   /**

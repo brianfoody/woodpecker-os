@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 04a — Warm Linen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #ece6dc;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: #3a3228;
+  }
+
+  .conversation {
+    max-width: 620px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .card {
+    border-radius: 18px;
+    padding: 24px 28px;
+    box-shadow:
+      0 2px 6px rgba(120,100,70,0.06),
+      0 8px 24px rgba(120,100,70,0.04);
+    border: 1px solid rgba(120,100,70,0.06);
+  }
+
+  .card.user {
+    background: #faf7f2;
+    border: 1px solid rgba(120,100,70,0.08);
+  }
+
+  .card.ai {
+    background: #f5efe5;
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .user .label {
+    color: #8a7e6e;
+  }
+
+  .ai .label {
+    color: #a08c6e;
+  }
+
+  .user .text {
+    font-size: 15px;
+    line-height: 1.7;
+    font-weight: 400;
+    color: #2e261e;
+  }
+
+  .ai .text {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: #3a3228;
+  }
+
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0;
+  }
+
+  .connector-line {
+    width: 2px;
+    height: 22px;
+    background: linear-gradient(to bottom, #d8ccb8, #c8bca8);
+    border-radius: 1px;
+  }
+
+  .section-gap {
+    height: 18px;
+  }
+
+  ul {
+    padding-left: 18px;
+    margin: 8px 0;
+  }
+
+  li {
+    line-height: 1.7;
+    margin-bottom: 4px;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 17px;
+    color: #3a3228;
+  }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 13px;
+    background: rgba(140, 120, 80, 0.1);
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: #6b5b3e;
+  }
+
+  .code-block {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    background: #ede7db;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 12px 0 4px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #5a5040;
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<div class="conversation">
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

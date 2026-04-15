@@ -40,3 +40,4 @@ next-env.d.ts
 __pycache__/
 docker-container/app
 .python-version
+*.db

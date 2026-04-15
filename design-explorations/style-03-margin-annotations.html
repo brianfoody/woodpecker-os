@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 03 — Margin Annotations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f7f6f3;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Lora', Georgia, serif;
+    color: #2c2c2c;
+  }
+
+  .page {
+    max-width: 720px;
+    width: 100%;
+    padding: 48px 32px;
+  }
+
+  .message {
+    display: grid;
+    grid-template-columns: 160px 1px 1fr;
+    gap: 0 24px;
+    margin-bottom: 32px;
+    min-height: 40px;
+  }
+
+  .margin-col {
+    text-align: right;
+    padding-top: 3px;
+    padding-right: 16px;
+  }
+
+  .margin-col .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #999;
+  }
+
+  .margin-col .time {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: #bbb;
+    margin-top: 4px;
+  }
+
+  .vertical-rule {
+    background: #ddd;
+    width: 1px;
+  }
+
+  .content-col {
+    padding-left: 16px;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .user .content-col {
+    color: #1a1a1a;
+    font-weight: 600;
+  }
+
+  .ai .content-col {
+    color: #3a3a3a;
+    font-weight: 400;
+  }
+
+  .connector {
+    display: grid;
+    grid-template-columns: 160px 1px 1fr;
+    gap: 0 24px;
+    margin-bottom: 16px;
+  }
+
+  .connector .vertical-rule {
+    background: #ddd;
+  }
+
+  .connector-dot {
+    display: flex;
+    align-items: center;
+    padding-left: 16px;
+  }
+
+  .connector-dot::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 4px;
+    background: #ccc;
+    border-radius: 50%;
+  }
+
+  .section-break {
+    display: grid;
+    grid-template-columns: 160px 1px 1fr;
+    gap: 0 24px;
+    margin: 36px 0;
+  }
+
+  .section-break .break-line {
+    padding-left: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  .section-break .break-line::before {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 1px;
+    background: #ddd;
+  }
+
+  ul {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+
+  li {
+    line-height: 1.7;
+    margin-bottom: 2px;
+  }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    background: #f0eeea;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #6b4c3b;
+  }
+
+  .code-block {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: #f8f7f4;
+    border-left: 2px solid #e0ddd6;
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+    white-space: pre;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="message user">
+    <div class="margin-col">
+      <div class="label">You</div>
+      <div class="time">just now</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="connector">
+    <div class="margin-col"></div>
+    <div class="vertical-rule"></div>
+    <div class="connector-dot"></div>
+  </div>
+
+  <div class="message ai">
+    <div class="margin-col">
+      <div class="label">Woodpecker</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector">
+    <div class="margin-col"></div>
+    <div class="vertical-rule"></div>
+    <div class="connector-dot"></div>
+  </div>
+
+  <div class="message ai">
+    <div class="margin-col">
+      <div class="label">Woodpecker</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-break">
+    <div class="margin-col"></div>
+    <div class="vertical-rule"></div>
+    <div class="break-line"></div>
+  </div>
+
+  <div class="message user">
+    <div class="margin-col">
+      <div class="label">You</div>
+      <div class="time">just now</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">Actually revert back</div>
+  </div>
+
+  <div class="connector">
+    <div class="margin-col"></div>
+    <div class="vertical-rule"></div>
+    <div class="connector-dot"></div>
+  </div>
+
+  <div class="message ai">
+    <div class="margin-col">
+      <div class="label">Woodpecker</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector">
+    <div class="margin-col"></div>
+    <div class="vertical-rule"></div>
+    <div class="connector-dot"></div>
+  </div>
+
+  <div class="message ai">
+    <div class="margin-col">
+      <div class="label">Woodpecker</div>
+    </div>
+    <div class="vertical-rule"></div>
+    <div class="content-col">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

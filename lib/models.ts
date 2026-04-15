@@ -13,29 +13,6 @@ export type SmartMessage = SmartContact & {
   direction?: "inbound" | "outbound";
 };
 
-export type SmartAction =
-  | "ask_ai"
-  | "search"
-  | "send_message"
-  | "add_contact"
-  | "read_contact_messages"
-  | "create_website";
-
-export type SmartTask = {
-  action: SmartAction;
-  text: string;
-  confidence_score: number;
-};
-
-export interface AIAction {
-  id: string;
-  action: SmartAction;
-  text: string;
-  confidence_score: number;
-  type: "create" | "modify" | "delete" | "suggestion";
-  icon?: React.ReactNode;
-}
-
 export interface WebsiteCreationJob {
   jobId: string;
   status: "creating" | "deploying" | "complete" | "failed";

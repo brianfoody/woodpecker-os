@@ -328,3 +328,37 @@ This document records important technical decisions made during the development 
 - Theme tokens sourced from existing `earthMossBark` design exploration
 - Future themes can be created by implementing `WoodpeckerCanvasTheme`
 - No changes to existing serialized canvas data format
+
+## 10. Session Forking via Fork-Per-Bubble
+
+**Decision**: Use the SDK's `forkSession()` to create immutable fork points on every AI response, enabling spatial branching from any historical bubble.
+
+**Date**: April 2026
+
+**Context**:
+
+- The canvas is spatial — users expect to circle any past response and fork a new conversation from that point
+- Previously, `claudeSessionId` stored the live session on the last shape only; circling an old response would resume with ALL subsequent context
+- The SDK exports `forkSession()` at `sdk.d.ts:547` which performs a pure JSONL file copy — no API call, no tokens
+
+**Decision Details**:
+
+- After each query completes, call `forkSession(sessionId, { dir: cwd })` to create an immutable snapshot
+- Store `forkSessionId` on ALL response shapes (every shape is a fork point)
+- Store `claudeSessionId` on the LAST shape only (for session replay)
+- When resuming, use `options.resume = forkSessionId` + `options.forkSession = true` so the fork stays immutable
+- Session resolution moved from server-side (`claude-code-session.ts`) to shape props — the API route is now a pass-through
+- Deleted `lib/claude-code-session.ts`; `lib/session-db.ts` retained for history API
+
+**Alternatives Considered**:
+
+- `query()` with `maxTurns: 0` to clone session (rejected: wasteful API call, `forkSession()` is simpler)
+- Store fork IDs only on last shape (rejected: can't fork from intermediate response bubbles)
+- Keep server-side session resolution (rejected: adds indirection, shape props are the source of truth)
+
+**Implications**:
+
+- Existing shapes without `forkSessionId` fall back to `claudeSessionId` (backward compatible, degraded)
+- Fork failure falls back to storing the live `sessionId` as `forkSessionId`
+- Multiple bubbles circled: highest y-position (most recent) is used
+- `lib/session-replay.ts` unchanged — uses `claudeSessionId` on last shape

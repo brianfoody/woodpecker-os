@@ -102,13 +102,6 @@ export function dismissOnboarding(): OnboardingState {
 }
 
 export function shouldShowOnboarding(): boolean {
-  const state = getOnboardingState();
-  // console.log('🔍 Onboarding Debug - shouldShowOnboarding():', {
-  //   state,
-  //   hasCompletedOnboarding: state.hasCompletedOnboarding,
-  //   shouldShow: !state.hasCompletedOnboarding,
-  //   windowDefined: typeof window !== 'undefined',
-  //   localStorageAvailable: typeof window !== 'undefined' && !!window.localStorage
-  // });
-  return !state.hasCompletedOnboarding;
+  // Onboarding disabled for now
+  return false;
 }

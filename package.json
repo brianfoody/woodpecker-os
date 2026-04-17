@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
+    "test:fork": "npx tsx scripts/test-session-forking.ts",
+    "test:fork:e2e": "npx tsx scripts/test-session-forking-e2e.ts",
     "eval": "jest --config jest.eval.config.js"
   },
   "devDependencies": {

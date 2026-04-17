@@ -348,12 +348,22 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
 
         const prompt = "";
 
-        // Look for a previous AI response shape to resume its session
-        const aiResponseShape = shapesInLoop.find(
-          (s: any) => s.type === "handwritten-text" && s.props?.claudeSessionId
-        );
-        const sessionOpts: { sessionId?: string; image?: string } = aiResponseShape
-          ? { sessionId: (aiResponseShape.props as any).claudeSessionId, image: imageBase64 }
+        // Look for a previous AI response shape to resume its session.
+        // Prefer forkSessionId (immutable fork point) over claudeSessionId (backward compat).
+        // If multiple bubbles are circled, use the one with highest y-position (most recent).
+        const aiResponseShapes = shapesInLoop
+          .filter((s: any) => s.type === "handwritten-text" && (s.props?.forkSessionId || s.props?.claudeSessionId))
+          .sort((a: any, b: any) => b.y - a.y);
+        const aiResponseShape = aiResponseShapes.length > 0 ? aiResponseShapes[0] : undefined;
+
+        let resumeId: string | undefined;
+        if (aiResponseShape) {
+          const props = aiResponseShape.props as any;
+          resumeId = props.forkSessionId || props.claudeSessionId;
+        }
+
+        const sessionOpts: { resumeSessionId?: string; image?: string } = resumeId
+          ? { resumeSessionId: resumeId, image: imageBase64 }
           : { image: imageBase64 };
 
         // Find any AI card in the circle for layout positioning
@@ -591,6 +601,12 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           } catch {}
 
           editorRef.current = editor;
+
+          // Expose for Playwright / dev-console testing
+          if (typeof window !== "undefined") {
+            (window as any).__woodpecker_editor = editor;
+            (window as any).__woodpecker_magicWand = magicWandCallbackRef;
+          }
 
           // IMPORTANT: Disable tldraw's shape culling. tldraw sets display:none on
           // shapes whose geometry bounds are completely outside the viewport. For our

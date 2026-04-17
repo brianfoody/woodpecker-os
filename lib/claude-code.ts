@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, forkSession } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 export type StreamEvent = {
@@ -6,6 +6,7 @@ export type StreamEvent = {
   content?: string;
   toolName?: string;
   sessionId?: string;
+  forkSessionId?: string;
 };
 
 /**
@@ -48,17 +49,27 @@ function buildPrompt(
   return singleMessage();
 }
 
+/**
+ * Create a fork point from a completed session.
+ * This is a pure JSONL file copy — no API call, no tokens.
+ * Returns the fork session ID for future resume.
+ */
+async function createForkPoint(sessionId: string, cwd: string): Promise<string> {
+  const result = await forkSession(sessionId, { dir: cwd });
+  return result.sessionId;
+}
+
 export async function* runClaudeCode(opts: {
   prompt: string;
   image?: string;
   cwd?: string;
-  sessionId?: string;
+  resumeSessionId?: string;
   allowedTools?: string[];
 }): AsyncGenerator<StreamEvent> {
   const cwd = opts.cwd || process.env.CLAUDE_CODE_WORKING_DIR || process.cwd();
   const allowedTools = opts.allowedTools || ["Read", "Glob", "Grep", "Bash", "Edit", "Write"];
 
-  console.log(`[sdk] Starting query: cwd=${cwd} tools=[${allowedTools.join(",")}] session=${opts.sessionId || "new"} hasImage=${!!opts.image}`);
+  console.log(`[sdk] Starting query: cwd=${cwd} tools=[${allowedTools.join(",")}] session=${opts.resumeSessionId || "new"} hasImage=${!!opts.image}`);
 
   const options: Record<string, unknown> = {
     cwd,
@@ -67,10 +78,10 @@ export async function* runClaudeCode(opts: {
     maxTurns: 30,
   };
 
-  if (opts.sessionId) {
-    // Only set `resume` — the SDK docs say `sessionId` cannot be used
-    // with `resume` unless `forkSession` is also set.
-    options.resume = opts.sessionId;
+  if (opts.resumeSessionId) {
+    // Resume from the fork point and fork again so the original stays immutable
+    options.resume = opts.resumeSessionId;
+    options.forkSession = true;
   }
 
   const prompt = buildPrompt(opts.prompt, opts.image);
@@ -130,20 +141,36 @@ export async function* runClaudeCode(opts: {
             ? msg.result.content
             : JSON.stringify(msg.result.content);
         }
-        console.log(`[sdk] #${msgIndex} result: session=${msg.session_id || msg.sessionId || "none"} len=${content.length}`);
+        const resultSessionId = msg.session_id || msg.sessionId;
+        console.log(`[sdk] #${msgIndex} result: session=${resultSessionId || "none"} len=${content.length}`);
+
+        // Create a fork point so this session becomes an immutable snapshot
+        let forkId: string | undefined;
+        if (resultSessionId) {
+          try {
+            forkId = await createForkPoint(resultSessionId, cwd);
+            console.log(`[sdk] Fork created: ${forkId} (from session ${resultSessionId})`);
+          } catch (forkErr) {
+            // Fallback: use the live session ID as the fork point (degraded — fork happens on-demand at resume time)
+            console.warn(`[sdk] Fork failed, using live session as fallback:`, forkErr);
+            forkId = resultSessionId;
+          }
+        }
+
         yield {
           type: "done",
           content,
-          sessionId: msg.session_id || msg.sessionId,
+          sessionId: resultSessionId,
+          forkSessionId: forkId,
         };
       }
     }
     console.log(`[sdk] Query finished after ${msgIndex} messages`);
   } catch (error) {
     console.error(`[sdk] Error:`, error);
-    if (opts.sessionId && error instanceof Error && error.message.includes("session")) {
+    if (opts.resumeSessionId && error instanceof Error && error.message.includes("session")) {
       console.log(`[sdk] Session resume failed, retrying without session`);
-      yield* runClaudeCode({ ...opts, sessionId: undefined });
+      yield* runClaudeCode({ ...opts, resumeSessionId: undefined });
     } else {
       yield { type: "error", content: error instanceof Error ? error.message : "Unknown error", sessionId: latestSessionId };
     }

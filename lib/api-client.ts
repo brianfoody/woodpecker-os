@@ -1,11 +1,11 @@
-export function claudeCodeFetch(prompt: string, opts?: { sessionId?: string; canvasKey?: string; image?: string }) {
+export function claudeCodeFetch(prompt: string, opts?: { resumeSessionId?: string; image?: string }) {
   return fetch("/api/claude-code", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Woodpecker-Token": process.env.NEXT_PUBLIC_WOODPECKER_AUTH_TOKEN!,
     },
-    body: JSON.stringify({ prompt, sessionId: opts?.sessionId, canvasKey: opts?.canvasKey, image: opts?.image }),
+    body: JSON.stringify({ prompt, resumeSessionId: opts?.resumeSessionId, image: opts?.image }),
   });
 }
 

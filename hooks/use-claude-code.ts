@@ -116,7 +116,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
   const execute = useCallback(
     async (
       prompt: string,
-      opts: { sessionId?: string; canvasKey?: string; image?: string } | undefined,
+      opts: { resumeSessionId?: string; image?: string } | undefined,
       position: { x: number; y: number },
       onStrokeCleanup?: () => void,
       sourceShapeId?: TLShapeId,
@@ -143,6 +143,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
       let firstChunkReceived = false;
       let receivedSessionId: string | undefined;
+      let receivedForkSessionId: string | undefined;
 
       // Track multiple shapes — each text block gets its own shape
       const allShapeIds: TLShapeId[] = [];
@@ -612,6 +613,9 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
                 if (event.sessionId) {
                   receivedSessionId = event.sessionId;
                 }
+                if (event.forkSessionId) {
+                  receivedForkSessionId = event.forkSessionId;
+                }
               }
             } catch (parseError) {
               if (parseError instanceof SyntaxError) continue;
@@ -629,20 +633,38 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
         // (stroke cleanup already happened after OCR)
 
-        // Tag the last shape with the session ID for multi-turn follow-ups
-        if (receivedSessionId && allShapeIds.length > 0) {
+        // Tag ALL shapes with forkSessionId (every shape is a fork point)
+        // and the LAST shape with claudeSessionId (for session replay)
+        if (allShapeIds.length > 0) {
           const lastId = allShapeIds[allShapeIds.length - 1];
-          try {
-            editor.updateShape({
-              id: lastId,
-              type: "handwritten-text",
-              props: { claudeSessionId: receivedSessionId },
-            });
-          } catch {}
 
-          // Advance replay watermark so these blocks are never re-created on reload
-          const current = getReplayWatermark(receivedSessionId);
-          setReplayWatermark(receivedSessionId, current + allShapeIds.length);
+          // Store forkSessionId on every response shape
+          if (receivedForkSessionId) {
+            for (const shapeId of allShapeIds) {
+              try {
+                editor.updateShape({
+                  id: shapeId,
+                  type: "handwritten-text",
+                  props: { forkSessionId: receivedForkSessionId },
+                });
+              } catch {}
+            }
+          }
+
+          // Store claudeSessionId on last shape only (for replay)
+          if (receivedSessionId) {
+            try {
+              editor.updateShape({
+                id: lastId,
+                type: "handwritten-text",
+                props: { claudeSessionId: receivedSessionId },
+              });
+            } catch {}
+
+            // Advance replay watermark so these blocks are never re-created on reload
+            const current = getReplayWatermark(receivedSessionId);
+            setReplayWatermark(receivedSessionId, current + allShapeIds.length);
+          }
         }
       } catch (error) {
         streamActiveRef.current = false;
@@ -671,16 +693,31 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           },
         }]);
 
-        // Tag shape with session ID even on error so "Continue" can resume
-        if (receivedSessionId && allShapeIds.length > 0) {
+        // Tag shapes with session IDs even on error so "Continue" can resume
+        if (allShapeIds.length > 0) {
           const lastId = allShapeIds[allShapeIds.length - 1];
-          try {
-            editor.updateShape({
-              id: lastId,
-              type: "handwritten-text",
-              props: { claudeSessionId: receivedSessionId },
-            });
-          } catch {}
+
+          if (receivedForkSessionId) {
+            for (const shapeId of allShapeIds) {
+              try {
+                editor.updateShape({
+                  id: shapeId,
+                  type: "handwritten-text",
+                  props: { forkSessionId: receivedForkSessionId },
+                });
+              } catch {}
+            }
+          }
+
+          if (receivedSessionId) {
+            try {
+              editor.updateShape({
+                id: lastId,
+                type: "handwritten-text",
+                props: { claudeSessionId: receivedSessionId },
+              });
+            } catch {}
+          }
         }
       }
     },

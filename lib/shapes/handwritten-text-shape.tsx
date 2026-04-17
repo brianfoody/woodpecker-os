@@ -161,6 +161,7 @@ export type HandwrittenTextShape = TLBaseShape<
     color: string;
     autoSize: boolean;
     claudeSessionId: string | null;
+    forkSessionId: string | null;
     cardBg: string | null;
     cardBorder: string | null;
     cardBorderWidth: number;
@@ -193,6 +194,7 @@ export class HandwrittenTextShapeUtil extends ShapeUtil<HandwrittenTextShape> {
       color: 'black',
       autoSize: true,
       claudeSessionId: null,
+      forkSessionId: null,
       cardBg: null,
       cardBorder: null,
       cardBorderWidth: 0,

@@ -55,6 +55,31 @@ function renderMarkdown(
       continue;
     }
 
+    // Headings (# through ####)
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const headingText = headingMatch[2];
+      const sizes: Record<number, string> = { 1: '1.5em', 2: '1.3em', 3: '1.1em', 4: '1em' };
+      const weights: Record<number, number> = { 1: 700, 2: 700, 3: 600, 4: 600 };
+      const margins: Record<number, string> = { 1: '10px 0 2px', 2: '8px 0 2px', 3: '6px 0 2px', 4: '4px 0 2px' };
+      result.push(
+        <div
+          key={`h-${result.length}`}
+          style={{
+            fontSize: sizes[level],
+            fontWeight: weights[level],
+            lineHeight: 1.3,
+            margin: i === 0 ? '0 0 8px' : margins[level],
+          }}
+        >
+          {renderInlineMarkdown(headingText, codeBg, codeColor, monoFont)}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
     // Regular line — parse inline markdown
     result.push(
       <React.Fragment key={`line-${result.length}`}>
@@ -277,6 +302,13 @@ function HandwrittenTextComponent({
     if (!el || !shape.props.autoSize) return;
 
     const sync = () => {
+      // IMPORTANT: When tldraw culls a shape (display:none on the parent container),
+      // child elements report zero dimensions. If we update h/w to zero here, the
+      // geometry bounds collapse and the shape stays culled permanently — even when
+      // the user pans back. Guard against this by skipping updates when the element
+      // has no layout (offsetHeight === 0 means the parent is display:none).
+      if (el.offsetHeight === 0 && el.offsetWidth === 0) return;
+
       const measuredH = Math.ceil(el.scrollHeight) + 4;
       const measuredW = el.offsetWidth;
 

@@ -113,6 +113,34 @@ export function setReplayWatermark(sessionId: string, count: number): void {
   }
 }
 
+// ── Viewport position persistence ──
+
+const VIEWPORT_KEY_PREFIX = "woodpecker-viewport-";
+
+export function saveViewport(
+  camera: { x: number; y: number; z: number },
+  storageKey = DEFAULT_STORAGE_KEY
+): void {
+  try {
+    localStorage.setItem(
+      VIEWPORT_KEY_PREFIX + storageKey,
+      JSON.stringify(camera)
+    );
+  } catch {}
+}
+
+export function loadViewport(
+  storageKey = DEFAULT_STORAGE_KEY
+): { x: number; y: number; z: number } | null {
+  try {
+    const raw = localStorage.getItem(VIEWPORT_KEY_PREFIX + storageKey);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export class CanvasAutoSaver {
   private saveTimer: NodeJS.Timeout | null = null;
   private store: TLStore;

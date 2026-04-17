@@ -33,7 +33,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       position: { x: number; y: number },
       onStrokeCleanup?: () => void,
       sourceShapeId?: TLShapeId,
-      branchDirection?: "right" | "under" | "left"
+      branchDirection?: "right" | "under" | "left",
+      branchStartAnchorY?: number
     ) => {
       const editor = editorRef.current;
       const renderer = responseRendererRef.current;
@@ -58,6 +59,119 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       let currentShapeText = "";
       let nextY = position.y;
       let needNewShape = true; // start true so the first text creates a shape
+
+      // ── User card ID (declared early so closures below can reference it) ──
+      let userCardId: TLShapeId | undefined;
+
+      // ── Inline thinking indicator (themed only) ──
+      let thinkingShapeId: TLShapeId | null = null;
+      let thinkingArrowId: TLShapeId | null = null;
+
+      const createThinkingShape = (label: string) => {
+        removeThinkingShape();
+        if (!theme) return;
+        thinkingShapeId = createShapeId();
+        editor.createShapes([{
+          id: thinkingShapeId,
+          type: "thinking-indicator",
+          x: position.x,
+          y: nextY,
+          props: {
+            w: 500,
+            h: 90,
+            label,
+            cardBg: theme.aiCardBg,
+            cardBorder: theme.aiCardBorder,
+            cardBorderWidth: theme.aiCardBorderWidth,
+            cardRadius: theme.aiCardRadius,
+            cardShadow: theme.aiCardShadow,
+            cardLabelText: theme.aiLabelText,
+            cardLabelColor: theme.aiLabelColor,
+            cardFont: theme.aiFont,
+            thinkingColor: theme.thinkingColor,
+          },
+        }]);
+
+        // Connect thinking shape to the most recent shape in the chain:
+        // last response shape > user card > source shape
+        const prevId = allShapeIds.length > 0
+          ? allShapeIds[allShapeIds.length - 1]
+          : userCardId ?? sourceShapeId;
+        if (prevId && thinkingShapeId) {
+          thinkingArrowId = createShapeId();
+          editor.createShapes([{
+            id: thinkingArrowId,
+            type: "arrow",
+            x: position.x,
+            y: nextY,
+            props: {
+              kind: "arc",
+              bend: 0,
+              size: "s",
+              color: "grey",
+              dash: "solid",
+              fill: "none",
+              arrowheadStart: "none",
+              arrowheadEnd: "none",
+              start: { x: 0, y: 0 },
+              end: { x: 0, y: 0 },
+              text: "",
+              labelPosition: 0.5,
+              scale: 1,
+              elbowMidPoint: 0.5,
+            },
+          }]);
+          editor.createBindings([
+            {
+              type: "arrow",
+              fromId: thinkingArrowId,
+              toId: prevId,
+              props: {
+                terminal: "start",
+                normalizedAnchor: { x: 0.5, y: 1.0 },
+                isExact: false,
+                isPrecise: false,
+                snap: "none",
+              },
+            },
+            {
+              type: "arrow",
+              fromId: thinkingArrowId,
+              toId: thinkingShapeId,
+              props: {
+                terminal: "end",
+                normalizedAnchor: { x: 0.5, y: 0.0 },
+                isExact: false,
+                isPrecise: false,
+                snap: "none",
+              },
+            },
+          ]);
+        }
+      };
+
+      const removeThinkingShape = () => {
+        const toDelete: TLShapeId[] = [];
+        if (thinkingArrowId) toDelete.push(thinkingArrowId);
+        if (thinkingShapeId) toDelete.push(thinkingShapeId);
+        if (toDelete.length > 0) {
+          try { editor.deleteShapes(toDelete); } catch {}
+        }
+        thinkingShapeId = null;
+        thinkingArrowId = null;
+      };
+
+      const updateThinkingLabel = (label: string) => {
+        if (thinkingShapeId) {
+          try {
+            editor.updateShape({
+              id: thinkingShapeId,
+              type: "thinking-indicator",
+              props: { label },
+            });
+          } catch {}
+        }
+      };
 
       /** Estimate rendered height from text content (autoSize is async, so geometry may be stale) */
       const estimateTextHeight = (text: string, shapeWidth = 500): number => {
@@ -89,11 +203,12 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
       /** Get anchor points for a branch direction */
       const getBranchAnchors = (dir: "right" | "under" | "left") => {
+        // For right/left, use the normalized Y from the circle gesture area
+        // so the arrow exits the source card at the level where the user interacted
+        const startY = branchStartAnchorY ?? 0.5;
         switch (dir) {
-          // Right: exit bottom of source, enter top of target (elbow makes the L shape)
-          case "right":  return { start: { x: 1.0, y: 1.0 }, end: { x: 0.5, y: 0.0 } };
-          // Left: exit bottom of source, enter top of target
-          case "left":   return { start: { x: 0.0, y: 1.0 }, end: { x: 0.5, y: 0.0 } };
+          case "right":  return { start: { x: 1.0, y: startY }, end: { x: 0.0, y: 0.5 } };
+          case "left":   return { start: { x: 0.0, y: startY }, end: { x: 1.0, y: 0.5 } };
           case "under":
           default:       return { start: { x: 0.5, y: 1.0 }, end: { x: 0.5, y: 0.0 } };
         }
@@ -140,7 +255,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
               terminal: "start",
               normalizedAnchor: startAnchor ?? { x: 0.5, y: 1.0 },
               isExact: false,
-              isPrecise: true,
+              isPrecise: false,
               snap: "none",
             },
           },
@@ -152,7 +267,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
               terminal: "end",
               normalizedAnchor: endAnchor ?? { x: 0.5, y: 0.0 },
               isExact: false,
-              isPrecise: true,
+              isPrecise: false,
               snap: "none",
             },
           },
@@ -214,8 +329,10 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         needNewShape = false;
       };
 
+      // Show inline thinking indicator on canvas immediately (before OCR)
+      createThinkingShape("processing...");
+
       // Create "YOU" echo card before the AI response (themed only)
-      let userCardId: TLShapeId | undefined;
       if (theme) {
         let userDisplayText = prompt;
 
@@ -228,7 +345,13 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           }
         }
 
+        // OCR complete — remove the orange highlight stroke and gesture
+        if (onStrokeCleanup) onStrokeCleanup();
+
         if (userDisplayText) {
+          // Remove the early thinking shape so we can insert user card at this position
+          removeThinkingShape();
+
           userCardId = createShapeId();
           editor.createShapes([{
             id: userCardId,
@@ -268,7 +391,13 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           const userCardHeight = estimateTextHeight(userDisplayText);
           nextY += userCardHeight + SHAPE_GAP;
         }
+      } else {
+        // Non-themed: clean up stroke immediately
+        if (onStrokeCleanup) onStrokeCleanup();
       }
+
+      // Show thinking indicator below user card (or keep the one from above if no user card)
+      createThinkingShape("waking up...");
 
       try {
         const response = await claudeCodeFetch(prompt, opts);
@@ -304,13 +433,16 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
               if (event.type === "status" && event.content) {
                 setThinking((prev) => ({ ...prev, label: event.content! }));
+                updateThinkingLabel(event.content);
               }
 
               if (event.type === "text_delta" && event.content) {
+                // Remove inline thinking indicator before rendering text
+                removeThinkingShape();
+
                 if (!firstChunkReceived) {
                   firstChunkReceived = true;
                   setThinking((prev) => ({ ...prev, visible: false }));
-                  if (onStrokeCleanup) onStrokeCleanup();
                 }
 
                 // Create a new shape if needed (first text or after tool use)
@@ -349,6 +481,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
                   `using ${event.toolName}...`;
 
                 setThinking((prev) => ({ ...prev, visible: true, label: toolLabel }));
+                createThinkingShape(toolLabel);
               }
 
               if (event.type === "error") {
@@ -372,12 +505,10 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         }
 
         // Hide thinking indicator
+        removeThinkingShape();
         setThinking((prev) => ({ ...prev, visible: false }));
 
-        // If we never received chunks, render final text via renderer
-        if (!firstChunkReceived) {
-          if (onStrokeCleanup) onStrokeCleanup();
-        }
+        // (stroke cleanup already happened after OCR)
 
         // Tag the last shape with the session ID for multi-turn follow-ups
         if (receivedSessionId && allShapeIds.length > 0) {
@@ -395,6 +526,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           setReplayWatermark(receivedSessionId, current + allShapeIds.length);
         }
       } catch (error) {
+        removeThinkingShape();
         setThinking((prev) => ({ ...prev, visible: false }));
         if (onStrokeCleanup) onStrokeCleanup();
 

@@ -9,13 +9,14 @@ import {
   createShapeId,
 } from "tldraw";
 import "tldraw/tldraw.css";
-import { PointSpinner } from "@/components/point-spinner";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
+import { PointSpinner } from "@/components/point-spinner";
 import {
   MessageBubbleShapeUtil,
   WebsiteBubbleShapeUtil,
   HandwrittenTextShapeUtil,
   InteractionBubbleShapeUtil,
+  ThinkingIndicatorShapeUtil,
 } from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
@@ -24,6 +25,8 @@ import {
   loadCanvasData,
   CanvasAutoSaver,
   clearCanvasData,
+  saveViewport,
+  loadViewport,
 } from "@/lib/canvas-persistence";
 import { loadContacts } from "@/lib/contact-storage";
 import {
@@ -34,70 +37,23 @@ import type { SmartMessage } from "@/lib/models";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
 import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
-import { HandwritingContextManagerV2 } from "@/lib/handwriting-context-manager-v2";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
-import { ChatModeToggle } from "@/components/chat-mode-toggle";
 import { useClaudeCode } from "@/hooks/use-claude-code";
 import { replayMissedSessionContent } from "@/lib/session-replay";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 
-// Hold detection
-let holdDetector: HoldDetector | null = null;
-
-// Gesture detection state
-let gestureCheckTimer: NodeJS.Timeout | null = null;
 const GESTURE_CHECK_DELAY = 300;
 
-// Global callback for magic wand gesture
-let globalMagicWandCallback:
-  | ((
-      stroke: any,
-      editor: any,
-      holdPosition?: { x: number; y: number }
-    ) => Promise<void>)
-  | null = null;
-
-// Global callback for onboarding actions
-let globalOnboardingCallback:
-  | ((actionType: string, additionalData?: any) => void)
-  | null = null;
-
-function cancelHoldDetection() {
-  if (holdDetector) {
-    holdDetector.cancelHoldDetection();
-  }
-  if (gestureCheckTimer) {
-    clearTimeout(gestureCheckTimer);
-    gestureCheckTimer = null;
-  }
-}
-
-async function triggerMagicWandGesture(
-  latestStroke: any,
-  editor: any,
-  holdPosition?: { x: number; y: number }
-) {
-  console.log("Magic wand gesture triggered!");
-
-  if (globalMagicWandCallback) {
-    try {
-      await globalMagicWandCallback(latestStroke, editor, holdPosition);
-    } catch (error) {
-      console.error("Error in magic wand callback:", error);
-    }
-  }
-}
+// Shared refs for cross-component communication (survives HMR)
+const magicWandCallbackRef: { current: ((stroke: any, editor: any, holdPosition?: { x: number; y: number }) => Promise<void>) | null } = { current: null };
+const onboardingCallbackRef: { current: ((actionType: string, additionalData?: any) => void) | null } = { current: null };
 
 export default function TldrawCanvas({ theme, storageKey }: { theme?: WoodpeckerCanvasTheme; storageKey?: string }) {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
-  const handwritingManagerRef = useRef<HandwritingContextManagerV2 | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
-  const isProcessingHandwritingResponseRef = useRef(false);
-  const [spinnerPosition, setSpinnerPosition] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
+  const holdDetectorRef = useRef<HoldDetector | null>(null);
+  const gestureCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [originalStrokeProps, setOriginalStrokeProps] = useState<{
     color: string;
     size: string;
@@ -110,9 +66,6 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
   // Message polling state (kept for existing message bubbles)
   const [isPollingEnabled, setIsPollingEnabled] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Chat mode state
-  const [chatModeEnabled, setChatModeEnabled] = useState(false);
 
   // Claude Code hook
   const { execute: executeClaudeCode, thinking } = useClaudeCode({
@@ -271,7 +224,8 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
     async (
       stroke: any,
       eventEditor: any,
-      holdPosition?: { x: number; y: number }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _holdPosition?: { x: number; y: number }
     ) => {
       try {
         // Extract points from the stroke
@@ -319,17 +273,6 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           return;
         }
 
-        // Set loading state
-        let spinnerScreenPos;
-        if (holdPosition) {
-          spinnerScreenPos = holdPosition;
-        } else {
-          const centerX = (minX + maxX) / 2;
-          const centerY = (minY + maxY) / 2;
-          spinnerScreenPos = eventEditor.pageToScreen({ x: centerX, y: centerY });
-        }
-        setSpinnerPosition(spinnerScreenPos);
-
         // Highlight the stroke while processing
         setOriginalStrokeProps({
           color: stroke.props.color || "black",
@@ -364,7 +307,6 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
 
         if (!imageBase64) {
           try { eventEditor.deleteShape(stroke.id); } catch {}
-          setSpinnerPosition(null);
           setOriginalStrokeProps(null);
           return;
         }
@@ -404,17 +346,23 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           ? { sessionId: (aiResponseShape.props as any).claudeSessionId, image: imageBase64 }
           : { image: imageBase64 };
 
+        // Find any AI card in the circle for layout positioning
+        // (not all AI cards have a claudeSessionId — only the last card in a response does)
+        const aiCardForLayout = shapesInLoop.find(
+          (s: any) => s.type === "handwritten-text" && s.props?.cardBg
+        ) ?? aiResponseShape;
+
         // Determine branch direction and position for themed follow-ups
         let bubbleX = minX;
         let bubbleY = theme
           ? maxY + RESPONSE_GAP
           : maxY + FRAME_PADDING + RESPONSE_GAP;
         let direction: "right" | "under" | "left" | undefined;
+        let branchAnchorY: number | undefined;
 
-        if (aiResponseShape && theme) {
-          const sourceBounds = eventEditor.getShapeGeometry(aiResponseShape).bounds;
-          const sourceCenterX = aiResponseShape.x + sourceBounds.width / 2;
-          const sourceCenterY = aiResponseShape.y + sourceBounds.height / 2;
+        if (aiCardForLayout && theme) {
+          const sourceBounds = eventEditor.getShapeGeometry(aiCardForLayout).bounds;
+          const sourceCenterX = aiCardForLayout.x + sourceBounds.width / 2;
           const sourceW = sourceBounds.width;
           const sourceH = sourceBounds.height;
 
@@ -423,11 +371,15 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
 
           // Calculate where the user wrote relative to the source AI card
           const userShapes = shapesInLoop.filter(
-            (s: any) => s.id !== aiResponseShape!.id
+            (s: any) => s.id !== aiCardForLayout!.id
           );
 
+          let uMinY = maxY;
+
           if (userShapes.length > 0) {
-            let uMinX = Infinity, uMaxX = -Infinity, uMinY = Infinity, uMaxY = -Infinity;
+            let uMinX = Infinity, uMaxX = -Infinity;
+            uMinY = Infinity;
+            let uMaxY = -Infinity;
             for (const s of userShapes) {
               const b = eventEditor.getShapeGeometry(s).bounds;
               uMinX = Math.min(uMinX, s.x + b.minX);
@@ -436,39 +388,55 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
               uMaxY = Math.max(uMaxY, s.y + b.maxY);
             }
             const userCenterX = (uMinX + uMaxX) / 2;
-            const userCenterY = (uMinY + uMaxY) / 2;
 
             const dx = userCenterX - sourceCenterX;
-            const dy = userCenterY - sourceCenterY;
 
-            if (Math.abs(dx) > Math.abs(dy) && dx > 0) direction = "right";
-            else if (Math.abs(dx) > Math.abs(dy)) direction = "left";
-            else direction = "under";
+            // If the user's content is below the bottom 95% of the source card,
+            // they're writing underneath — use vertical layout unless clearly to a side
+            const sourceBottomThreshold = aiCardForLayout.y + sourceH * 0.95;
+            const userCenterY = (uMinY + uMaxY) / 2;
+
+            if (userCenterY > sourceBottomThreshold) {
+              // User wrote below the card — check horizontal offset for direction
+              if (dx > 100) direction = "right";
+              else if (dx < -100) direction = "left";
+              else direction = "under";
+            } else {
+              // User wrote beside the card (within its height) — horizontal branch
+              if (dx < 0) direction = "left";
+              else direction = "right";
+            }
           }
 
-          // Position the response: always below the source, offset horizontally for right/left
           const BRANCH_GAP = 80;
           const RESPONSE_CARD_WIDTH = 500;
 
           if (direction === "right") {
-            bubbleX = aiResponseShape.x + sourceW + BRANCH_GAP;
-            bubbleY = aiResponseShape.y + sourceH + BRANCH_GAP;
+            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
+            // Align Y with where the user wrote, clamped to source card top
+            bubbleY = Math.max(uMinY, aiCardForLayout.y);
           } else if (direction === "left") {
-            bubbleX = aiResponseShape.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
-            bubbleY = aiResponseShape.y + sourceH + BRANCH_GAP;
+            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
+            bubbleY = Math.max(uMinY, aiCardForLayout.y);
           } else {
-            bubbleX = aiResponseShape.x;
-            bubbleY = aiResponseShape.y + sourceH + BRANCH_GAP;
+            bubbleX = aiCardForLayout.x;
+            bubbleY = aiCardForLayout.y + sourceH + BRANCH_GAP;
+          }
+
+          // Calculate where the circle gesture midpoint falls on the source card
+          // so the arrow exits at that level, not from the card center
+          if (direction === "right" || direction === "left") {
+            const gestureMidY = (minY + maxY) / 2;
+            const normalizedY = (gestureMidY - aiCardForLayout.y) / sourceH;
+            branchAnchorY = Math.max(0.1, Math.min(0.9, normalizedY));
           }
         }
 
         // Determine source shape for connecting arrow.
-        // Themed continuations use the AI response shape; unthemed uses the frame.
-        // For themed NEW interactions (no aiResponseShape, no frame), pick the
-        // bottom-most circled shape so the response connects back to the source.
-        let sourceId = aiResponseShape ? aiResponseShape.id : frameId;
+        // Themed continuations use the AI card; unthemed uses the frame.
+        let sourceId = aiCardForLayout?.id ?? aiResponseShape?.id ?? frameId;
         let branchDir: "right" | "under" | "left" | undefined =
-          aiResponseShape && theme ? direction : undefined;
+          aiCardForLayout && theme ? direction : undefined;
 
         if (!sourceId && theme && shapesInLoop.length > 0) {
           // Sort by Y descending and pick the bottom-most shape as anchor
@@ -482,17 +450,16 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           prompt, sessionOpts,
           { x: bubbleX, y: bubbleY },
           () => {
-            // Cleanup callback: remove spinner and gesture stroke
-            setSpinnerPosition(null);
+            // Cleanup callback: remove gesture stroke
             try { eventEditor.deleteShape(stroke.id); } catch {}
             setOriginalStrokeProps(null);
           },
           sourceId,
-          branchDir
+          branchDir,
+          branchAnchorY
         );
 
         // If cleanup wasn't triggered (no content received), clean up now
-        setSpinnerPosition(null);
         setOriginalStrokeProps(null);
       } catch (error) {
         console.error("Magic wand processing failed:", error);
@@ -507,7 +474,6 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
             });
           } catch {}
         }
-        setSpinnerPosition(null);
         setOriginalStrokeProps(null);
       }
     },
@@ -530,20 +496,20 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
 
   // Register the magic wand callback
   useEffect(() => {
-    globalMagicWandCallback = handleMagicWandGesture;
+    magicWandCallbackRef.current = handleMagicWandGesture;
     return () => {
-      if (globalMagicWandCallback === handleMagicWandGesture) {
-        globalMagicWandCallback = null;
+      if (magicWandCallbackRef.current === handleMagicWandGesture) {
+        magicWandCallbackRef.current = null;
       }
     };
   }, [handleMagicWandGesture]);
 
   // Register the onboarding callback
   useEffect(() => {
-    globalOnboardingCallback = handleOnboardingAction;
+    onboardingCallbackRef.current = handleOnboardingAction;
     return () => {
-      if (globalOnboardingCallback === handleOnboardingAction) {
-        globalOnboardingCallback = null;
+      if (onboardingCallbackRef.current === handleOnboardingAction) {
+        onboardingCallbackRef.current = null;
       }
     };
   }, [handleOnboardingAction]);
@@ -565,13 +531,6 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
     };
   }, []);
 
-  // Sync chat mode to handwriting manager
-  useEffect(() => {
-    if (handwritingManagerRef.current) {
-      handwritingManagerRef.current.setChatMode(chatModeEnabled);
-    }
-  }, [chatModeEnabled]);
-
   const uiOverrides: TLUiOverrides = {};
 
   return (
@@ -582,6 +541,7 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           WebsiteBubbleShapeUtil,
           HandwrittenTextShapeUtil,
           InteractionBubbleShapeUtil,
+          ThinkingIndicatorShapeUtil,
         ]}
         overrides={uiOverrides}
         onMount={(editor) => {
@@ -593,6 +553,16 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           } catch {}
 
           editorRef.current = editor;
+
+          // IMPORTANT: Disable tldraw's shape culling. tldraw sets display:none on
+          // shapes whose geometry bounds are completely outside the viewport. For our
+          // custom HTML shapes (cards, thinking indicators) this causes a vicious
+          // cycle: culled elements report zero dimensions → ResizeObserver collapses
+          // the height → geometry bounds shrink to ~20px → shape stays culled even
+          // when the user pans back. Since we have a limited number of shapes on the
+          // canvas (not thousands), the performance cost of keeping all shapes in the
+          // DOM is negligible. This is a defensive rule to prevent this regression.
+          editor.getCulledShapes = () => new Set();
 
           // Theme: inject canvas background and load Google Font
           let themeStyleEl: HTMLStyleElement | null = null;
@@ -610,40 +580,8 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
             }
           }
 
-          // Initialize handwriting recognition
-          handwritingManagerRef.current = new HandwritingContextManagerV2(editor);
+          // Handwriting WebSocket recognizer disabled for now
           responseRendererRef.current = new HandwrittenResponseRenderer(editor);
-
-          // Set up intent detection — now uses Claude Code instead of Groq
-          handwritingManagerRef.current.onIntentDetected = async (result) => {
-            console.log("AI intent detected:", result);
-
-            if (isProcessingHandwritingResponseRef.current) return;
-            isProcessingHandwritingResponseRef.current = true;
-
-            if (responseRendererRef.current && result.responsePosition) {
-              try {
-                await executeClaudeCode(
-                  result.fullQuestion,
-                  { canvasKey: "handwriting-chat" },
-                  result.responsePosition,
-                  undefined
-                );
-
-                // Update conversation history
-                // Note: with streaming, we don't easily get the full response text here.
-                // The renderer handles display. For conversation context, the session
-                // ID handles multi-turn continuity.
-              } catch (error) {
-                console.error("Failed to get AI response:", error);
-                responseRendererRef.current?.hideCursor();
-              } finally {
-                isProcessingHandwritingResponseRef.current = false;
-              }
-            } else {
-              isProcessingHandwritingResponseRef.current = false;
-            }
-          };
 
           // Load saved canvas data
           const savedData = loadCanvasData(storageKey);
@@ -655,6 +593,12 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
               console.error("Failed to restore canvas data:", error);
               clearCanvasData(storageKey);
             }
+          }
+
+          // Restore last viewport position
+          const savedViewport = loadViewport(storageKey);
+          if (savedViewport) {
+            editor.setCamera(savedViewport);
           }
 
           // Replay any missed Claude Code session content after reload
@@ -685,6 +629,15 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
             );
             const removedRecords = Object.values(event.changes.removed);
 
+            // Persist viewport position on camera changes
+            const hasCameraChange = updatedRecords.some(
+              (record: any) => record.typeName === "camera"
+            );
+            if (hasCameraChange) {
+              const cam = editor.getCamera();
+              saveViewport(cam, storageKey);
+            }
+
             if (autoSaverRef.current) {
               const isDrawOperation =
                 addedRecords.some(
@@ -700,8 +653,36 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
                     record.typeName === "shape" && record.type === "draw"
                 );
 
-              if (isDrawOperation && handwritingManagerRef.current) {
-                handwritingManagerRef.current.sync();
+              // Keep draw (handwritten) strokes above cards and connectors
+              // so handwriting is never hidden behind response nodes or arrows.
+              const newDrawShapeIds = addedRecords
+                .filter((r: any) => r.typeName === "shape" && r.type === "draw")
+                .map((r: any) => r.id);
+              if (newDrawShapeIds.length > 0) {
+                editor.bringToFront(newDrawShapeIds);
+              }
+
+              // When a shape is deleted, also delete any arrows bound to it.
+              // tldraw removes bindings automatically but leaves orphaned arrows.
+              const removedBindings = removedRecords.filter(
+                (record: any) => record.typeName === "binding"
+              );
+              if (removedBindings.length > 0) {
+                const arrowIds = new Set<string>();
+                for (const binding of removedBindings) {
+                  arrowIds.add((binding as any).fromId);
+                }
+                const toDelete = Array.from(arrowIds).filter((id) => {
+                  try {
+                    const shape = editor.getShape(id as any);
+                    return shape && shape.type === "arrow";
+                  } catch {
+                    return false;
+                  }
+                });
+                if (toDelete.length > 0) {
+                  editor.deleteShapes(toDelete.map((id) => ({ id, type: "arrow" } as any)));
+                }
               }
 
               const hasDeletedShapes = removedRecords.some(
@@ -724,9 +705,16 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           setTimeout(() => editor.setCurrentTool("draw"), 200);
 
           // Initialize hold detector
-          holdDetector = new HoldDetector();
-          holdDetector.setHoldCallback((stroke, holdPosition) => {
-            triggerMagicWandGesture(stroke, editor, holdPosition);
+          holdDetectorRef.current = new HoldDetector();
+          holdDetectorRef.current.setHoldCallback(async (stroke, holdPosition) => {
+            console.log("Magic wand gesture triggered!");
+            if (magicWandCallbackRef.current) {
+              try {
+                await magicWandCallbackRef.current(stroke, editor, holdPosition);
+              } catch (error) {
+                console.error("Error in magic wand callback:", error);
+              }
+            }
           });
 
           // Auto-revert to pen after other tools
@@ -748,7 +736,13 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           // Gesture detection
           editor.on("event", async (info) => {
             if (info.type === "pointer" && info.name === "pointer_down") {
-              cancelHoldDetection();
+              if (holdDetectorRef.current) {
+                holdDetectorRef.current.cancelHoldDetection();
+              }
+              if (gestureCheckTimerRef.current) {
+                clearTimeout(gestureCheckTimerRef.current);
+                gestureCheckTimerRef.current = null;
+              }
             }
 
             if (info.type === "pointer" && info.name === "pointer_move") {
@@ -759,16 +753,16 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
               const currentStroke = drawShapes[drawShapes.length - 1];
 
               if (currentStroke && currentStroke.type === "draw") {
-                const currentHoldShape = holdDetector?.getCurrentShape();
+                const currentHoldShape = holdDetectorRef.current?.getCurrentShape();
                 if (
                   !currentHoldShape ||
                   currentHoldShape.id !== currentStroke.id
                 ) {
-                  if (gestureCheckTimer) {
-                    clearTimeout(gestureCheckTimer);
+                  if (gestureCheckTimerRef.current) {
+                    clearTimeout(gestureCheckTimerRef.current);
                   }
 
-                  gestureCheckTimer = setTimeout(() => {
+                  gestureCheckTimerRef.current = setTimeout(() => {
                     const latestShapes = editor.getCurrentPageShapes();
                     const latestDrawShapes = latestShapes.filter(
                       (shape) => shape.type === "draw"
@@ -785,19 +779,19 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
                         const initialPosition = info.point
                           ? { x: info.point.x, y: info.point.y }
                           : undefined;
-                        holdDetector?.startHoldDetection(
+                        holdDetectorRef.current?.startHoldDetection(
                           latestStroke,
                           initialPosition
                         );
                       }
                     }
-                    gestureCheckTimer = null;
+                    gestureCheckTimerRef.current = null;
                   }, GESTURE_CHECK_DELAY);
                 }
               }
 
-              if (holdDetector && info.point) {
-                holdDetector.updatePosition({ x: info.point.x, y: info.point.y });
+              if (holdDetectorRef.current && info.point) {
+                holdDetectorRef.current.updatePosition({ x: info.point.x, y: info.point.y });
               }
             }
           });
@@ -807,9 +801,12 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
             if (autoSaverRef.current) {
               autoSaverRef.current.forceSave();
             }
-            cancelHoldDetection();
-            if (handwritingManagerRef.current) {
-              handwritingManagerRef.current.clear();
+            if (holdDetectorRef.current) {
+              holdDetectorRef.current.cancelHoldDetection();
+            }
+            if (gestureCheckTimerRef.current) {
+              clearTimeout(gestureCheckTimerRef.current);
+              gestureCheckTimerRef.current = null;
             }
             if (responseRendererRef.current) {
               responseRendererRef.current.clearResponses();
@@ -828,17 +825,9 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
         }}
       />
 
-      {spinnerPosition && <PointSpinner position={spinnerPosition} theme={theme} />}
-
-      {thinking.visible && (
+      {thinking.visible && !theme && (
         <ThinkingIndicator label={thinking.label} theme={theme} />
       )}
-
-      <ChatModeToggle
-        enabled={chatModeEnabled}
-        onToggle={setChatModeEnabled}
-        theme={theme}
-      />
 
       <OnboardingDialog
         isOpen={showOnboarding}
@@ -858,7 +847,7 @@ export function triggerOnboardingAction(
   actionType: string,
   additionalData?: any
 ) {
-  if (globalOnboardingCallback) {
-    globalOnboardingCallback(actionType, additionalData);
+  if (onboardingCallbackRef.current) {
+    onboardingCallbackRef.current(actionType, additionalData);
   }
 }

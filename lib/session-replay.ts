@@ -5,8 +5,12 @@ import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence
 const SHAPE_GAP = 40;
 
 /**
- * After a page reload, find all shapes with claudeSessionId, fetch the full
- * session transcript, and render any text blocks that are missing from the canvas.
+ * After a page reload, find sessions where the stream was interrupted
+ * (shapes exist with a claudeSessionId but have no text content yet)
+ * and replay the missing content from the transcript.
+ *
+ * Shapes that already have text are NOT replayed — they were fully
+ * rendered by the live stream before the page was saved to localStorage.
  */
 export async function replayMissedSessionContent(editor: any) {
   const allShapes = editor.getCurrentPageShapes();
@@ -26,6 +30,14 @@ export async function replayMissedSessionContent(editor: any) {
   if (sessionShapes.size === 0) return;
 
   for (const [sessionId, shapes] of Array.from(sessionShapes.entries())) {
+    // Skip sessions where shapes already have text content —
+    // the live stream completed and localStorage captured everything.
+    const hasContent = shapes.some((s: any) => s.props?.text?.trim());
+    if (hasContent) {
+      console.log(`[session-replay] Session ${sessionId.slice(0, 8)} already has content, skipping`);
+      continue;
+    }
+
     try {
       await replaySession(editor, sessionId, shapes);
     } catch (err) {
@@ -40,12 +52,7 @@ async function replaySession(editor: any, sessionId: string, shapes: any[]) {
     return;
   }
 
-  // Check watermark — blocks before this index have already been rendered at least once
-  const watermark = getReplayWatermark(sessionId);
-  if (watermark >= transcript.textBlocks.length) return;
-
-  const newBlocks = transcript.textBlocks.slice(watermark);
-  if (newBlocks.length === 0) return;
+  console.log(`[session-replay] Replaying ${transcript.textBlocks.length} blocks for session ${sessionId.slice(0, 8)}`);
 
   // Sort shapes by Y position to determine order
   shapes.sort((a: any, b: any) => a.y - b.y);
@@ -66,8 +73,8 @@ async function replaySession(editor: any, sessionId: string, shapes: any[]) {
 
   const STAGGER_DELAY = 350; // ms between each message appearing
 
-  for (let i = 0; i < newBlocks.length; i++) {
-    const block = newBlocks[i];
+  for (let i = 0; i < transcript.textBlocks.length; i++) {
+    const block = transcript.textBlocks[i];
 
     // Stagger each message with a delay (skip delay for the first one)
     if (i > 0) {
@@ -111,9 +118,6 @@ async function replaySession(editor: any, sessionId: string, shapes: any[]) {
 
     previousShapeId = shapeId;
   }
-
-  // Advance watermark now that all new blocks have been rendered
-  setReplayWatermark(sessionId, transcript.textBlocks.length);
 
   // Move claudeSessionId to the last new shape
   if (newShapeIds.length > 0) {

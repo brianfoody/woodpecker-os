@@ -5,6 +5,7 @@ import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence
 import type { StreamEvent } from "@/lib/claude-code";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
+import { toast } from "@/hooks/use-toast";
 
 interface UseClaudeCodeOptions {
   editorRef: React.MutableRefObject<any>;
@@ -675,25 +676,13 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         if (abortController.signal.aborted) return;
 
         const errorText = error instanceof Error ? error.message : "Something went wrong";
-        const errorId = createShapeId();
-        allShapeIds.push(errorId);
-        editor.createShapes([{
-          id: errorId,
-          type: "handwritten-text",
-          x: position.x,
-          y: nextY,
-          props: {
-            w: 300,
-            h: 40,
-            text: errorText,
-            font: "sans",
-            size: "m",
-            color: theme?.errorColor ?? "#dc2626",
-            autoSize: true,
-          },
-        }]);
+        toast({
+          title: "Woodpecker error",
+          description: errorText,
+          variant: "destructive",
+        });
 
-        // Tag shapes with session IDs even on error so "Continue" can resume
+        // Tag any existing shapes with session IDs so "Continue" can resume
         if (allShapeIds.length > 0) {
           const lastId = allShapeIds[allShapeIds.length - 1];
 

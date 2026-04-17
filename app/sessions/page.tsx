@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock, Hash } from "lucide-react";
+import { ArrowLeft, Clock, Hash, GitBranch } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface SessionRow {
   session_id: string;
-  canvas_key: string;
+  summary: string;
   first_prompt: string;
-  created_at: string;
-  last_used_at: string;
-  message_count: number;
+  last_modified: number;
+  tag: string | null;
 }
 
 interface SessionData {
@@ -33,11 +32,11 @@ export default function SessionsPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
   const active =
-    data?.sessions.filter((s) => s.last_used_at >= oneHourAgo) || [];
+    data?.sessions.filter((s) => s.last_modified >= oneHourAgo) || [];
   const historical =
-    data?.sessions.filter((s) => s.last_used_at < oneHourAgo) || [];
+    data?.sessions.filter((s) => s.last_modified < oneHourAgo) || [];
 
   return (
     <div
@@ -182,18 +181,20 @@ function Section({
 }
 
 function SessionCard({ session }: { session: SessionRow }) {
-  const prompt = session.first_prompt || "(no prompt)";
+  const summary = session.summary || "(no prompt)";
   const truncated =
-    prompt.length > 80 ? prompt.slice(0, 80) + "\u2026" : prompt;
+    summary.length > 100 ? summary.slice(0, 100) + "\u2026" : summary;
 
   let timeAgo: string;
   try {
-    timeAgo = formatDistanceToNow(new Date(session.last_used_at + "Z"), {
+    timeAgo = formatDistanceToNow(new Date(session.last_modified), {
       addSuffix: true,
     });
   } catch {
-    timeAgo = session.last_used_at;
+    timeAgo = "unknown";
   }
+
+  const isFork = summary.includes("(fork)");
 
   return (
     <div
@@ -222,18 +223,36 @@ function SessionCard({ session }: { session: SessionRow }) {
           color: "#999",
         }}
       >
-        <span
-          style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-        >
-          <Hash size={12} />
-          {session.message_count} message
-          {session.message_count !== 1 ? "s" : ""}
-        </span>
+        {isFork && (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            <GitBranch size={12} />
+            fork
+          </span>
+        )}
+        {session.tag && (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            <Hash size={12} />
+            {session.tag}
+          </span>
+        )}
         <span
           style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
         >
           <Clock size={12} />
           {timeAgo}
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            color: "#bbb",
+            fontFamily: "monospace",
+          }}
+        >
+          {session.session_id.slice(0, 8)}
         </span>
       </div>
     </div>

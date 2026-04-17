@@ -2,7 +2,7 @@ import { createShapeId, TLShapeId } from "tldraw";
 import { fetchSessionTranscript } from "@/lib/api-client";
 import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence";
 
-const SHAPE_GAP = 16;
+const SHAPE_GAP = 40;
 
 /**
  * After a page reload, find all shapes with claudeSessionId, fetch the full

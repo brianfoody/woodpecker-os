@@ -298,8 +298,7 @@ function EchoMessage({
         style={{
           fontFamily: "'Caveat', cursive",
           fontSize: 19,
-          color: tokens.accentUser,
-          opacity: 0.75,
+          color: tokens.textPrimary,
           lineHeight: 1.4,
         }}
         dangerouslySetInnerHTML={{ __html: message.content }}

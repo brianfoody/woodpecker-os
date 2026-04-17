@@ -99,6 +99,28 @@ function renderMarkdown(
   return result;
 }
 
+/** Returns true if a CSS color string is perceptually dark (low luminance). */
+function isDarkColor(c: string): boolean {
+  if (!c) return false;
+  const s = c.toLowerCase().trim();
+  if (s === 'black' || s === '#000' || s === '#000000') return true;
+  if (s.startsWith('#')) {
+    const hex = s.replace('#', '');
+    const full = hex.length === 3
+      ? hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]
+      : hex;
+    const r = parseInt(full.slice(0, 2), 16) || 0;
+    const g = parseInt(full.slice(2, 4), 16) || 0;
+    const b = parseInt(full.slice(4, 6), 16) || 0;
+    return (r * 0.299 + g * 0.587 + b * 0.114) < 100;
+  }
+  const rgbMatch = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    return (+rgbMatch[1] * 0.299 + +rgbMatch[2] * 0.587 + +rgbMatch[3] * 0.114) < 100;
+  }
+  return false;
+}
+
 function renderInlineMarkdown(line: string, codeBg: string, codeColor: string, monoFont: string): React.ReactNode[] {
   // Check for list item prefix
   let prefix: React.ReactNode = null;
@@ -290,11 +312,24 @@ function HandwrittenTextComponent({
 
   const isCard = cardBg !== null;
 
+  // Detect if the stored text color is dark (needs override on dark cards)
+  // or light (needs override on light cards). Used to fix cards whose text
+  // color was baked in from a different theme mode.
+  const textIsDark = isDarkColor(color);
+  const textIsLight = !textIsDark && color !== 'black';
+
   const renderedContent = useMemo(() => {
     if (font === 'sans') {
       const monoFont = "'SF Mono', 'Fira Code', Consolas, monospace";
       if (isCard) {
-        return renderMarkdown(text, {
+        // Use text color to infer whether we're on a dark or light canvas
+        return renderMarkdown(text, textIsLight ? {
+          codeBg: 'rgba(0,255,170,0.1)',
+          codeColor: '#00ffaa',
+          codeBlockBg: 'rgba(0,0,0,0.3)',
+          codeBlockColor: '#00ffaa',
+          monoFont,
+        } : {
           codeBg: 'rgba(90,110,72,0.1)',
           codeColor: '#4a5c3a',
           codeBlockBg: '#e8eae2',
@@ -305,7 +340,7 @@ function HandwrittenTextComponent({
       return renderMarkdown(text, { monoFont });
     }
     return null; // handwriting fonts render as plain text
-  }, [text, font, isCard]);
+  }, [text, font, isCard, textIsLight]);
 
   // Auto-measure bounds using ResizeObserver so geometry stays in sync
   // with the rendered card — even after snapshot restore, font loading,
@@ -361,6 +396,9 @@ function HandwrittenTextComponent({
     };
   }, [text, shape.id, shape.props.autoSize, shape.props.w, editor]);
 
+  // Use the stored color directly — it comes from the theme at creation time
+  const effectiveColor = color;
+
   if (isCard) {
     return (
       <HTMLContainer id={shape.id}>
@@ -371,7 +409,7 @@ function HandwrittenTextComponent({
             minWidth: 500,
             fontFamily,
             fontSize,
-            color,
+            color: effectiveColor,
             lineHeight: 1.65,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',

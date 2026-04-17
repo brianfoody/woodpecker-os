@@ -212,7 +212,7 @@ export class HandwrittenResponseRenderer {
       // Position cursor below and slightly to the left (for new line)
       const nextPosition: ResponsePosition = {
         x: shape.x - 20, // Slightly to the left for natural writing flow
-        y: shape.y + bounds.height + 40, // Below with some padding
+        y: shape.y + bounds.height + 60, // Below with generous padding for iPad readability
       };
 
       // You could emit this position or store it for the next input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Tldraw,
   TLUiOverrides,
@@ -43,12 +43,63 @@ import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer
 import { useClaudeCode } from "@/hooks/use-claude-code";
 import { replayMissedSessionContent } from "@/lib/session-replay";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
+import { SessionPanel, SessionPanelToggle } from "@/components/session-panel";
 
 const GESTURE_CHECK_DELAY = 300;
+
+// ── HMR-stable singletons ───────────────────────────────────────────
+// These are declared at module scope so they survive hot-module replacement.
+// tldraw throws if shapeUtils changes identity between renders, so we
+// allocate the array ONCE per module load (which HMR preserves).
+const shapeUtils = [
+  MessageBubbleShapeUtil,
+  WebsiteBubbleShapeUtil,
+  HandwrittenTextShapeUtil,
+  InteractionBubbleShapeUtil,
+  ThinkingIndicatorShapeUtil,
+];
 
 // Shared refs for cross-component communication (survives HMR)
 const magicWandCallbackRef: { current: ((stroke: any, editor: any, holdPosition?: { x: number; y: number }) => Promise<void>) | null } = { current: null };
 const onboardingCallbackRef: { current: ((actionType: string, additionalData?: any) => void) | null } = { current: null };
+
+// ── Error boundary ──────────────────────────────────────────────────
+// Catches tldraw internal errors during HMR so the page doesn't go white.
+// On error it force-remounts the editor by toggling a key.
+class TldrawErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset?: () => void },
+  { hasError: boolean; errorKey: number }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, errorKey: 0 };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error) {
+    console.warn("[tldraw-hmr] Caught error, will remount editor:", error.message);
+  }
+  componentDidUpdate(_: any, prevState: any) {
+    if (this.state.hasError && !prevState.hasError) {
+      // Schedule a remount on next tick
+      setTimeout(() => {
+        this.setState((s) => ({ hasError: false, errorKey: s.errorKey + 1 }));
+        this.props.onReset?.();
+      }, 100);
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#888", fontFamily: "system-ui" }}>
+          Reloading canvas...
+        </div>
+      );
+    }
+    return <React.Fragment key={this.state.errorKey}>{this.props.children}</React.Fragment>;
+  }
+}
 
 export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDarkMode }: { theme?: WoodpeckerCanvasTheme; storageKey?: string; darkMode?: boolean; onToggleDarkMode?: () => void }) {
   const editorRef = useRef<any>(null);
@@ -61,6 +112,9 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     color: string;
     size: string;
   } | null>(null);
+
+  // Session panel state
+  const [showSessionPanel, setShowSessionPanel] = useState(false);
 
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -77,12 +131,18 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     theme,
   });
 
-  // Keep canvas background in sync when theme changes (dark mode toggle)
+  // Keep canvas background and color scheme in sync when theme/dark mode changes
   useEffect(() => {
     if (theme && themeStyleRef.current) {
       themeStyleRef.current.textContent = `.tl-background { background-color: ${theme.canvasBg} !important; }`;
     }
-  }, [theme]);
+    // Tell tldraw about dark mode so "black" pen renders as white on dark canvas
+    if (editorRef.current) {
+      editorRef.current.user.updateUserPreferences({
+        colorScheme: darkMode ? "dark" : "light",
+      });
+    }
+  }, [theme, darkMode]);
 
   // Check for message bubbles and enable/disable polling
   const checkMessageBubblesAndUpdatePolling = useCallback(() => {
@@ -323,7 +383,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
 
         // Create a dashed frame around the circled content (unthemed only)
         const FRAME_PADDING = 12;
-        const RESPONSE_GAP = 40;
+        const RESPONSE_GAP = 60;
         let frameId: ReturnType<typeof createShapeId> | undefined;
 
         if (!theme) {
@@ -551,11 +611,11 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     };
   }, []);
 
-  const uiOverrides: TLUiOverrides = {};
+  const uiOverrides: TLUiOverrides = useMemo(() => ({}), []);
 
-  const uiComponents: TLComponents = onToggleDarkMode
+  const uiComponents: TLComponents = useMemo(() => onToggleDarkMode
     ? {
-        Toolbar: (props) => (
+        Toolbar: (props: any) => (
           <DefaultToolbar {...props}>
             <DefaultToolbarContent />
             <button
@@ -578,18 +638,13 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           </DefaultToolbar>
         ),
       }
-    : {};
+    : {}, [onToggleDarkMode, darkMode]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
+      <TldrawErrorBoundary>
       <Tldraw
-        shapeUtils={[
-          MessageBubbleShapeUtil,
-          WebsiteBubbleShapeUtil,
-          HandwrittenTextShapeUtil,
-          InteractionBubbleShapeUtil,
-          ThinkingIndicatorShapeUtil,
-        ]}
+        shapeUtils={shapeUtils}
         overrides={uiOverrides}
         components={uiComponents}
         onMount={(editor) => {
@@ -892,6 +947,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           };
         }}
       />
+      </TldrawErrorBoundary>
 
       {thinking.visible && !theme && (
         <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />
@@ -905,6 +961,15 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             setShowOnboarding(false);
           }
         }}
+      />
+
+      {!showSessionPanel && (
+        <SessionPanelToggle onClick={() => setShowSessionPanel(true)} />
+      )}
+      <SessionPanel
+        editorRef={editorRef}
+        open={showSessionPanel}
+        onClose={() => setShowSessionPanel(false)}
       />
     </div>
   );

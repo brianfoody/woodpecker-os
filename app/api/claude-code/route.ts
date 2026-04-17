@@ -20,9 +20,22 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      let closed = false;
 
       const send = (data: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          // Controller already closed (HMR, client disconnect)
+          closed = true;
+        }
+      };
+
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try { controller.close(); } catch {}
       };
 
       // Send immediate feedback so the client knows we're alive
@@ -33,6 +46,7 @@ export async function POST(request: Request) {
         let eventCount = 0;
         try {
           for await (const event of runClaudeCode({ prompt, image, resumeSessionId })) {
+            if (closed) break;
             eventCount++;
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
             console.log(`[claude-code] [${elapsed}s] event #${eventCount}: type=${event.type} ${event.toolName ? `tool=${event.toolName}` : ""} ${event.content ? `content=${event.content.slice(0, 60)}...` : ""}`);
@@ -42,12 +56,12 @@ export async function POST(request: Request) {
 
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
           console.log(`[claude-code] Stream complete. ${eventCount} events in ${elapsed}s`);
-          controller.close();
+          close();
         } catch (e) {
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
           console.error(`[claude-code] [${elapsed}s] Error:`, e);
           send({ type: "error", content: String(e) });
-          controller.close();
+          close();
         }
       })();
     },

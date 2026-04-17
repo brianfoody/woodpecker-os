@@ -1,7 +1,7 @@
 "use client";
 
 import type { ThemeConfig } from "./themes/types";
-import { earthTones, minimalThreads } from "./themes";
+import { earthTones, minimalThreads, cyberpunk } from "./themes";
 
 interface ThemePickerProps {
   themes: ThemeConfig[];
@@ -99,6 +99,7 @@ export function ThemePicker({
     >
       {renderGroup("Earth Tones", earthTones)}
       {renderGroup("Minimal Thread", minimalThreads)}
+      {renderGroup("Cyberpunk", cyberpunk)}
 
       <div
         style={{

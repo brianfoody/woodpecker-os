@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { createMossBarkTheme } from "@/lib/woodpecker-theme";
+import { createNeonGridTheme } from "@/lib/woodpecker-theme";
 
 const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
   ssr: false,
@@ -12,8 +13,17 @@ const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
   ),
 });
 
-const theme = createMossBarkTheme();
-
 export default function V2Page() {
-  return <TldrawCanvas theme={theme} storageKey="woodpecker-canvas-data-v2" />;
+  const [darkMode, setDarkMode] = useState(false);
+
+  const theme = useMemo(() => createNeonGridTheme(darkMode ? "dark" : "light"), [darkMode]);
+
+  return (
+    <TldrawCanvas
+      theme={theme}
+      storageKey="woodpecker-canvas-data-v2"
+      darkMode={darkMode}
+      onToggleDarkMode={() => setDarkMode((d) => !d)}
+    />
+  );
 }

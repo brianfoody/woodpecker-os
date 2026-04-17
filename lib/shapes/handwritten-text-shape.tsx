@@ -20,6 +20,7 @@ function renderMarkdown(
   const lines = text.split('\n');
   const result: React.ReactNode[] = [];
   let i = 0;
+  let lastWasBlock = false;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -52,6 +53,7 @@ function renderMarkdown(
           {codeLines.join('\n')}
         </pre>
       );
+      lastWasBlock = true;
       continue;
     }
 
@@ -62,7 +64,7 @@ function renderMarkdown(
       const headingText = headingMatch[2];
       const sizes: Record<number, string> = { 1: '1.5em', 2: '1.3em', 3: '1.1em', 4: '1em' };
       const weights: Record<number, number> = { 1: 700, 2: 700, 3: 600, 4: 600 };
-      const margins: Record<number, string> = { 1: '10px 0 2px', 2: '8px 0 2px', 3: '6px 0 2px', 4: '4px 0 2px' };
+      const margins: Record<number, string> = { 1: '16px 0 6px', 2: '14px 0 5px', 3: '10px 0 4px', 4: '8px 0 4px' };
       result.push(
         <div
           key={`h-${result.length}`}
@@ -70,23 +72,27 @@ function renderMarkdown(
             fontSize: sizes[level],
             fontWeight: weights[level],
             lineHeight: 1.3,
-            margin: i === 0 ? '0 0 8px' : margins[level],
+            margin: i === 0 ? '0 0 6px' : margins[level],
           }}
         >
           {renderInlineMarkdown(headingText, codeBg, codeColor, monoFont)}
         </div>
       );
+      lastWasBlock = true;
       i++;
       continue;
     }
 
     // Regular line — parse inline markdown
+    // Skip the \n after block elements (headings/code blocks) since they already
+    // create their own line break, and pre-wrap would double the spacing
     result.push(
       <React.Fragment key={`line-${result.length}`}>
-        {i > 0 && result.length > 0 ? '\n' : null}
+        {i > 0 && result.length > 0 && !lastWasBlock ? '\n' : null}
         {renderInlineMarkdown(line, codeBg, codeColor, monoFont)}
       </React.Fragment>
     );
+    lastWasBlock = false;
     i++;
   }
 
@@ -166,6 +172,11 @@ export type HandwrittenTextShape = TLBaseShape<
     cardPadding: string | null;
     cardLabelOpacity: number;
     cardTextOpacity: number;
+    labelFont: string | null;
+    labelFontSize: number | null;
+    labelFontWeight: number | null;
+    labelLetterSpacing: string | null;
+    labelUppercase: boolean | null;
   }
 >;
 
@@ -193,6 +204,11 @@ export class HandwrittenTextShapeUtil extends ShapeUtil<HandwrittenTextShape> {
       cardPadding: null,
       cardLabelOpacity: 1,
       cardTextOpacity: 1,
+      labelFont: null,
+      labelFontSize: null,
+      labelFontWeight: null,
+      labelLetterSpacing: null,
+      labelUppercase: null,
     };
   }
 
@@ -253,7 +269,7 @@ function HandwrittenTextComponent({
   editor: any;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { text, font, size, color, cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow, cardLabel, cardLabelColor, cardFont, cardPadding, cardLabelOpacity, cardTextOpacity } = shape.props;
+  const { text, font, size, color, cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow, cardLabel, cardLabelColor, cardFont, cardPadding, cardLabelOpacity, cardTextOpacity, labelFont, labelFontSize, labelFontWeight, labelLetterSpacing, labelUppercase } = shape.props;
 
   const sizeMap = {
     s: '16px',
@@ -368,14 +384,14 @@ function HandwrittenTextComponent({
           {cardLabel && (
             <div
               style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
+                fontSize: labelFontSize ? `${labelFontSize}px` : '11px',
+                fontWeight: labelFontWeight ?? 600,
+                letterSpacing: labelLetterSpacing ?? '0.08em',
+                textTransform: (labelUppercase !== false ? 'uppercase' : 'none') as React.CSSProperties['textTransform'],
                 color: cardLabelColor || cardBorder || color,
                 opacity: cardLabelOpacity,
                 marginBottom: '8px',
-                fontFamily,
+                fontFamily: labelFont ?? fontFamily,
               }}
             >
               {cardLabel}

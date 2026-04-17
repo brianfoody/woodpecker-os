@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createShapeId, TLShapeId } from "tldraw";
 import { claudeCodeFetch, extractTextFromImage } from "@/lib/api-client";
 import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence";
@@ -21,10 +21,97 @@ const SHAPE_GAP = 16; // vertical gap between response shapes
 
 export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClaudeCodeOptions) {
   const abortControllerRef = useRef<AbortController | null>(null);
+  const thinkingShapeIdRef = useRef<TLShapeId | null>(null);
+  const thinkingArrowIdRef = useRef<TLShapeId | null>(null);
+  const streamActiveRef = useRef(false);
+  const lastStreamActivityRef = useRef(0); // timestamp of last stream event
   const [thinking, setThinking] = useState<ThinkingState>({
     visible: false,
     label: "thinking...",
   });
+
+  // Clean up orphaned thinking-indicator shapes and stale thinking state.
+  // This runs when the page becomes visible again after the stream died in the
+  // background, OR on mount if a previous session left shapes behind.
+  const cleanupOrphanedThinking = useCallback(() => {
+    // If a stream is still actively running, don't interfere
+    if (streamActiveRef.current) return;
+
+    const editor = editorRef.current;
+
+    // Remove any tracked thinking shapes left over from a lost stream
+    const toDelete: TLShapeId[] = [];
+    if (thinkingArrowIdRef.current) {
+      toDelete.push(thinkingArrowIdRef.current);
+      thinkingArrowIdRef.current = null;
+    }
+    if (thinkingShapeIdRef.current) {
+      toDelete.push(thinkingShapeIdRef.current);
+      thinkingShapeIdRef.current = null;
+    }
+    if (toDelete.length > 0 && editor) {
+      try { editor.deleteShapes(toDelete); } catch {}
+    }
+
+    // Also scan for any orphaned thinking-indicator shapes on the canvas
+    // (e.g. from a previous page session that was persisted to localStorage)
+    if (editor) {
+      try {
+        const allShapes = editor.getCurrentPageShapes();
+        const orphanedShapes = allShapes
+          .filter((s: any) => s.type === "thinking-indicator")
+          .map((s: any) => s.id);
+        if (orphanedShapes.length > 0) {
+          editor.deleteShapes(orphanedShapes);
+        }
+      } catch {}
+    }
+
+    // Reset the React-level thinking state
+    setThinking((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+  }, [editorRef]);
+
+  // When the page returns from being hidden, clean up if the stream is no longer active.
+  // If the stream is still "active" (reader suspended by browser), wait a few seconds
+  // for it to resume, then force cleanup if no activity has occurred — the connection
+  // is likely dead/zombie.
+  useEffect(() => {
+    let zombieTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Immediate cleanup if stream already finished
+        cleanupOrphanedThinking();
+
+        // If stream is still "active", schedule a delayed check in case the
+        // connection died while the page was hidden. Give the reader ~5s to
+        // resume and deliver remaining events before declaring it dead.
+        if (streamActiveRef.current) {
+          const activitySnapshot = lastStreamActivityRef.current;
+          zombieTimer = setTimeout(() => {
+            zombieTimer = null;
+            // If the stream is still marked active but no new events arrived
+            // since we returned, the connection is zombie — force cleanup.
+            if (streamActiveRef.current && lastStreamActivityRef.current === activitySnapshot) {
+              console.warn("[use-claude-code] Zombie stream detected after visibility change — forcing cleanup");
+              streamActiveRef.current = false;
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+              }
+              cleanupOrphanedThinking();
+            }
+          }, 5000);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (zombieTimer) clearTimeout(zombieTimer);
+    };
+  }, [cleanupOrphanedThinking]);
 
   const execute = useCallback(
     async (
@@ -47,6 +134,10 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      // Mark stream as active so visibility-change cleanup won't interfere
+      streamActiveRef.current = true;
+      lastStreamActivityRef.current = Date.now();
+
       // Show pulsing thinking indicator immediately
       setThinking({ visible: true, label: "waking up..." });
 
@@ -64,6 +155,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       let userCardId: TLShapeId | undefined;
 
       // ── Inline thinking indicator (themed only) ──
+      // Local copies kept in sync with refs so the visibility-change handler
+      // can clean up if the stream dies while the page is backgrounded.
       let thinkingShapeId: TLShapeId | null = null;
       let thinkingArrowId: TLShapeId | null = null;
 
@@ -71,6 +164,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         removeThinkingShape();
         if (!theme) return;
         thinkingShapeId = createShapeId();
+        thinkingShapeIdRef.current = thinkingShapeId;
         editor.createShapes([{
           id: thinkingShapeId,
           type: "thinking-indicator",
@@ -89,6 +183,12 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
             cardLabelColor: theme.aiLabelColor,
             cardFont: theme.aiFont,
             thinkingColor: theme.thinkingColor,
+            thinkingAnimation: theme.thinkingAnimation,
+            labelFont: theme.labelFont,
+            labelFontSize: theme.labelFontSize,
+            labelFontWeight: theme.labelFontWeight,
+            labelLetterSpacing: theme.labelLetterSpacing,
+            labelUppercase: theme.labelUppercase,
           },
         }]);
 
@@ -99,6 +199,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           : userCardId ?? sourceShapeId;
         if (prevId && thinkingShapeId) {
           thinkingArrowId = createShapeId();
+          thinkingArrowIdRef.current = thinkingArrowId;
           editor.createShapes([{
             id: thinkingArrowId,
             type: "arrow",
@@ -159,6 +260,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         }
         thinkingShapeId = null;
         thinkingArrowId = null;
+        thinkingShapeIdRef.current = null;
+        thinkingArrowIdRef.current = null;
       };
 
       const updateThinkingLabel = (label: string) => {
@@ -299,6 +402,11 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           shapeProps.cardLabel = theme.aiLabelText;
           shapeProps.cardLabelColor = theme.aiLabelColor;
           shapeProps.cardFont = theme.aiFont;
+          shapeProps.labelFont = theme.labelFont ?? null;
+          shapeProps.labelFontSize = theme.labelFontSize ?? null;
+          shapeProps.labelFontWeight = theme.labelFontWeight ?? null;
+          shapeProps.labelLetterSpacing = theme.labelLetterSpacing ?? null;
+          shapeProps.labelUppercase = theme.labelUppercase ?? null;
         }
 
         editor.createShapes([{
@@ -377,6 +485,11 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
               cardTextOpacity: theme.userTextOpacity,
               cardPadding: "12px 16px",
               cardFont: theme.userFont,
+              labelFont: theme.labelFont ?? null,
+              labelFontSize: theme.labelFontSize ?? null,
+              labelFontWeight: theme.labelFontWeight ?? null,
+              labelLetterSpacing: theme.labelLetterSpacing ?? null,
+              labelUppercase: theme.labelUppercase ?? null,
             },
           }]);
 
@@ -419,6 +532,9 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
           const { done, value } = await reader.read();
           if (done) break;
+
+          // Track activity so zombie-stream detection knows we're alive
+          lastStreamActivityRef.current = Date.now();
 
           buffer += decoder.decode(value, { stream: true });
 
@@ -504,6 +620,9 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           }
         }
 
+        // Stream finished — mark inactive so visibility-change cleanup can run
+        streamActiveRef.current = false;
+
         // Hide thinking indicator
         removeThinkingShape();
         setThinking((prev) => ({ ...prev, visible: false }));
@@ -526,6 +645,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           setReplayWatermark(receivedSessionId, current + allShapeIds.length);
         }
       } catch (error) {
+        streamActiveRef.current = false;
         removeThinkingShape();
         setThinking((prev) => ({ ...prev, visible: false }));
         if (onStrokeCleanup) onStrokeCleanup();
@@ -564,16 +684,19 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         }
       }
     },
-    [editorRef, responseRendererRef]
+    [editorRef, responseRendererRef, theme]
   );
 
   const cancel = useCallback(() => {
+    streamActiveRef.current = false;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // Clean up any lingering thinking indicator shapes
+    cleanupOrphanedThinking();
     setThinking((prev) => ({ ...prev, visible: false }));
-  }, []);
+  }, [cleanupOrphanedThinking]);
 
   return { execute, cancel, thinking };
 }

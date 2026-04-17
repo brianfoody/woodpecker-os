@@ -1,4 +1,7 @@
 import { earthMossBark } from "@/components/explore/themes/earth-moss-bark";
+import { cyberNeonGrid } from "@/components/explore/themes/cyber-neon-grid";
+
+export type ThinkingAnimation = "dot-wave" | "cyan-ripple";
 
 export interface WoodpeckerCanvasTheme {
   canvasBg: string;
@@ -13,6 +16,7 @@ export interface WoodpeckerCanvasTheme {
   aiFont: string;
   thinkingColor: string;
   thinkingFont: string;
+  thinkingAnimation: ThinkingAnimation;
   toggleActiveBg: string;
   toggleActiveColor: string;
   toggleInactiveBg: string;
@@ -28,6 +32,12 @@ export interface WoodpeckerCanvasTheme {
   userLabelColor: string;
   userLabelOpacity: number;
   userFont: string;
+  // Label styling
+  labelFontSize?: number;
+  labelFontWeight?: number;
+  labelLetterSpacing?: string;
+  labelUppercase?: boolean;
+  labelFont?: string;
 }
 
 export function createMossBarkTheme(): WoodpeckerCanvasTheme {
@@ -46,6 +56,7 @@ export function createMossBarkTheme(): WoodpeckerCanvasTheme {
     aiFont: t.fonts.primary,
     thinkingColor: l.accentAi,
     thinkingFont: t.fonts.primary,
+    thinkingAnimation: "dot-wave",
     toggleActiveBg: l.accentAi,
     toggleActiveColor: "#f5f5f0",
     toggleInactiveBg: l.cardAiBg ?? "#f3f0eb",
@@ -61,5 +72,49 @@ export function createMossBarkTheme(): WoodpeckerCanvasTheme {
     userLabelColor: l.labelUser ?? l.accentUser,
     userLabelOpacity: 0.6,
     userFont: "var(--font-caveat)",
+  };
+}
+
+export function createNeonGridTheme(mode: "light" | "dark" = "light"): WoodpeckerCanvasTheme {
+  const t = cyberNeonGrid;
+  const tokens = mode === "dark" ? t.dark : t.light;
+  const isDark = mode === "dark";
+  return {
+    canvasBg: isDark ? "#0a0a14" : "#f9fafb",
+    aiTextColor: tokens.textPrimary,
+    aiCardBg: tokens.cardAiBg ?? (isDark ? "#0a141a" : "rgba(0,200,255,0.06)"),
+    aiCardBorder: tokens.accentAi,
+    aiCardBorderWidth: t.accentBorderWidth ?? 2,
+    aiCardRadius: t.cardRadius ?? 2,
+    aiCardShadow: isDark
+      ? "0 0 14px rgba(0,255,170,0.10), 0 0 28px rgba(0,200,255,0.05)"
+      : (tokens.shadow ?? "0 0 12px rgba(0,255,170,0.08), 0 0 24px rgba(0,200,255,0.04)"),
+    aiLabelText: "WOODPECKER",
+    aiLabelColor: tokens.labelAi ?? tokens.accentAi,
+    aiFont: t.fonts.primary,
+    thinkingColor: tokens.accentAi,
+    thinkingFont: t.fonts.primary,
+    thinkingAnimation: "cyan-ripple",
+    toggleActiveBg: tokens.accentAi,
+    toggleActiveColor: isDark ? "#0a0a14" : "#ffffff",
+    toggleInactiveBg: tokens.cardAiBg ?? (isDark ? "#0a141a" : "rgba(0,200,255,0.06)"),
+    toggleInactiveColor: tokens.accentAi,
+    errorColor: "#ff4444",
+    googleFontsUrl: t.googleFontsUrl,
+    // User echo card tokens
+    userCardBg: tokens.cardUserBg ?? (isDark ? "#0a1a12" : "rgba(0,255,170,0.06)"),
+    userCardRadius: t.cardRadius ?? 2,
+    userTextColor: tokens.textPrimary,
+    userTextOpacity: 1,
+    userLabelText: "YOU",
+    userLabelColor: tokens.labelUser ?? tokens.accentUser,
+    userLabelOpacity: 0.8,
+    userFont: t.fonts.primary,
+    // Label styling
+    labelFontSize: t.labelFontSize,
+    labelFontWeight: t.labelFontWeight,
+    labelLetterSpacing: t.labelLetterSpacing,
+    labelUppercase: t.labelUppercase,
+    labelFont: t.fonts.label,
   };
 }

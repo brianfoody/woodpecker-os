@@ -35,7 +35,7 @@ export interface ThemeTokens {
 export interface ThemeConfig {
   id: string;
   name: string;
-  family: "earth-tones" | "minimal-thread";
+  family: "earth-tones" | "minimal-thread" | "cyberpunk";
   layout: "card" | "thread" | "wide-margin";
   fonts: { primary: string; label?: string; mono: string };
   googleFontsUrl: string;

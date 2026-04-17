@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Tldraw,
   TLUiOverrides,
+  TLComponents,
+  DefaultToolbar,
+  DefaultToolbarContent,
   loadSnapshot,
   TLShape,
   createShapeId,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
-import { PointSpinner } from "@/components/point-spinner";
 import {
   MessageBubbleShapeUtil,
   WebsiteBubbleShapeUtil,
@@ -48,11 +50,12 @@ const GESTURE_CHECK_DELAY = 300;
 const magicWandCallbackRef: { current: ((stroke: any, editor: any, holdPosition?: { x: number; y: number }) => Promise<void>) | null } = { current: null };
 const onboardingCallbackRef: { current: ((actionType: string, additionalData?: any) => void) | null } = { current: null };
 
-export default function TldrawCanvas({ theme, storageKey }: { theme?: WoodpeckerCanvasTheme; storageKey?: string }) {
+export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDarkMode }: { theme?: WoodpeckerCanvasTheme; storageKey?: string; darkMode?: boolean; onToggleDarkMode?: () => void }) {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
   const holdDetectorRef = useRef<HoldDetector | null>(null);
+  const themeStyleRef = useRef<HTMLStyleElement | null>(null);
   const gestureCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [originalStrokeProps, setOriginalStrokeProps] = useState<{
     color: string;
@@ -68,11 +71,18 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Claude Code hook
-  const { execute: executeClaudeCode, thinking } = useClaudeCode({
+  const { execute: executeClaudeCode, cancel: cancelClaudeCode, thinking } = useClaudeCode({
     editorRef,
     responseRendererRef,
     theme,
   });
+
+  // Keep canvas background in sync when theme changes (dark mode toggle)
+  useEffect(() => {
+    if (theme && themeStyleRef.current) {
+      themeStyleRef.current.textContent = `.tl-background { background-color: ${theme.canvasBg} !important; }`;
+    }
+  }, [theme]);
 
   // Check for message bubbles and enable/disable polling
   const checkMessageBubblesAndUpdatePolling = useCallback(() => {
@@ -533,6 +543,33 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
 
   const uiOverrides: TLUiOverrides = {};
 
+  const uiComponents: TLComponents = onToggleDarkMode
+    ? {
+        Toolbar: (props) => (
+          <DefaultToolbar {...props}>
+            <DefaultToolbarContent />
+            <button
+              onClick={onToggleDarkMode}
+              aria-label="Toggle dark mode"
+              style={{
+                width: 40,
+                height: 40,
+                background: "none",
+                border: "none",
+                fontSize: 18,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {darkMode ? "\u{1F319}" : "\u2600\uFE0F"}
+            </button>
+          </DefaultToolbar>
+        ),
+      }
+    : {};
+
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
@@ -544,6 +581,7 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           ThinkingIndicatorShapeUtil,
         ]}
         overrides={uiOverrides}
+        components={uiComponents}
         onMount={(editor) => {
           console.log("tldraw mounted");
 
@@ -565,12 +603,12 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           editor.getCulledShapes = () => new Set();
 
           // Theme: inject canvas background and load Google Font
-          let themeStyleEl: HTMLStyleElement | null = null;
           let themeLinkEl: HTMLLinkElement | null = null;
           if (theme) {
-            themeStyleEl = document.createElement("style");
-            themeStyleEl.textContent = `.tl-background { background-color: ${theme.canvasBg} !important; }`;
-            document.head.appendChild(themeStyleEl);
+            const styleEl = document.createElement("style");
+            styleEl.textContent = `.tl-background { background-color: ${theme.canvasBg} !important; }`;
+            document.head.appendChild(styleEl);
+            themeStyleRef.current = styleEl;
 
             if (theme.googleFontsUrl) {
               themeLinkEl = document.createElement("link");
@@ -600,6 +638,19 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
           if (savedViewport) {
             editor.setCamera(savedViewport);
           }
+
+          // Clean up any orphaned thinking-indicator shapes left from a
+          // previous session that finished while the page was closed
+          try {
+            const allShapes = editor.getCurrentPageShapes();
+            const orphanedThinking = allShapes
+              .filter((s: any) => s.type === "thinking-indicator")
+              .map((s: any) => s.id);
+            if (orphanedThinking.length > 0) {
+              editor.deleteShapes(orphanedThinking);
+              console.log(`Cleaned up ${orphanedThinking.length} orphaned thinking indicator(s)`);
+            }
+          } catch {}
 
           // Replay any missed Claude Code session content after reload
           setTimeout(() => replayMissedSessionContent(editor), 500);
@@ -815,8 +866,9 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
             if (autoSaverRef.current) {
               autoSaverRef.current.cleanup();
             }
-            if (themeStyleEl) {
-              themeStyleEl.remove();
+            if (themeStyleRef.current) {
+              themeStyleRef.current.remove();
+              themeStyleRef.current = null;
             }
             if (themeLinkEl) {
               themeLinkEl.remove();
@@ -826,7 +878,7 @@ export default function TldrawCanvas({ theme, storageKey }: { theme?: Woodpecker
       />
 
       {thinking.visible && !theme && (
-        <ThinkingIndicator label={thinking.label} theme={theme} />
+        <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />
       )}
 
       <OnboardingDialog

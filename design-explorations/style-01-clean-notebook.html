@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 01 — Clean Notebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f5f0e8;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Kalam', cursive;
+    color: #3a4a5c;
+  }
+
+  .page {
+    max-width: 640px;
+    width: 100%;
+    background: #fffef9;
+    border: 1px solid #d4cfc4;
+    border-radius: 2px;
+    padding: 40px 48px 40px 80px;
+    position: relative;
+    box-shadow: 2px 2px 12px rgba(0,0,0,0.06);
+    /* Ruled lines */
+    background-image:
+      repeating-linear-gradient(
+        transparent,
+        transparent 31px,
+        #d6e4f0 31px,
+        #d6e4f0 32px
+      );
+    background-position: 0 20px;
+  }
+
+  /* Left margin rule */
+  .page::before {
+    content: '';
+    position: absolute;
+    left: 64px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e8a0a0;
+    opacity: 0.5;
+  }
+
+  /* Hole punches */
+  .page::after {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 80px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #f5f0e8;
+    border: 1px solid #d4cfc4;
+    box-shadow:
+      0 240px 0 0 #f5f0e8,
+      0 240px 0 1px #d4cfc4,
+      0 480px 0 0 #f5f0e8,
+      0 480px 0 1px #d4cfc4;
+  }
+
+  .message {
+    margin-bottom: 24px;
+    line-height: 32px;
+    font-size: 17px;
+  }
+
+  .user .label {
+    font-weight: 700;
+    color: #5a6a7c;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  .user .text {
+    color: #2c3e50;
+    font-weight: 400;
+  }
+
+  .ai .label {
+    font-weight: 700;
+    color: #4a7c9b;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  .ai .text {
+    color: #3a5a7c;
+  }
+
+  .connector {
+    display: flex;
+    align-items: center;
+    margin: 8px 0 8px -8px;
+    color: #a0b8cc;
+    font-size: 20px;
+    line-height: 32px;
+  }
+
+  .connector::before {
+    content: '↓';
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px dashed #b8c8d8;
+    margin: 20px 0;
+  }
+
+  ul {
+    padding-left: 20px;
+    margin: 4px 0;
+  }
+
+  li {
+    line-height: 32px;
+  }
+
+  code {
+    font-family: 'Courier New', monospace;
+    background: rgba(74, 124, 155, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 15px;
+    color: #2c5a7c;
+  }
+
+  .code-block {
+    font-family: 'Courier New', monospace;
+    background: rgba(74, 124, 155, 0.06);
+    border-left: 3px solid #a0c0d8;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 14px;
+    line-height: 24px;
+    color: #2c5a7c;
+    border-radius: 0 4px 4px 0;
+    white-space: pre;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

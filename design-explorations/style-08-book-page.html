@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 08 — Book Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #e6e2da;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: Georgia, 'Libre Baskerville', serif;
+    color: #2a2a2a;
+  }
+
+  .book-page {
+    max-width: 600px;
+    width: 100%;
+    background: #faf8f4;
+    padding: 64px 60px;
+    box-shadow:
+      -4px 0 12px rgba(0,0,0,0.04),
+      4px 0 12px rgba(0,0,0,0.04);
+    position: relative;
+  }
+
+  /* Spine shadow on the left */
+  .book-page::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    background: linear-gradient(to right, rgba(0,0,0,0.04), transparent);
+  }
+
+  .chapter-header {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: #888;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+
+  .message {
+    margin-bottom: 24px;
+    font-size: 16px;
+    line-height: 1.8;
+  }
+
+  .user .text {
+    font-style: italic;
+    color: #444;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .user .attribution {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #999;
+    margin-bottom: 4px;
+  }
+
+  .ai .text {
+    color: #2a2a2a;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .ai .attribution {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #999;
+    margin-bottom: 4px;
+  }
+
+  .section-break {
+    text-align: center;
+    margin: 36px 0;
+    font-size: 18px;
+    color: #bbb;
+    letter-spacing: 0.8em;
+  }
+
+  .connector {
+    text-align: center;
+    margin: 8px 0;
+    color: #ccc;
+    font-size: 12px;
+  }
+
+  ul {
+    padding-left: 24px;
+    margin: 8px 0;
+    list-style-type: disc;
+  }
+
+  li {
+    line-height: 1.8;
+    margin-bottom: 2px;
+    text-align: justify;
+  }
+
+  code {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14.5px;
+    color: #5a4a3a;
+    background: rgba(0,0,0,0.03);
+    padding: 1px 4px;
+  }
+
+  .code-block {
+    font-family: 'Courier New', Courier, monospace;
+    background: #f5f3ee;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #5a5040;
+    white-space: pre;
+    border-top: 1px solid #e8e4dc;
+    border-bottom: 1px solid #e8e4dc;
+  }
+
+  .page-number {
+    text-align: center;
+    margin-top: 48px;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 12px;
+    color: #bbb;
+  }
+</style>
+</head>
+<body>
+<div class="book-page">
+
+  <div class="chapter-header">Chapter I &mdash; The Conversation</div>
+
+  <div class="message user">
+    <div class="attribution">The Author</div>
+    <div class="text">&ldquo;Let's stash current changes and switch back to main.&rdquo;</div>
+  </div>
+
+  <div class="connector">&bull;</div>
+
+  <div class="message ai">
+    <div class="attribution">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector">&bull;</div>
+
+  <div class="message ai">
+    <div class="attribution">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-break">***</div>
+
+  <div class="message user">
+    <div class="attribution">The Author</div>
+    <div class="text">&ldquo;Actually revert back.&rdquo;</div>
+  </div>
+
+  <div class="connector">&bull;</div>
+
+  <div class="message ai">
+    <div class="attribution">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector">&bull;</div>
+
+  <div class="message ai">
+    <div class="attribution">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+  <div class="page-number">— 1 —</div>
+
+</div>
+</body>
+</html>

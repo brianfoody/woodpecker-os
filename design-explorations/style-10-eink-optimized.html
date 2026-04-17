@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 10 — E-Ink Optimized</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #ffffff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+    font-family: 'Literata', Georgia, serif;
+    color: #000;
+    /* No anti-aliasing tricks — crisp black on white for e-ink */
+    -webkit-font-smoothing: none;
+  }
+
+  .page {
+    max-width: 580px;
+    width: 100%;
+    padding: 24px 0;
+  }
+
+  .message {
+    margin-bottom: 24px;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 4px;
+    color: #000;
+  }
+
+  .user .label {
+    border-bottom: 2px solid #000;
+    display: inline-block;
+    padding-bottom: 1px;
+  }
+
+  .user .text {
+    color: #000;
+    font-weight: 600;
+  }
+
+  .ai .label {
+    display: inline-block;
+  }
+
+  .ai .text {
+    color: #000;
+    font-weight: 400;
+  }
+
+  /* High-contrast separator — no gradients, no shadows */
+  .separator {
+    border: none;
+    border-top: 2px solid #000;
+    margin: 28px 0;
+  }
+
+  .separator-thin {
+    border: none;
+    border-top: 1px solid #000;
+    margin: 16px 0;
+  }
+
+  .connector {
+    text-align: left;
+    margin: 4px 0;
+    font-size: 16px;
+    color: #000;
+    padding-left: 4px;
+  }
+
+  ul {
+    padding-left: 24px;
+    margin: 8px 0;
+    list-style-type: square;
+  }
+
+  li {
+    line-height: 1.7;
+    margin-bottom: 4px;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 14px;
+    color: #000;
+    border: 1px solid #000;
+    padding: 0 4px;
+  }
+
+  .code-block {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    border: 1px solid #000;
+    padding: 12px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #000;
+    white-space: pre;
+    background: #fff;
+  }
+
+  /* No box-shadows, no gradients, no rgba — pure black & white */
+  /* No border-radius — sharp corners render better on e-ink */
+  /* No transforms — e-ink refresh is slow, keep it static */
+  /* High contrast labels */
+
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid #000;
+    padding-bottom: 8px;
+    margin-bottom: 24px;
+    color: #000;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="status-bar">
+    <span>Woodpecker</span>
+    <span>E-Ink Display</span>
+  </div>
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <hr class="separator-thin">
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector">|</div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <hr class="separator">
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <hr class="separator-thin">
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector">|</div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

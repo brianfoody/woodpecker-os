@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important: Documentation Requirements
+
+**ALWAYS record key technical decisions in `/docs/DECISIONS.md`** when:
+- Choosing between different technical approaches
+- Making architectural decisions
+- Selecting libraries or frameworks
+- Deciding on data storage strategies
+- Planning platform-specific implementations
+
+Each decision should include:
+- Context and problem statement
+- Decision details
+- Alternatives considered
+- Implications and trade-offs
+
+**Reference `/docs/DECISIONS.md`** when:
+- Working on features that have existing decisions
+- Needing context about why something was implemented a certain way
+- Proposing changes that might conflict with previous decisions
+
 ## Project Brief
 
 An AI enhanced web interface for e-Ink display which allows for;
@@ -113,3 +133,19 @@ This is a Next.js 15 application using the App Router with TypeScript and React 
 - `@/hooks` → `hooks/`
 
 When adding new components, follow the shadcn/ui patterns and use the configured path aliases.
+
+## Key Documentation
+
+- `/docs/DECISIONS.md` - Technical decisions and architectural choices
+- `/docs/MOBILE_APP_CHECKLIST.md` - Checklist for native mobile app development
+- `/docs/README.md` - Documentation overview and project structure
+
+### Current Key Decisions
+
+1. **Handwriting Recognition**: WebSocket-based cloud recognition for web, native SDKs for mobile
+2. **AI Responses**: Custom handwriting fonts with typewriter animation
+3. **Intent Detection**: Debounced recognition with context awareness
+4. **State Persistence**: localStorage for auto-save, no initial cloud storage
+5. **Platform Strategy**: Web requires internet, mobile apps will have offline support
+
+For full details on these and other decisions, see `/docs/DECISIONS.md`.

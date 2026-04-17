@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>04e v1 — Sage &amp; Stone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Light theme ── */
+  [data-theme="light"] {
+    --canvas-bg: hsl(210, 20%, 98%);
+    --grid-color: rgba(0,0,0,0.08);
+    --card-user-bg: #f6f7f4;
+    --card-ai-bg: #f2f1ed;
+    --card-user-border: rgba(0,0,0,0.05);
+    --card-ai-border: rgba(0,0,0,0.04);
+    --accent-user: #8a9e82;
+    --accent-ai: #9a948a;
+    --text-primary: #3a3a36;
+    --text-secondary: #4a4a44;
+    --text-label-user: #8a9e82;
+    --text-label-ai: #9a948a;
+    --code-bg: rgba(138,158,130,0.1);
+    --code-color: #6b7a62;
+    --code-block-bg: #eceee9;
+    --code-block-color: #5a6354;
+    --connector-from: #c5ccbf;
+    --connector-to: #bbb7b0;
+    --shadow: 0 1px 3px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02);
+    --toggle-bg: rgba(0,0,0,0.06);
+    --toggle-color: #555;
+  }
+
+  /* ── Dark theme ── */
+  [data-theme="dark"] {
+    --canvas-bg: #1a1a1a;
+    --grid-color: rgba(255,255,255,0.05);
+    --card-user-bg: #242422;
+    --card-ai-bg: #222220;
+    --card-user-border: rgba(255,255,255,0.06);
+    --card-ai-border: rgba(255,255,255,0.05);
+    --accent-user: #8a9e82;
+    --accent-ai: #9a948a;
+    --text-primary: #d4d4cc;
+    --text-secondary: #b0b0a8;
+    --text-label-user: #9aae92;
+    --text-label-ai: #aaa498;
+    --code-bg: rgba(138,158,130,0.12);
+    --code-color: #a0b096;
+    --code-block-bg: #1e1e1c;
+    --code-block-color: #8a9480;
+    --connector-from: #3a3a36;
+    --connector-to: #333330;
+    --shadow: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.15);
+    --toggle-bg: rgba(255,255,255,0.08);
+    --toggle-color: #aaa;
+  }
+
+  body {
+    background-color: var(--canvas-bg);
+    background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    color: var(--text-primary);
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    background: var(--toggle-bg);
+    color: var(--toggle-color);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s;
+    z-index: 100;
+  }
+  .theme-toggle:hover { opacity: 0.8; }
+
+  .conversation {
+    max-width: 600px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    border-radius: 16px;
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .card.user {
+    background: var(--card-user-bg);
+    border: 1px solid var(--card-user-border);
+    border-left: 4px solid var(--accent-user);
+  }
+
+  .card.ai {
+    background: var(--card-ai-bg);
+    border: 1px solid var(--card-ai-border);
+    border-left: 4px solid var(--accent-ai);
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  .user .label { color: var(--text-label-user); }
+  .ai .label { color: var(--text-label-ai); }
+
+  .text {
+    font-size: 15px;
+    line-height: 1.65;
+    font-weight: 400;
+    color: var(--text-primary);
+  }
+
+  .ai .text { color: var(--text-secondary); }
+
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+  }
+
+  .connector-line {
+    width: 2px;
+    height: 20px;
+    background: linear-gradient(to bottom, var(--connector-from), var(--connector-to));
+    border-radius: 1px;
+  }
+
+  .section-gap { height: 16px; }
+
+  ul { padding-left: 18px; margin: 8px 0; }
+
+  li {
+    line-height: 1.65;
+    margin-bottom: 4px;
+    font-size: 15px;
+    color: var(--text-secondary);
+  }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 13px;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: var(--code-color);
+  }
+
+  .code-block {
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    background: var(--code-block-bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 0 4px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--code-block-color);
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">☀️</button>
+<div class="conversation">
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <div class="card user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="connector"><div class="connector-line"></div></div>
+
+  <div class="card ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    document.querySelector('.theme-toggle').textContent = next === 'light' ? '☀️' : '🌙';
+  }
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.querySelector('.theme-toggle').textContent = '🌙';
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 06b — Dotted Trail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f7f5f0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 60px 20px;
+    font-family: 'Source Sans 3', -apple-system, sans-serif;
+    color: #222;
+  }
+
+  .thread {
+    max-width: 560px;
+    width: 100%;
+    position: relative;
+    padding-left: 28px;
+  }
+
+  /* Dotted thread line */
+  .thread::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dotted #c0b8a8;
+  }
+
+  .message {
+    margin-bottom: 32px;
+    position: relative;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* Open circle markers */
+  .message::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f7f5f0;
+    box-sizing: border-box;
+  }
+
+  .user::before {
+    border: 2px solid #888;
+  }
+
+  .ai::before {
+    border: 2px solid #bbb;
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+    color: #999;
+  }
+
+  .user .text {
+    color: #111;
+    font-weight: 400;
+  }
+
+  .ai .text {
+    color: #444;
+    font-weight: 300;
+  }
+
+  .section-break {
+    margin: 40px 0;
+    position: relative;
+  }
+
+  .section-break::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 50%;
+    width: 8px;
+    height: 1px;
+    background: #c0b8a8;
+  }
+
+  ul {
+    padding-left: 18px;
+    margin: 6px 0;
+  }
+
+  li {
+    line-height: 1.7;
+    margin-bottom: 2px;
+    color: #444;
+    font-weight: 300;
+  }
+
+  code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13.5px;
+    color: #555;
+    background: #eeeae0;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .code-block {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #f0ece4;
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #555;
+    white-space: pre;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="thread">
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Let's stash current changes and switch back to main.</div>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">I'll stash your current changes and switch to the main branch.</div>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      Done! Here's what happened:
+      <ul>
+        <li>Stashed 3 modified files with <code>git stash</code></li>
+        <li>Switched to <code>main</code> branch</li>
+        <li>Branch is up to date with <code>origin/main</code></li>
+      </ul>
+      <div class="code-block">$ git stash
+Saved working directory and index state WIP on feature/zustand-state-management
+
+$ git checkout main
+Switched to branch 'main'</div>
+    </div>
+  </div>
+
+  <div class="section-break"></div>
+
+  <div class="message user">
+    <div class="label">You</div>
+    <div class="text">Actually revert back</div>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">Sure! Let me switch back to your previous branch and restore your stashed changes.</div>
+  </div>
+
+  <div class="message ai">
+    <div class="label">Woodpecker</div>
+    <div class="text">
+      You're back on <code>feature/zustand-state-management</code> with all your changes restored.
+      <div class="code-block">$ git checkout feature/zustand-state-management
+Switched to branch 'feature/zustand-state-management'
+
+$ git stash pop
+On branch feature/zustand-state-management
+Changes restored successfully.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

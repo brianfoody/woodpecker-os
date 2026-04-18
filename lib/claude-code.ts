@@ -67,7 +67,19 @@ export async function* runClaudeCode(opts: {
   allowedTools?: string[];
 }): AsyncGenerator<StreamEvent> {
   const cwd = opts.cwd || process.env.CLAUDE_CODE_WORKING_DIR || process.cwd();
-  const allowedTools = opts.allowedTools || ["Read", "Glob", "Grep", "Bash", "Edit", "Write"];
+  const allowedTools = opts.allowedTools || [
+    "Read", "Glob", "Grep", "Bash", "Edit", "Write",
+    "mcp__claude_ai_Gmail__search_threads",
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__create_draft",
+    "mcp__claude_ai_Gmail__list_labels",
+    "mcp__claude_ai_Gmail__label_message",
+    "mcp__claude_ai_Google_Calendar__list_events",
+    "mcp__claude_ai_Google_Calendar__list_calendars",
+    "mcp__claude_ai_Google_Calendar__get_event",
+    "mcp__claude_ai_Google_Calendar__create_event",
+    "mcp__claude_ai_Google_Calendar__suggest_time",
+  ];
 
   console.log(`[sdk] Starting query: cwd=${cwd} tools=[${allowedTools.join(",")}] session=${opts.resumeSessionId || "new"} hasImage=${!!opts.image}`);
 

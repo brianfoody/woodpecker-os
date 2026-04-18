@@ -25,6 +25,80 @@ function renderMarkdown(
   while (i < lines.length) {
     const line = lines[i];
 
+    // Markdown table — collect consecutive lines starting with |
+    if (line.trimStart().startsWith('|') && line.trimEnd().endsWith('|')) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trimStart().startsWith('|') && lines[i].trimEnd().endsWith('|')) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      if (tableLines.length >= 2) {
+        // Parse header row
+        const parseRow = (row: string) =>
+          row.split('|').slice(1, -1).map((cell) => cell.trim());
+        const headerCells = parseRow(tableLines[0]);
+
+        // Check if second line is separator (|---|---|)
+        const isSeparator = /^\|[\s:-]+\|/.test(tableLines[1]) && tableLines[1].replace(/[\s|:-]/g, '') === '';
+        const bodyStart = isSeparator ? 2 : 1;
+        const bodyRows = tableLines.slice(bodyStart).map(parseRow);
+
+        result.push(
+          <table
+            key={`table-${result.length}`}
+            style={{
+              borderCollapse: 'collapse',
+              margin: '8px 0',
+              fontSize: '0.9em',
+              width: '100%',
+            }}
+          >
+            {isSeparator && (
+              <thead>
+                <tr>
+                  {headerCells.map((cell, ci) => (
+                    <th
+                      key={ci}
+                      style={{
+                        border: '1px solid rgba(128,128,128,0.3)',
+                        padding: '6px 10px',
+                        textAlign: 'left',
+                        fontWeight: 600,
+                        background: 'rgba(128,128,128,0.06)',
+                      }}
+                    >
+                      {renderInlineMarkdown(cell, codeBg, codeColor, monoFont)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {(!isSeparator ? [headerCells, ...bodyRows] : bodyRows).map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      style={{
+                        border: '1px solid rgba(128,128,128,0.3)',
+                        padding: '6px 10px',
+                      }}
+                    >
+                      {renderInlineMarkdown(cell, codeBg, codeColor, monoFont)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+        lastWasBlock = true;
+        continue;
+      }
+      // If only 1 line with pipes, fall through to regular rendering
+      i -= tableLines.length;
+    }
+
     // Fenced code block
     if (line.trimStart().startsWith('```')) {
       const codeLines: string[] = [];

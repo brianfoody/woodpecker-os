@@ -437,7 +437,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
         let bubbleY = theme
           ? maxY + RESPONSE_GAP
           : maxY + FRAME_PADDING + RESPONSE_GAP;
-        let direction: "right" | "under" | "left" | undefined;
+        let direction: "right" | "right-under" | "under" | "left" | "left-under" | undefined;
         let branchAnchorY: number | undefined;
 
         if (aiCardForLayout && theme) {
@@ -445,9 +445,10 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           const sourceCenterX = aiCardForLayout.x + sourceBounds.width / 2;
           const sourceW = sourceBounds.width;
           const sourceH = sourceBounds.height;
+          const sourceBottom = aiCardForLayout.y + sourceH;
 
-          // Default to "under" — override if user shapes give a clear direction
-          direction = "under";
+          const BRANCH_GAP = 20;
+          const RESPONSE_CARD_WIDTH = 500;
 
           // Calculate where the user wrote relative to the source AI card
           const userShapes = shapesInLoop.filter(
@@ -457,65 +458,68 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           let uMinY = maxY;
 
           if (userShapes.length > 0) {
-            let uMinX = Infinity, uMaxX = -Infinity;
             uMinY = Infinity;
-            let uMaxY = -Infinity;
             for (const s of userShapes) {
               const b = eventEditor.getShapeGeometry(s).bounds;
-              uMinX = Math.min(uMinX, s.x + b.minX);
-              uMaxX = Math.max(uMaxX, s.x + b.maxX);
               uMinY = Math.min(uMinY, s.y + b.minY);
-              uMaxY = Math.max(uMaxY, s.y + b.maxY);
-            }
-            const userCenterX = (uMinX + uMaxX) / 2;
-
-            const dx = userCenterX - sourceCenterX;
-
-            // If the user's content is below the bottom 95% of the source card,
-            // they're writing underneath — use vertical layout unless clearly to a side
-            const sourceBottomThreshold = aiCardForLayout.y + sourceH * 0.95;
-            const userCenterY = (uMinY + uMaxY) / 2;
-
-            if (userCenterY > sourceBottomThreshold) {
-              // User wrote below the card — check horizontal offset for direction
-              if (dx > 100) direction = "right";
-              else if (dx < -100) direction = "left";
-              else direction = "under";
-            } else {
-              // User wrote beside the card (within its height) — horizontal branch
-              if (dx < 0) direction = "left";
-              else direction = "right";
             }
           }
 
-          const BRANCH_GAP = 80;
-          const RESPONSE_CARD_WIDTH = 500;
+          // Direction detection using circle center against source center.
+          // "Center" only if the circle center is within 25% of source width
+          // from the source center — prevents large body-level circles from
+          // being misdetected as center on tall cards.
+          const circleCenterX = (minX + maxX) / 2;
+          const circleCenterY = (minY + maxY) / 2;
+          const circleMaxY = maxY;
 
-          if (direction === "right") {
-            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
-            // Align Y with where the user wrote, clamped to source card top
-            bubbleY = Math.max(uMinY, aiCardForLayout.y);
-          } else if (direction === "left") {
-            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
-            bubbleY = Math.max(uMinY, aiCardForLayout.y);
+          let hDir: "center" | "left" | "right";
+          const centerThreshold = sourceW * 0.25;
+          if (Math.abs(circleCenterX - sourceCenterX) < centerThreshold) {
+            hDir = "center";
           } else {
-            bubbleX = aiCardForLayout.x;
-            bubbleY = aiCardForLayout.y + sourceH + BRANCH_GAP;
+            hDir = circleCenterX < sourceCenterX ? "left" : "right";
           }
 
-          // Calculate where the circle gesture midpoint falls on the source card
-          // so the arrow exits at that level, not from the card center
-          if (direction === "right" || direction === "left") {
-            const gestureMidY = (minY + maxY) / 2;
-            const normalizedY = (gestureMidY - aiCardForLayout.y) / sourceH;
-            branchAnchorY = Math.max(0.1, Math.min(0.9, normalizedY));
+          const isBodyLevel = circleCenterY < sourceBottom;
+
+          // Apply the 5-scenario positioning table.
+          // For all left/right scenarios the YOU card goes BELOW both the
+          // source card and the circle so the elbow connector forms a clean L.
+          if (hDir === "center") {
+            // Center + under (scenario 1)
+            direction = "under";
+            bubbleX = aiCardForLayout.x + (sourceW - RESPONSE_CARD_WIDTH) / 2;
+            bubbleY = circleMaxY + BRANCH_GAP;
+          } else if (hDir === "left" && isBodyLevel) {
+            // Left + body (scenario 2)
+            direction = "left";
+            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
+            bubbleY = circleMaxY + BRANCH_GAP;
+          } else if (hDir === "left" && !isBodyLevel) {
+            // Left + under (scenario 3)
+            direction = "left-under";
+            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
+            bubbleY = circleMaxY + BRANCH_GAP;
+          } else if (hDir === "right" && isBodyLevel) {
+            // Right + body (scenario 4)
+            direction = "right";
+            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
+            bubbleY = circleMaxY + BRANCH_GAP;
+          } else {
+            // Right + under (scenario 5)
+            direction = "right-under";
+            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
+            bubbleY = circleMaxY + BRANCH_GAP;
           }
+
+          // All connectors exit from bottom center — branchAnchorY not needed
         }
 
         // Determine source shape for connecting arrow.
         // Themed continuations use the AI card; unthemed uses the frame.
         let sourceId = aiCardForLayout?.id ?? aiResponseShape?.id ?? frameId;
-        let branchDir: "right" | "under" | "left" | undefined =
+        let branchDir: "right" | "right-under" | "under" | "left" | "left-under" | undefined =
           aiCardForLayout && theme ? direction : undefined;
 
         if (!sourceId && theme && shapesInLoop.length > 0) {

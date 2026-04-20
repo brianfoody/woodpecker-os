@@ -121,7 +121,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       position: { x: number; y: number },
       onStrokeCleanup?: () => void,
       sourceShapeId?: TLShapeId,
-      branchDirection?: "right" | "under" | "left",
+      branchDirection?: "right" | "right-under" | "under" | "left" | "left-under",
       branchStartAnchorY?: number
     ) => {
       const editor = editorRef.current;
@@ -306,16 +306,19 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         currentShapeText = "";
       };
 
-      /** Get anchor points for a branch direction */
-      const getBranchAnchors = (dir: "right" | "under" | "left") => {
-        // For right/left, use the normalized Y from the circle gesture area
-        // so the arrow exits the source card at the level where the user interacted
-        const startY = branchStartAnchorY ?? 0.5;
+      /** Get anchor points for a branch direction.
+       *  All connectors exit from bottom center of source card.
+       *  Left/right variants enter the side of the reply card.
+       *  Center-under enters the top of the reply card.
+       */
+      const getBranchAnchors = (dir: "right" | "right-under" | "under" | "left" | "left-under") => {
         switch (dir) {
-          case "right":  return { start: { x: 1.0, y: startY }, end: { x: 0.0, y: 0.5 } };
-          case "left":   return { start: { x: 0.0, y: startY }, end: { x: 1.0, y: 0.5 } };
+          case "right":
+          case "right-under": return { start: { x: 0.5, y: 1.0 }, end: { x: 0.0, y: 0.5 } };
+          case "left":
+          case "left-under":  return { start: { x: 0.5, y: 1.0 }, end: { x: 1.0, y: 0.5 } };
           case "under":
-          default:       return { start: { x: 0.5, y: 1.0 }, end: { x: 0.5, y: 0.0 } };
+          default:            return { start: { x: 0.5, y: 1.0 }, end: { x: 0.5, y: 0.0 } };
         }
       };
 
@@ -325,7 +328,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         newId: TLShapeId,
         startAnchor?: { x: number; y: number },
         endAnchor?: { x: number; y: number },
-        useElbow?: boolean
+        useElbow?: boolean,
+        dash?: "solid" | "dashed" | "dotted"
       ) => {
         const arrowId = createShapeId();
         editor.createShapes([{
@@ -338,7 +342,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
             bend: 0,
             size: "s",
             color: "grey",
-            dash: "solid",
+            dash: dash ?? "solid",
             fill: "none",
             arrowheadStart: "none",
             arrowheadEnd: "none",
@@ -426,8 +430,9 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         } else if (allShapeIds.length === 1 && sourceShapeId && branchDirection) {
           // No user card but branching: source AI card →(branch arrow)→ new AI card
           const anchors = getBranchAnchors(branchDirection);
-          const useElbow = branchDirection === "right" || branchDirection === "left";
-          connectToPreviousShape(sourceShapeId, currentShapeId, anchors.start, anchors.end, useElbow);
+          const useElbow = ["right", "left", "right-under", "left-under"].includes(branchDirection);
+          const connDash = branchDirection === "under" ? "dashed" as const : "solid" as const;
+          connectToPreviousShape(sourceShapeId, currentShapeId, anchors.start, anchors.end, useElbow, connDash);
         } else if (allShapeIds.length === 1 && sourceShapeId) {
           // Vertical: frame/source → AI card
           connectToPreviousShape(sourceShapeId, currentShapeId);
@@ -439,14 +444,53 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         needNewShape = false;
       };
 
-      // Show inline thinking indicator on canvas immediately (before OCR)
-      createThinkingShape("processing...");
-
       // Create "YOU" echo card before the AI response (themed only)
       if (theme) {
-        let userDisplayText = prompt;
+        // Create YOU card immediately with placeholder text (loading state)
+        userCardId = createShapeId();
+        editor.createShapes([{
+          id: userCardId,
+          type: "handwritten-text",
+          x: position.x,
+          y: nextY,
+          props: {
+            text: "...",
+            font: "caveat",
+            size: "m",
+            color: theme.userTextColor,
+            autoSize: true,
+            w: 500,
+            h: 40,
+            cardBg: theme.userCardBg,
+            cardBorder: null,
+            cardBorderWidth: 0,
+            cardRadius: theme.userCardRadius,
+            cardShadow: null,
+            cardLabel: theme.userLabelText,
+            cardLabelColor: theme.userLabelColor,
+            cardLabelOpacity: theme.userLabelOpacity,
+            cardTextOpacity: theme.userTextOpacity,
+            cardPadding: "12px 16px",
+            cardFont: theme.userFont,
+            labelFont: theme.labelFont ?? null,
+            labelFontSize: theme.labelFontSize ?? null,
+            labelFontWeight: theme.labelFontWeight ?? null,
+            labelLetterSpacing: theme.labelLetterSpacing ?? null,
+            labelUppercase: theme.labelUppercase ?? null,
+          },
+          opacity: 0.5,
+        }]);
 
-        // For magic wand path (no prompt, image provided), OCR the handwritten text
+        // Connect source AI card → user card when branching
+        if (sourceShapeId && branchDirection) {
+          const anchors = getBranchAnchors(branchDirection);
+          const useElbow = ["right", "left", "right-under", "left-under"].includes(branchDirection);
+          const connDash = branchDirection === "under" ? "dashed" as const : "solid" as const;
+          connectToPreviousShape(sourceShapeId, userCardId, anchors.start, anchors.end, useElbow, connDash);
+        }
+
+        // Run OCR to get actual text
+        let userDisplayText = prompt;
         if (!userDisplayText && opts?.image) {
           try {
             userDisplayText = await extractTextFromImage(opts.image);
@@ -459,52 +503,23 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         if (onStrokeCleanup) onStrokeCleanup();
 
         if (userDisplayText) {
-          // Remove the early thinking shape so we can insert user card at this position
-          removeThinkingShape();
-
-          userCardId = createShapeId();
-          editor.createShapes([{
+          // Update YOU card with actual text and restore opacity
+          editor.updateShapes([{
             id: userCardId,
             type: "handwritten-text",
-            x: position.x,
-            y: nextY,
+            opacity: 1.0,
             props: {
               text: userDisplayText,
-              font: "caveat",
-              size: "m",
-              color: theme.userTextColor,
-              autoSize: true,
-              w: 500,
-              h: 40,
-              cardBg: theme.userCardBg,
-              cardBorder: null,
-              cardBorderWidth: 0,
-              cardRadius: theme.userCardRadius,
-              cardShadow: null,
-              cardLabel: theme.userLabelText,
-              cardLabelColor: theme.userLabelColor,
-              cardLabelOpacity: theme.userLabelOpacity,
-              cardTextOpacity: theme.userTextOpacity,
-              cardPadding: "12px 16px",
-              cardFont: theme.userFont,
-              labelFont: theme.labelFont ?? null,
-              labelFontSize: theme.labelFontSize ?? null,
-              labelFontWeight: theme.labelFontWeight ?? null,
-              labelLetterSpacing: theme.labelLetterSpacing ?? null,
-              labelUppercase: theme.labelUppercase ?? null,
             },
           }]);
-
-          // Connect source AI card → user card when branching
-          if (sourceShapeId && branchDirection) {
-            const anchors = getBranchAnchors(branchDirection);
-            const useElbow = branchDirection === "right" || branchDirection === "left";
-            connectToPreviousShape(sourceShapeId, userCardId, anchors.start, anchors.end, useElbow);
-          }
 
           // Advance past the user card
           const userCardHeight = estimateTextHeight(userDisplayText);
           nextY += userCardHeight + SHAPE_GAP;
+        } else {
+          // No text extracted — remove the placeholder card
+          editor.deleteShapes([userCardId]);
+          userCardId = undefined as any;
         }
       } else {
         // Non-themed: clean up stroke immediately

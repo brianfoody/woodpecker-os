@@ -234,7 +234,7 @@ async function setupMockAPI(page: Page, responseText: string) {
   });
 }
 
-async function drawCircle(page: Page, cx: number, cy: number, radius: number, steps = 40) {
+async function drawCircle(page: Page, cx: number, cy: number, radius: number, steps = 20) {
   const startX = cx + radius;
   const startY = cy;
 
@@ -245,16 +245,16 @@ async function drawCircle(page: Page, cx: number, cy: number, radius: number, st
     const angle = (2 * Math.PI * i) / steps;
     const x = cx + radius * Math.cos(angle);
     const y = cy + radius * Math.sin(angle);
-    await page.mouse.move(x, y, { steps: 2 });
+    await page.mouse.move(x, y, { steps: 1 });
   }
 
-  await page.mouse.move(startX, startY, { steps: 2 });
+  await page.mouse.move(startX, startY, { steps: 1 });
 }
 
 async function triggerMagicWand(page: Page, cx: number, cy: number, radius: number) {
   await drawCircle(page, cx, cy, radius);
-  // Hold still for 800ms (hold threshold is 500ms)
-  await new Promise((r) => setTimeout(r, 800));
+  // Hold still for 600ms (hold threshold is 500ms)
+  await new Promise((r) => setTimeout(r, 600));
   await page.mouse.up();
 }
 
@@ -720,6 +720,530 @@ test("magic wand creates YOU echo card from OCR", async (_page, context) => {
   }
 });
 
+// ── Layout scenario tests ─────────────────────────────────────────────
+
+/** Helper: get the canvas-space offset from screen coordinates.
+ *  With camera at (0,0,1), screen coords differ from canvas coords by
+ *  a fixed offset caused by tldraw UI chrome (toolbar, etc.).
+ */
+async function getCanvasOffset(page: Page): Promise<{ dx: number; dy: number }> {
+  return page.evaluate(() => {
+    const editor = (window as any).__woodpecker_editor;
+    if (!editor) return { dx: 0, dy: 0 };
+    // screenToPage converts a screen point to canvas coordinates
+    const screenOrigin = editor.screenToPage({ x: 0, y: 0 });
+    return { dx: -screenOrigin.x, dy: -screenOrigin.y };
+  });
+}
+
+/** Helper: run a layout scenario test.
+ *  Creates a WOODPECKER source card and user text, draws a circle that
+ *  overlaps both, then asserts relative YOU card positioning.
+ */
+async function runLayoutTest(
+  context: BrowserContext,
+  opts: {
+    name: string;
+    sourcePos: { x: number; y: number };
+    userTextPos: { x: number; y: number };
+    /** Scenario: which layout rule we expect to trigger */
+    scenario: "center-under" | "left-body" | "left-under" | "right-body" | "right-under";
+    tolerance: number;
+  }
+) {
+  const newPage = await context.newPage();
+  newPage.setDefaultTimeout(GLOBAL_TIMEOUT);
+
+  try {
+    await setupMockAPI(newPage, MOCK_AI_RESPONSE);
+    await newPage.goto(`${BASE_URL}/v2`, { waitUntil: "networkidle" });
+    await newPage.waitForSelector(".tl-canvas", { timeout: 15_000 });
+    await newPage.waitForFunction(
+      () => !!(window as any).__woodpecker_editor,
+      { timeout: 10_000 }
+    );
+
+    await clearCanvas(newPage);
+    await setCamera(newPage, 0, 0, 1);
+
+    // Get canvas offset for screen→canvas coordinate mapping
+    const offset = await getCanvasOffset(newPage);
+
+    // Create WOODPECKER source AI card
+    const sourceId = await createStateNode(
+      newPage,
+      "Source AI card for layout test.\nTwo lines of content here.",
+      opts.sourcePos.x,
+      opts.sourcePos.y
+    );
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Query actual source card bounds
+    const sourceBounds = await newPage.evaluate((id: string) => {
+      const editor = (window as any).__woodpecker_editor;
+      const shape = editor.getShape(id);
+      const geo = editor.getShapeGeometry(shape);
+      return {
+        x: shape.x,
+        y: shape.y,
+        w: geo.bounds.width,
+        h: geo.bounds.height,
+      };
+    }, sourceId);
+
+    const sourceRight = sourceBounds.x + sourceBounds.w;
+    const sourceBottom = sourceBounds.y + sourceBounds.h;
+    const sourceCenterX = sourceBounds.x + sourceBounds.w / 2;
+
+    // Create user text shape
+    await newPage.evaluate(
+      ({ x, y }) => {
+        const editor = (window as any).__woodpecker_editor;
+        const rand = Math.random().toString(36).slice(2, 12);
+        editor.createShapes([{
+          id: `shape:${rand}` as any,
+          type: "handwritten-text",
+          x,
+          y,
+          props: {
+            text: "User question here",
+            font: "caveat",
+            size: "m",
+            color: "black",
+            autoSize: true,
+            w: 200,
+            h: 40,
+          },
+        }]);
+      },
+      { x: opts.userTextPos.x, y: opts.userTextPos.y }
+    );
+
+    // Compute a circle center (in canvas coords) that overlaps BOTH shapes.
+    // For left/right scenarios, the circle must NOT straddle sourceCenterX.
+    const userX = opts.userTextPos.x;
+    const userY = opts.userTextPos.y;
+    const userCX = userX + 100; // approximate user text center X
+    const userCY = userY + 20;  // approximate user text center Y
+
+    let circleCX: number;
+    let circleCY: number;
+    let radius: number;
+
+    if (opts.scenario === "center-under") {
+      // Circle should straddle sourceCenterX
+      circleCX = sourceCenterX;
+      circleCY = (sourceBottom + userCY) / 2;
+      radius = Math.max(
+        Math.abs(circleCY - sourceBounds.y) + 20,
+        Math.abs(circleCY - userCY) + 40
+      );
+    } else if (opts.scenario.startsWith("left")) {
+      // Circle center left of sourceCenterX, right edge overlaps source left edge
+      // but stays below sourceCenterX
+      const targetRightEdge = sourceBounds.x + sourceBounds.w * 0.3; // overlap left 30% of source
+      circleCX = (userCX + targetRightEdge) / 2;
+      radius = (targetRightEdge - circleCX) + 10;
+      // Ensure radius reaches user text
+      const distToUser = Math.abs(circleCX - userCX);
+      if (radius < distToUser + 40) radius = distToUser + 40;
+      // Ensure circle doesn't straddle source center
+      if (circleCX + radius > sourceCenterX) {
+        // Shift circle left
+        circleCX = sourceCenterX - radius - 10;
+      }
+      circleCY = opts.scenario === "left-body"
+        ? (sourceBounds.y + sourceBounds.h / 2 + userCY) / 2
+        : (sourceBottom + userCY) / 2;
+      // Ensure radius covers Y range
+      const distYToSource = Math.abs(circleCY - sourceBounds.y);
+      const distYToUser = Math.abs(circleCY - userCY);
+      const neededRadius = Math.max(distYToSource, distYToUser) + 40;
+      if (radius < neededRadius) radius = neededRadius;
+    } else {
+      // Right scenarios: circle center right of sourceCenterX
+      const targetLeftEdge = sourceBounds.x + sourceBounds.w * 0.7; // overlap right 30% of source
+      circleCX = (userCX + targetLeftEdge) / 2;
+      radius = (circleCX - targetLeftEdge) + 10;
+      const distToUser = Math.abs(circleCX - userCX);
+      if (radius < distToUser + 40) radius = distToUser + 40;
+      // Ensure circle doesn't straddle source center
+      if (circleCX - radius < sourceCenterX) {
+        circleCX = sourceCenterX + radius + 10;
+      }
+      circleCY = opts.scenario === "right-body"
+        ? (sourceBounds.y + sourceBounds.h / 2 + userCY) / 2
+        : (sourceBottom + userCY) / 2;
+      const distYToSource = Math.abs(circleCY - sourceBounds.y);
+      const distYToUser = Math.abs(circleCY - userCY);
+      const neededRadius = Math.max(distYToSource, distYToUser) + 40;
+      if (radius < neededRadius) radius = neededRadius;
+    }
+
+    // Convert canvas coords to screen coords
+    const screenCX = circleCX + offset.dx;
+    const screenCY = circleCY + offset.dy;
+
+    // Set draw tool and trigger magic wand
+    await newPage.evaluate(() => {
+      (window as any).__woodpecker_editor.setCurrentTool("draw");
+    });
+    await triggerMagicWand(newPage, screenCX, screenCY, radius);
+
+    // Wait for YOU card to appear
+    log("Waiting for YOU card...");
+    const youCard = await newPage.evaluate(async () => {
+      const start = Date.now();
+      while (Date.now() - start < 15000) {
+        const editor = (window as any).__woodpecker_editor;
+        if (editor) {
+          const shapes = editor.getCurrentPageShapes();
+          const you = shapes.find(
+            (s: any) => s.type === "handwritten-text" && s.props?.cardLabel === "YOU"
+          );
+          if (you) return { x: you.x, y: you.y };
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return null;
+    });
+
+    if (!youCard) throw new Error("YOU card not found");
+
+    await new Promise((r) => setTimeout(r, 1000));
+    const ssPath = await screenshot(newPage, `layout-${opts.name}`);
+    log(`Screenshot: ${ssPath}`);
+
+    // Compute expected position based on scenario and actual source bounds
+    let expectedX: number;
+    let expectedY: number;
+    const CARD_W = 500;
+    const GAP = 20;
+
+    // The circle stroke bounding box in canvas coords determines circleMaxY
+    // Approximate it from our circle parameters
+    const canvasCircleMaxY = circleCY + radius;
+
+    switch (opts.scenario) {
+      case "center-under":
+        expectedX = sourceBounds.x + (sourceBounds.w - CARD_W) / 2;
+        expectedY = canvasCircleMaxY + GAP;
+        break;
+      case "left-body":
+        expectedX = sourceBounds.x - CARD_W - GAP;
+        expectedY = canvasCircleMaxY + GAP;
+        break;
+      case "left-under":
+        expectedX = sourceBounds.x - CARD_W - GAP;
+        expectedY = canvasCircleMaxY + GAP;
+        break;
+      case "right-body":
+        expectedX = sourceRight + GAP;
+        expectedY = canvasCircleMaxY + GAP;
+        break;
+      case "right-under":
+        expectedX = sourceRight + GAP;
+        expectedY = canvasCircleMaxY + GAP;
+        break;
+    }
+
+    log(`Source bounds: (${sourceBounds.x}, ${sourceBounds.y}, w=${sourceBounds.w}, h=${sourceBounds.h})`);
+    log(`Circle (canvas): center=(${circleCX.toFixed(0)}, ${circleCY.toFixed(0)}), r=${radius.toFixed(0)}`);
+    log(`Expected YOU: (${expectedX.toFixed(0)}, ${expectedY.toFixed(0)})`);
+    log(`Actual YOU:   (${youCard.x}, ${youCard.y})`);
+
+    // Assert position within tolerance
+    const dx = Math.abs(youCard.x - expectedX);
+    const dy = Math.abs(youCard.y - expectedY);
+
+    if (dx > opts.tolerance) {
+      throw new Error(
+        `YOU card X: expected ~${expectedX.toFixed(0)}, got ${youCard.x} (diff ${dx.toFixed(0)} > ${opts.tolerance})`
+      );
+    }
+    if (dy > opts.tolerance) {
+      throw new Error(
+        `YOU card Y: expected ~${expectedY.toFixed(0)}, got ${youCard.y} (diff ${dy.toFixed(0)} > ${opts.tolerance})`
+      );
+    }
+
+    log(`Position OK — within tolerance ${opts.tolerance}px`);
+
+    // Verify connector properties (dash style and anchor points)
+    // In tldraw, bindings go FROM arrow TO shape. So getBindingsToShape(sourceId)
+    // returns bindings where the source card is the target.
+    const connector = await newPage.evaluate((sourceId: string) => {
+      const editor = (window as any).__woodpecker_editor;
+
+      // Find all arrow shapes on the page
+      const allShapes = editor.getCurrentPageShapes();
+      const arrows = allShapes.filter((s: any) => s.type === "arrow");
+
+      for (const arrow of arrows) {
+        // Get bindings from this arrow
+        const bindings = editor.getBindingsFromShape(arrow.id, "arrow");
+        if (!bindings || bindings.length < 2) continue;
+
+        const startB = bindings.find((b: any) => b.props?.terminal === "start");
+        const endB = bindings.find((b: any) => b.props?.terminal === "end");
+
+        // Check if start binding points to our source card
+        if (startB?.toId === sourceId) {
+          return {
+            dash: arrow.props?.dash,
+            kind: arrow.props?.kind,
+            startAnchor: startB?.props?.normalizedAnchor,
+            endAnchor: endB?.props?.normalizedAnchor,
+          };
+        }
+      }
+      return null;
+    }, sourceId);
+
+    if (!connector) {
+      throw new Error("No connector arrow found from source card");
+    }
+
+    log(`Connector: dash=${connector.dash}, kind=${connector.kind}`);
+    log(`  start anchor: (${connector.startAnchor?.x}, ${connector.startAnchor?.y})`);
+    log(`  end anchor: (${connector.endAnchor?.x}, ${connector.endAnchor?.y})`);
+
+    // All connectors should exit from bottom center of source card
+    if (Math.abs(connector.startAnchor?.x - 0.5) > 0.01 || Math.abs(connector.startAnchor?.y - 1.0) > 0.01) {
+      throw new Error(
+        `Start anchor should be (0.5, 1.0) but got (${connector.startAnchor?.x}, ${connector.startAnchor?.y})`
+      );
+    }
+
+    // Verify dash and kind per scenario
+    if (opts.scenario === "center-under") {
+      if (connector.dash !== "dashed") {
+        throw new Error(`Center+under connector should be dashed, got "${connector.dash}"`);
+      }
+      if (connector.kind === "elbow") {
+        throw new Error("Center+under connector should NOT be elbow");
+      }
+      // End anchor should be top center
+      if (Math.abs(connector.endAnchor?.x - 0.5) > 0.01 || Math.abs(connector.endAnchor?.y - 0.0) > 0.01) {
+        throw new Error(
+          `Center+under end anchor should be (0.5, 0.0) but got (${connector.endAnchor?.x}, ${connector.endAnchor?.y})`
+        );
+      }
+    } else {
+      if (connector.dash !== "solid") {
+        throw new Error(`${opts.scenario} connector should be solid, got "${connector.dash}"`);
+      }
+      if (connector.kind !== "elbow") {
+        throw new Error(`${opts.scenario} connector should be elbow, got "${connector.kind}"`);
+      }
+      // Left variants: end anchor should be right side (1.0, 0.5)
+      // Right variants: end anchor should be left side (0.0, 0.5)
+      const expectedEndX = opts.scenario.startsWith("left") ? 1.0 : 0.0;
+      if (Math.abs(connector.endAnchor?.x - expectedEndX) > 0.01 || Math.abs(connector.endAnchor?.y - 0.5) > 0.01) {
+        throw new Error(
+          `${opts.scenario} end anchor should be (${expectedEndX}, 0.5) but got (${connector.endAnchor?.x}, ${connector.endAnchor?.y})`
+        );
+      }
+    }
+
+    log("Connector OK");
+  } finally {
+    await newPage.close();
+  }
+}
+
+test("layout: center + under", async (_page, context) => {
+  // User text below source, centered — circle straddles source center X
+  await runLayoutTest(context, {
+    name: "center-under",
+    sourcePos: { x: 300, y: 100 },
+    userTextPos: { x: 450, y: 350 },
+    scenario: "center-under",
+    tolerance: 60,
+  });
+});
+
+test("layout: left + body", async (_page, context) => {
+  // User text to the left, at body level (within source card height)
+  await runLayoutTest(context, {
+    name: "left-body",
+    sourcePos: { x: 600, y: 100 },
+    userTextPos: { x: 200, y: 130 },
+    scenario: "left-body",
+    tolerance: 60,
+  });
+});
+
+test("layout: left + under", async (_page, context) => {
+  // User text to the left, below the source card
+  await runLayoutTest(context, {
+    name: "left-under",
+    sourcePos: { x: 600, y: 100 },
+    userTextPos: { x: 200, y: 400 },
+    scenario: "left-under",
+    tolerance: 60,
+  });
+});
+
+test("layout: right + body", async (_page, context) => {
+  // User text to the right, at body level
+  await runLayoutTest(context, {
+    name: "right-body",
+    sourcePos: { x: 100, y: 100 },
+    userTextPos: { x: 750, y: 130 },
+    scenario: "right-body",
+    tolerance: 60,
+  });
+});
+
+test("layout: right + under", async (_page, context) => {
+  // User text to the right, below the source card
+  await runLayoutTest(context, {
+    name: "right-under",
+    sourcePos: { x: 100, y: 100 },
+    userTextPos: { x: 750, y: 400 },
+    scenario: "right-under",
+    tolerance: 60,
+  });
+});
+
+test("layout: tall card right + body detects right not center", async (_page, context) => {
+  // Tall card with text circled at body level to the right.
+  // The circle's left edge may cross the source center but the circle
+  // CENTER is clearly to the right — must detect as right, not center.
+  const newPage = await context.newPage();
+  newPage.setDefaultTimeout(GLOBAL_TIMEOUT);
+
+  try {
+    await setupMockAPI(newPage, MOCK_AI_RESPONSE);
+    await newPage.goto(`${BASE_URL}/v2`, { waitUntil: "networkidle" });
+    await newPage.waitForSelector(".tl-canvas", { timeout: 15_000 });
+    await newPage.waitForFunction(
+      () => !!(window as any).__woodpecker_editor,
+      { timeout: 10_000 }
+    );
+
+    await clearCanvas(newPage);
+    await setCamera(newPage, 0, 0, 1);
+
+    const offset = await getCanvasOffset(newPage);
+
+    // Create a TALL source card with lots of text
+    const tallText = [
+      "## Project Status Report",
+      "",
+      "### Backend",
+      "- API endpoints complete",
+      "- Database migrations done",
+      "- Auth middleware updated",
+      "",
+      "### Frontend",
+      "- Components built",
+      "- State management wired",
+      "- Tests passing",
+      "",
+      "### Infrastructure",
+      "- CI/CD pipeline configured",
+      "- Staging environment ready",
+      "- Monitoring dashboards set up",
+      "",
+      "### Next Steps",
+      "- Load testing",
+      "- Security audit",
+      "- Documentation review",
+    ].join("\n");
+
+    const sourceId = await createStateNode(newPage, tallText, 100, 50);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const sourceBounds = await newPage.evaluate((id: string) => {
+      const editor = (window as any).__woodpecker_editor;
+      const shape = editor.getShape(id);
+      const geo = editor.getShapeGeometry(shape);
+      return { x: shape.x, y: shape.y, w: geo.bounds.width, h: geo.bounds.height };
+    }, sourceId);
+
+    log(`Tall card bounds: (${sourceBounds.x}, ${sourceBounds.y}, w=${sourceBounds.w}, h=${sourceBounds.h})`);
+
+    const sourceRight = sourceBounds.x + sourceBounds.w;
+    const sourceCenterX = sourceBounds.x + sourceBounds.w / 2;
+
+    // Place user text to the right at body level (mid-height of the tall card)
+    const userY = sourceBounds.y + sourceBounds.h * 0.4;
+    await newPage.evaluate(
+      ({ x, y }) => {
+        const editor = (window as any).__woodpecker_editor;
+        const rand = Math.random().toString(36).slice(2, 12);
+        editor.createShapes([{
+          id: `shape:${rand}` as any,
+          type: "handwritten-text",
+          x, y,
+          props: {
+            text: "Tell me more about this",
+            font: "caveat", size: "m", color: "black",
+            autoSize: true, w: 250, h: 40,
+          },
+        }]);
+      },
+      { x: sourceRight + 40, y: userY }
+    );
+
+    // Circle that overlaps the right edge of the source card
+    // Its center must be to the right of source center
+    const userCX = sourceRight + 40 + 125;
+    const userCY = userY + 20;
+    const circleCX = (userCX + sourceRight) / 2;
+    const circleCY = userCY;
+    const radius = Math.max(Math.abs(circleCX - (sourceRight - 50)), Math.abs(circleCX - userCX)) + 50;
+
+    log(`Circle center X=${circleCX.toFixed(0)}, sourceCenterX=${sourceCenterX.toFixed(0)}`);
+
+    await newPage.evaluate(() => {
+      (window as any).__woodpecker_editor.setCurrentTool("draw");
+    });
+    await triggerMagicWand(newPage, circleCX + offset.dx, circleCY + offset.dy, radius);
+
+    // Wait for YOU card
+    log("Waiting for YOU card...");
+    const youCard = await newPage.evaluate(async () => {
+      const start = Date.now();
+      while (Date.now() - start < 15000) {
+        const editor = (window as any).__woodpecker_editor;
+        if (editor) {
+          const shapes = editor.getCurrentPageShapes();
+          const you = shapes.find(
+            (s: any) => s.type === "handwritten-text" && s.props?.cardLabel === "YOU"
+          );
+          if (you) return { x: you.x, y: you.y };
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return null;
+    });
+
+    if (!youCard) throw new Error("YOU card not found");
+
+    await new Promise((r) => setTimeout(r, 1000));
+    const ssPath = await screenshot(newPage, "layout-tall-card-right-body");
+    log(`Screenshot: ${ssPath}`);
+
+    // The YOU card must be to the RIGHT of the source card, not centered below
+    const expectedMinX = sourceRight;
+    log(`YOU card at (${youCard.x}, ${youCard.y}), sourceRight=${sourceRight}`);
+
+    if (youCard.x < expectedMinX) {
+      throw new Error(
+        `YOU card X=${youCard.x} is LEFT of sourceRight=${expectedMinX} — detected as center instead of right`
+      );
+    }
+
+    log("Tall card right+body: correctly detected as RIGHT");
+  } finally {
+    await newPage.close();
+  }
+});
+
 // ── Main runner ──────────────────────────────────────────────────────
 
 async function main() {
@@ -759,10 +1283,20 @@ async function main() {
     );
     log("Editor ready");
 
+    // Optional filter: pass a substring to only run matching tests
+    const filterArg = process.argv[2];
+    const filteredTests = filterArg
+      ? tests.filter((t) => t.name.toLowerCase().includes(filterArg.toLowerCase()))
+      : tests;
+
+    if (filterArg) {
+      log(`Filter: "${filterArg}" → ${filteredTests.length}/${tests.length} tests`);
+    }
+
     // Run tests
-    for (let i = 0; i < tests.length; i++) {
-      const t = tests[i];
-      step(`${i + 1}/${tests.length}  ${t.name}`);
+    for (let i = 0; i < filteredTests.length; i++) {
+      const t = filteredTests[i];
+      step(`${i + 1}/${filteredTests.length}  ${t.name}`);
 
       try {
         await t.run(page, context);
@@ -784,7 +1318,7 @@ async function main() {
     const failed = results.filter((r) => !r.passed).length;
 
     console.log(`\n${"━".repeat(60)}`);
-    console.log(`  Results: ${passed} passed, ${failed} failed, ${tests.length} total`);
+    console.log(`  Results: ${passed} passed, ${failed} failed, ${filteredTests.length} total`);
     console.log(`${"━".repeat(60)}`);
 
     for (const r of results) {

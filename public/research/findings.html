@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Woodpecker OS — Interaction Exploration</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&family=Caveat:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f8f6f1;
+    --bg-card: #ffffff;
+    --text: #2a2820;
+    --text-secondary: #6b6560;
+    --accent-green: #5a6e48;
+    --accent-brown: #6b4f3a;
+    --accent-orange: #c47a2a;
+    --accent-blue: #4a6b8a;
+    --accent-violet: #6b4a7a;
+    --accent-red: #8a4a4a;
+    --border: rgba(0,0,0,0.08);
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 80px 0 60px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 60px;
+  }
+
+  header .date {
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    font-weight: 500;
+  }
+
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  header .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Context banner ── */
+  .context-banner {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 40px;
+    margin-bottom: 60px;
+    box-shadow: var(--shadow);
+  }
+
+  .context-banner h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    margin-bottom: 12px;
+    font-weight: 400;
+  }
+
+  .context-banner p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+
+  .context-banner .current-gesture {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(90,110,72,0.08);
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--accent-green);
+    font-weight: 500;
+  }
+
+  .context-banner .current-gesture svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* ── Quote ── */
+  .quote-block {
+    text-align: center;
+    padding: 40px 60px;
+    margin-bottom: 60px;
+    position: relative;
+  }
+
+  .quote-block::before {
+    content: '"';
+    font-family: 'DM Serif Display', serif;
+    font-size: 80px;
+    color: var(--accent-brown);
+    opacity: 0.15;
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .quote-block blockquote {
+    font-family: 'Caveat', cursive;
+    font-size: 26px;
+    color: var(--accent-brown);
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .quote-block cite {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-style: normal;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Section dividers ── */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin: 70px 0 50px;
+  }
+
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-divider span {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* ── Path cards ── */
+  .path-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 48px;
+    box-shadow: var(--shadow);
+  }
+
+  .path-header {
+    padding: 40px 48px 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .path-number {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .path-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+
+  .path-header .tagline {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    font-style: italic;
+  }
+
+  .path-body {
+    padding: 40px 48px;
+  }
+
+  .path-body h3 {
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+  }
+
+  .path-body p {
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  /* ── Visual mockup ── */
+  .mockup-container {
+    margin: 32px 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .mockup-container img {
+    width: 100%;
+    display: block;
+  }
+
+  .mockup-caption {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 8px;
+    background: rgba(0,0,0,0.02);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Interactive demo ── */
+  .demo-container {
+    margin: 32px 0;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #faf8f4;
+    position: relative;
+  }
+
+  .demo-label {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.05);
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* ── Margin River demo ── */
+  .margin-demo {
+    display: grid;
+    grid-template-columns: 1fr 3px 260px;
+    min-height: 380px;
+  }
+
+  .margin-demo .main-area {
+    padding: 40px 32px;
+    position: relative;
+  }
+
+  .margin-demo .margin-line {
+    background: repeating-linear-gradient(
+      to bottom,
+      var(--accent-brown) 0px,
+      var(--accent-brown) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    opacity: 0.2;
+  }
+
+  .margin-demo .margin-area {
+    padding: 40px 24px;
+    background: rgba(107,79,58,0.03);
+    position: relative;
+  }
+
+  .margin-demo .margin-area::before {
+    content: 'MARGIN';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--accent-brown);
+    opacity: 0.4;
+    font-weight: 600;
+  }
+
+  .user-text {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .ai-marginalia {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--accent-brown);
+    border-left: 2px solid rgba(107,79,58,0.2);
+    padding-left: 12px;
+    margin-top: 40px;
+  }
+
+  .ai-marginalia .label {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: 0.6;
+    margin-bottom: 4px;
+  }
+
+  .dispatch-arrow {
+    display: inline-block;
+    color: var(--accent-brown);
+    opacity: 0.4;
+    font-size: 24px;
+    margin-top: 8px;
+    animation: pulse-arrow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-arrow {
+    0%, 100% { opacity: 0.2; transform: translateX(0); }
+    50% { opacity: 0.6; transform: translateX(4px); }
+  }
+
+  /* ── Candle demo ── */
+  .candle-demo {
+    padding: 40px;
+    position: relative;
+    min-height: 400px;
+  }
+
+  .candle-icon {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    cursor: pointer;
+    transition: all 0.6s ease;
+  }
+
+  .candle-icon.lit {
+    background: radial-gradient(circle, rgba(255,180,50,0.25) 0%, rgba(255,180,50,0) 70%);
+    box-shadow: 0 0 30px rgba(255,180,50,0.15), 0 0 60px rgba(255,180,50,0.08);
+    animation: candle-glow 3s ease-in-out infinite;
+  }
+
+  .candle-icon.unlit {
+    background: rgba(0,0,0,0.03);
+    opacity: 0.5;
+  }
+
+  @keyframes candle-glow {
+    0%, 100% { box-shadow: 0 0 30px rgba(255,180,50,0.15), 0 0 60px rgba(255,180,50,0.08); }
+    50% { box-shadow: 0 0 40px rgba(255,180,50,0.25), 0 0 80px rgba(255,180,50,0.12); }
+  }
+
+  .observation-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border: 2px solid rgba(255,180,50,0.12);
+    border-radius: 16px;
+    pointer-events: none;
+    animation: observation-border 4s ease-in-out infinite;
+  }
+
+  @keyframes observation-border {
+    0%, 100% { border-color: rgba(255,180,50,0.08); }
+    50% { border-color: rgba(255,180,50,0.18); }
+  }
+
+  .candle-status {
+    position: absolute;
+    top: 86px;
+    right: 16px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-orange);
+    font-weight: 500;
+    text-align: center;
+    opacity: 0.6;
+  }
+
+  .ai-reflection {
+    margin-top: 24px;
+    padding: 20px 24px;
+    background: rgba(196,122,42,0.04);
+    border-radius: 12px;
+    border-left: 3px solid rgba(196,122,42,0.2);
+  }
+
+  .ai-reflection .label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent-orange);
+    opacity: 0.5;
+    margin-bottom: 8px;
+  }
+
+  .ai-reflection p {
+    font-size: 14px;
+    color: var(--accent-brown);
+    line-height: 1.7;
+  }
+
+  /* ── Underline demo ── */
+  .underline-demo {
+    padding: 40px;
+  }
+
+  .gesture-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+    margin-bottom: 32px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+
+  .gesture-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .gesture-example {
+    flex: 0 0 260px;
+  }
+
+  .gesture-example .handwriting {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .gesture-line {
+    height: 4px;
+    border-radius: 2px;
+    width: 100%;
+  }
+
+  .gesture-line.single { 
+    background: var(--accent-green);
+    height: 2px;
+  }
+
+  .gesture-line.double {
+    height: 8px;
+    background: repeating-linear-gradient(
+      to bottom,
+      var(--accent-blue) 0px,
+      var(--accent-blue) 2px,
+      transparent 2px,
+      transparent 4px,
+      var(--accent-blue) 4px,
+      var(--accent-blue) 6px,
+      transparent 6px,
+      transparent 8px
+    );
+  }
+
+  .gesture-line.wavy {
+    height: 8px;
+    background: none;
+    position: relative;
+  }
+
+  .gesture-line.wavy svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .gesture-line.strike {
+    height: 2px;
+    background: var(--accent-red);
+    position: relative;
+    top: -14px;
+  }
+
+  .gesture-desc {
+    flex: 1;
+  }
+
+  .gesture-desc .intent {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .gesture-desc .explanation {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .gesture-feedback {
+    flex: 0 0 120px;
+    text-align: center;
+  }
+
+  .gesture-feedback .icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+
+  .gesture-feedback .fb-text {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Flow steps ── */
+  .flow-steps {
+    display: flex;
+    gap: 16px;
+    margin: 24px 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .flow-step {
+    flex: 0 0 auto;
+    min-width: 180px;
+    padding: 20px;
+    background: rgba(0,0,0,0.02);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .flow-step::after {
+    content: '\2192';
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    opacity: 0.3;
+    font-size: 18px;
+  }
+
+  .flow-step:last-child::after { display: none; }
+
+  .flow-step .step-num {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .flow-step .step-text {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Pros/Cons ── */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 24px 0;
+  }
+
+  .pros, .cons {
+    padding: 20px 24px;
+    border-radius: 12px;
+  }
+
+  .pros {
+    background: rgba(90,110,72,0.05);
+    border: 1px solid rgba(90,110,72,0.1);
+  }
+
+  .cons {
+    background: rgba(138,74,74,0.05);
+    border: 1px solid rgba(138,74,74,0.1);
+  }
+
+  .pros h4, .cons h4 {
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .pros h4 { color: var(--accent-green); }
+  .cons h4 { color: var(--accent-red); }
+
+  .pros li, .cons li {
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+    list-style: none;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .pros li::before {
+    content: '+';
+    position: absolute;
+    left: 0;
+    color: var(--accent-green);
+    font-weight: 700;
+  }
+
+  .cons li::before {
+    content: '\2013';
+    position: absolute;
+    left: 0;
+    color: var(--accent-red);
+    font-weight: 700;
+  }
+
+  /* ── Technical notes ── */
+  .tech-notes {
+    background: rgba(0,0,0,0.02);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    border: 1px solid var(--border);
+  }
+
+  .tech-notes h4 {
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .tech-notes code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: rgba(0,0,0,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .tech-notes ul {
+    list-style: none;
+  }
+
+  .tech-notes li {
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .tech-notes li::before {
+    content: '\2023';
+    position: absolute;
+    left: 0;
+    color: var(--text-secondary);
+  }
+
+  /* ── Comparison matrix ── */
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 14px;
+  }
+
+  .comparison-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+  }
+
+  .comparison-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .comparison-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .comparison-table .dim-label {
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .score {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .score .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+  }
+
+  .score .dot.empty {
+    background: rgba(0,0,0,0.08);
+  }
+
+  /* ── Recommendation ── */
+  .recommendation {
+    background: var(--bg-card);
+    border: 2px solid var(--accent-brown);
+    border-radius: 20px;
+    padding: 48px;
+    margin: 60px 0;
+    box-shadow: var(--shadow);
+  }
+
+  .recommendation h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    font-weight: 400;
+    margin-bottom: 20px;
+  }
+
+  .recommendation p {
+    font-size: 15px;
+    line-height: 1.75;
+    margin-bottom: 16px;
+  }
+
+  .recommendation .highlight {
+    background: rgba(107,79,58,0.06);
+    padding: 20px 24px;
+    border-radius: 12px;
+    margin: 20px 0;
+    border-left: 3px solid var(--accent-brown);
+  }
+
+  /* ── E-ink considerations ── */
+  .eink-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    background: rgba(74,107,138,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(74,107,138,0.1);
+    margin: 20px 0;
+  }
+
+  .eink-note .eink-icon {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    background: rgba(74,107,138,0.1);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .eink-note .eink-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--accent-blue);
+  }
+
+  .eink-note .eink-text strong {
+    font-weight: 600;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 60px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  footer p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .container { padding: 0 20px; }
+    header h1 { font-size: 28px; }
+    .path-header, .path-body { padding: 24px; }
+    .pros-cons { grid-template-columns: 1fr; }
+    .margin-demo { grid-template-columns: 1fr; }
+    .flow-steps { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <div class="date">Exploration Report &mdash; 20 April 2026</div>
+  <h1>Beyond the Circle &amp; Hold</h1>
+  <p class="subtitle">Three alternative interaction paradigms for dispatching to AI on a calm, distraction-free canvas</p>
+</header>
+
+<!-- ── Context ── -->
+<div class="context-banner">
+  <h2>Starting Point</h2>
+  <p>Woodpecker OS currently uses a single interaction to bridge the human thinking space and the AI execution space:</p>
+  <div class="current-gesture">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
+    Circle content + hold 500ms &rarr; Magic Wand fires
+  </div>
+  <p style="margin-top:16px">This works well, but it's the <em>only</em> gesture. We explored three radically different approaches &mdash; each optimized for a different kind of human-AI conversation.</p>
+</div>
+
+<div class="quote-block">
+  <blockquote>Describe the tongue of a woodpecker</blockquote>
+  <cite>&mdash; Leonardo da Vinci, c. 1510</cite>
+</div>
+
+<!-- ── Research Foundations ── -->
+<div class="context-banner" style="margin-bottom: 40px">
+  <h2>Research Foundations</h2>
+  <p>These three paths are informed by extensive research across calm technology, paper-digital interaction design, and intentional AI interfaces. Key findings that shaped the exploration:</p>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px">
+    <div style="padding: 16px 20px; background: rgba(90,110,72,0.04); border-radius: 12px; border: 1px solid rgba(90,110,72,0.1)">
+      <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--accent-green); margin-bottom: 8px">Calm Technology</div>
+      <p style="font-size: 13px; margin: 0">Amber Case's principle: technology should "inform and encalm" using peripheral cues. IDEO's "ambient revolution" thesis: as AI becomes more capable, calm design becomes more critical, not less. E-ink's slow refresh rate is a <em>design feature</em>, not a bug.</p>
+    </div>
+    <div style="padding: 16px 20px; background: rgba(107,79,58,0.04); border-radius: 12px; border: 1px solid rgba(107,79,58,0.1)">
+      <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--accent-brown); margin-bottom: 8px">Paper-Digital Bridging</div>
+      <p style="font-size: 13px; margin: 0">CHI research (PapierCraft) found that gesture vocabularies mirroring paper annotations &mdash; circling, underlining, drawing arrows &mdash; have near-zero learning curve. Liza Daly's interactive marginalia research validates margin-based AI responses as "least disruptive for users."</p>
+    </div>
+    <div style="padding: 16px 20px; background: rgba(196,122,42,0.04); border-radius: 12px; border: 1px solid rgba(196,122,42,0.1)">
+      <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--accent-orange); margin-bottom: 8px">Intentional AI Friction</div>
+      <p style="font-size: 13px; margin: 0">Research shows "higher confidence in GenAI is associated with less critical thinking." The AI Flywheel framework identifies four types of productive friction &mdash; including "invitations to expertise" that create mandatory pause points before AI responds. Handwriting itself is a form of beneficial friction.</p>
+    </div>
+    <div style="padding: 16px 20px; background: rgba(74,107,138,0.04); border-radius: 12px; border: 1px solid rgba(74,107,138,0.1)">
+      <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--accent-blue); margin-bottom: 8px">Light &amp; Presence Metaphors</div>
+      <p style="font-size: 13px; margin: 0">In yogic practice (Trataka), the candle flame serves as a "single, steady point of visual focus" that reduces mental noise. Modern calm lighting installations use "breathing" animations as living presence. The flame is warm, impermanent, requiring gentle attention &mdash; it cannot be rushed.</p>
+    </div>
+  </div>
+
+  <p style="margin-top: 16px; font-size: 12px; color: var(--text-secondary)">Sources: IDEO Edges, Calm Tech Institute, CHI 2024 PaperTouch, PapierCraft (CHI), Liza Daly's Interactive Marginalia, AI Flywheel framework, DK Consulting cognitive friction research, Marie Claire Dean's Slow Design principles, Mindvalley Trataka research</p>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<div class="section-divider"><span>Path 1 of 3</span></div>
+
+<div class="path-card" style="--path-accent: var(--accent-brown)">
+  <div class="path-header">
+    <div class="path-number" style="color: var(--accent-brown)">Path 1</div>
+    <h2>The Margin River</h2>
+    <div class="tagline">Inspired by 800 years of manuscript marginalia</div>
+  </div>
+  <div class="path-body">
+
+    <p>Medieval scribes left wide margins for annotations, corrections, and commentary. Over centuries, marginalia became a rich tradition &mdash; readers would converse with texts, leave questions, draw connections. The margin was the <em>thinking space beside the thinking space</em>.</p>
+
+    <p>In Woodpecker, the canvas gains a visible right margin &mdash; a gentle vertical line dividing your writing space from the AI's territory. Content in the main area is yours alone. To dispatch to AI, you draw an arrow toward the margin, or write directly in it. Responses appear as elegant marginalia, connected back to their source.</p>
+
+    <!-- Interactive demo -->
+    <div class="demo-container">
+      <div class="demo-label">Interactive concept</div>
+      <div class="margin-demo">
+        <div class="main-area">
+          <div class="user-text">
+            What pricing should we set for<br>the new enterprise tier?<br><br>
+            Competitors seem to range from<br>$199 to $399 per seat...
+          </div>
+          <div class="dispatch-arrow">&rarr;</div>
+        </div>
+        <div class="margin-line"></div>
+        <div class="margin-area">
+          <div class="ai-marginalia" style="margin-top: 60px;">
+            <div class="label">AI Marginalia</div>
+            Based on your feature set (SSO, audit logs, SLA), you're positioned for mid-tier. Consider $249/mo &mdash; undercuts Competitor A while justifying the premium over B.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Canvas screenshot -->
+    <div class="mockup-container">
+      <img src="path1-margin-river.png" alt="Margin River canvas prototype">
+      <div class="mockup-caption">Canvas prototype showing main writing area and margin zone</div>
+    </div>
+
+    <h3>Interaction Flow</h3>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num">Step 1</div>
+        <div class="step-text">Write freely in the main canvas area. This is your sacred thinking space.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 2</div>
+        <div class="step-text">Draw an arrow from content toward the margin. Or write a question directly in the margin.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 3</div>
+        <div class="step-text">System detects the margin entry. Content is dispatched to AI with surrounding context.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 4</div>
+        <div class="step-text">Response appears as marginalia &mdash; small, elegant, connected back to the source content.</div>
+      </div>
+    </div>
+
+    <div class="mockup-container">
+      <img src="path1-flow.png" alt="Margin River interaction flow">
+      <div class="mockup-caption">Step-by-step interaction flow on the canvas</div>
+    </div>
+
+    <h3>Why This Feels Calm</h3>
+    <p>The spatial separation is key. Your thinking happens on the left. AI knowledge lives on the right. There's a physical boundary &mdash; the margin line &mdash; that you consciously cross when you want help. You never accidentally summon AI; you have to deliberately push content across the river.</p>
+    <p>The responses are <em>small</em>. Marginalia is compressed, dense, efficient. It doesn't dominate your thinking space. It annotates it.</p>
+
+    <div class="eink-note">
+      <div class="eink-icon">&#9680;</div>
+      <div class="eink-text">
+        <strong>E-ink optimization:</strong> The margin line can be a single-pixel vertical rule with a slightly different background shade &mdash; essentially free on e-ink. Responses render as static text. The dashed margin line works beautifully with e-ink's high contrast. No animation required.
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h4>Strengths</h4>
+        <ul>
+          <li>Deep cultural precedent &mdash; 800+ years of marginalia</li>
+          <li>Clear spatial separation of human and AI thinking</li>
+          <li>Responses are compact, non-intrusive</li>
+          <li>Natural for e-ink: static layout, no animations</li>
+          <li>Can have different margin zones (top: questions, bottom: actions)</li>
+          <li>Preserves the main canvas as a sacred space</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Tensions</h4>
+        <ul>
+          <li>Limits canvas to left-to-right writing (constrains free sketching)</li>
+          <li>Margin width is finite &mdash; long responses need special handling</li>
+          <li>Arrow gesture detection is harder than circle detection</li>
+          <li>May feel constrained for users who sketch everywhere</li>
+          <li>Infinite canvas scroll complicates the margin positioning</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tech-notes">
+      <h4>Technical Feasibility</h4>
+      <ul>
+        <li>Gesture: detect arrow-like strokes (directional, x-velocity &gt; y-velocity, ending near margin boundary). Extend <code>gesture-detection.ts</code> with <code>detectArrowGesture()</code></li>
+        <li>Margin zone: overlay a semi-transparent div at the right edge of the viewport. Track canvas-to-screen coordinates for the boundary.</li>
+        <li>Responses: reuse existing <code>HandwrittenTextShapeUtil</code> but constrain x-position to margin zone. Add <code>maxWidth</code> prop for compact text.</li>
+        <li>Connection lines: reuse existing arrow bindings to visually link marginalia back to source content.</li>
+        <li>Complexity: <strong>Medium</strong> &mdash; margin boundary tracking and arrow gesture detection are the main new work.</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<div class="section-divider"><span>Path 2 of 3</span></div>
+
+<div class="path-card">
+  <div class="path-header">
+    <div class="path-number" style="color: var(--accent-orange)">Path 2</div>
+    <h2>The Candle</h2>
+    <div class="tagline">Light it to think. Extinguish to reflect.</div>
+  </div>
+  <div class="path-body">
+
+    <p>A small candle icon lives in the corner of the canvas. It's the bridge between solitary thinking and AI collaboration. But unlike the circle-and-hold, the Candle enforces a <strong>minimum thinking time</strong>. You can't fire-and-forget. You must sit with your thoughts first.</p>
+
+    <p>When you tap the candle, it "lights" &mdash; a warm, subtle glow appears at the edge of the canvas. The AI is now silently observing everything you write. It doesn't interrupt. It doesn't suggest. It watches. When you're done thinking, you tap the candle again to "extinguish" it. After a contemplative pause of 2-3 seconds, the AI delivers its reflection &mdash; informed by the full context of everything you wrote while the candle was burning.</p>
+
+    <!-- Interactive demo -->
+    <div class="demo-container">
+      <div class="demo-label">Interactive concept</div>
+      <div class="candle-demo">
+        <div class="observation-overlay"></div>
+        <div class="candle-icon lit">&#x1F56F;&#xFE0F;</div>
+        <div class="candle-status">observing<br>2m 14s</div>
+        
+        <div class="user-text" style="max-width: 560px">
+          The product roadmap for Q3 needs focus.<br><br>
+          We should prioritize:<br>
+          &bull; Mobile experience<br>
+          &bull; Offline support<br>
+          &bull; Better onboarding<br><br>
+          But the team is stretched thin. I'm not sure<br>
+          we can tackle all three simultaneously...
+        </div>
+
+        <div class="ai-reflection">
+          <div class="label">After observing for 2m 14s</div>
+          <p>You're weighing scope against capacity. Consider sequencing: mobile &rarr; onboarding &rarr; offline. Mobile-first would unblock onboarding improvements (you can't onboard to an app that doesn't exist on mobile). Offline can ship as a fast-follow since the architecture decisions you make for mobile will lay the groundwork. This lets 2 developers start immediately while the third finishes current work.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Canvas screenshot -->
+    <div class="mockup-container">
+      <img src="path2-candle.png" alt="Candle canvas prototype">
+      <div class="mockup-caption">Canvas prototype showing candle observation mode with AI reflection</div>
+    </div>
+
+    <h3>Interaction Flow</h3>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num">Step 1</div>
+        <div class="step-text">Tap the candle icon. It lights with a warm glow. "Observation mode" begins.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 2</div>
+        <div class="step-text">Write and sketch freely. The AI watches silently. A timer shows burn duration.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 3</div>
+        <div class="step-text">Tap the candle again to extinguish. A contemplative 2-3 second pause.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 4</div>
+        <div class="step-text">AI reflection appears below your writing. Informed by everything you wrote.</div>
+      </div>
+    </div>
+
+    <div class="mockup-container">
+      <img src="path2-flow.png" alt="Candle interaction flow">
+      <div class="mockup-caption">Candle flow with key insight: burn duration affects response depth</div>
+    </div>
+
+    <h3>Why This Feels Calm</h3>
+    <p>The Candle inverts the typical AI interaction. Instead of "ask &rarr; answer", it's "think &rarr; observe &rarr; reflect". The user is in control of the duration. A quick question gets a short burn (30 seconds). Deep thinking gets a long burn (5+ minutes). The AI has more context for longer sessions, naturally producing more thoughtful responses.</p>
+    
+    <p>The deliberate pause after extinguishing is crucial. It creates a moment of stillness between the human's thinking and the AI's response. Like the moment between asking a wise friend a question and them taking a breath before answering.</p>
+
+    <p><strong>Optional depth mechanic:</strong> The burn duration could map to response depth. &lt;30s = quick fact. 1-3min = contextual answer. 5+ min = deep, multi-faceted reflection. This creates an incentive to think longer.</p>
+
+    <div class="eink-note">
+      <div class="eink-icon">&#9680;</div>
+      <div class="eink-text">
+        <strong>E-ink optimization:</strong> The candle flame is one of the few elements that could use e-ink's partial refresh for a subtle flickering effect (updating just the candle region). The observation border can be a simple static dashed line. The timer updates once per second &mdash; a single small region refresh. Very e-ink friendly.
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h4>Strengths</h4>
+        <ul>
+          <li>Enforces minimum thinking time &mdash; can't fire-and-forget</li>
+          <li>AI gets richer context from full observation session</li>
+          <li>Beautiful metaphor: illumination, contemplation, wisdom</li>
+          <li>Fits Da Vinci theme perfectly (candlelit study)</li>
+          <li>No canvas constraints &mdash; write/sketch anywhere</li>
+          <li>Burn duration → response depth is an elegant mechanic</li>
+          <li>Very low UI footprint (single icon)</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Tensions</h4>
+        <ul>
+          <li>User must remember to extinguish &mdash; forgetting wastes tokens</li>
+          <li>Can't target specific content (whole canvas is observed)</li>
+          <li>No clear way to say "do this" vs "explain this"</li>
+          <li>Real-time observation may feel surveillance-like to some</li>
+          <li>OCR/capture of writing must happen continuously</li>
+          <li>Responses always appear at same location (less spatial)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tech-notes">
+      <h4>Technical Feasibility</h4>
+      <ul>
+        <li>Candle UI: persistent <code>&lt;button&gt;</code> in the tldraw overlay layer. Toggle between lit/unlit CSS states.</li>
+        <li>Observation: on extinguish, capture the entire visible canvas via <code>editor.toImage()</code>. Send as vision prompt to Claude Code.</li>
+        <li>Continuous capture: optionally screenshot at intervals (every 30s) during observation to provide temporal context ("you started with X, then shifted to Y").</li>
+        <li>Response placement: position below the lowest visible content, similar to current magic wand behavior.</li>
+        <li>Complexity: <strong>Low-Medium</strong> &mdash; simpler than margin detection. Main new work is the candle state machine and periodic capture.</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<div class="section-divider"><span>Path 3 of 3</span></div>
+
+<div class="path-card">
+  <div class="path-header">
+    <div class="path-number" style="color: var(--accent-blue)">Path 3</div>
+    <h2>The Underline Lexicon</h2>
+    <div class="tagline">Your pen already knows the vocabulary</div>
+  </div>
+  <div class="path-body">
+
+    <p>People have been annotating paper for centuries. A single underline means "important." A double underline means "very important." A wavy line means "questionable." A strikethrough means "delete." These conventions are universal &mdash; taught in every school, used in every language.</p>
+
+    <p>The Underline Lexicon maps four distinct pen gestures below text to four different AI behaviors. No buttons. No mode switching. No chrome. Just pure pen-and-paper vocabulary that happens to summon intelligence.</p>
+
+    <!-- Interactive demo -->
+    <div class="demo-container">
+      <div class="demo-label">Gesture vocabulary</div>
+      <div class="underline-demo">
+        <div class="gesture-row">
+          <div class="gesture-example">
+            <div class="handwriting">Meeting with Dave is Thursday</div>
+            <div class="gesture-line single"></div>
+          </div>
+          <div class="gesture-desc">
+            <div class="intent" style="color: var(--accent-green)">Single Underline &mdash; Remember</div>
+            <div class="explanation">Silently adds this to the AI's context. No response needed. The AI just files it away for future reference. Like pinning a note to a corkboard.</div>
+          </div>
+          <div class="gesture-feedback">
+            <div class="icon" style="color: var(--accent-green)">&check;</div>
+            <div class="fb-text">Quiet nod.<br>Line fades.</div>
+          </div>
+        </div>
+
+        <div class="gesture-row">
+          <div class="gesture-example">
+            <div class="handwriting">Woodpecker tongue anatomy</div>
+            <div class="gesture-line double"></div>
+          </div>
+          <div class="gesture-desc">
+            <div class="intent" style="color: var(--accent-blue)">Double Underline &mdash; Explore</div>
+            <div class="explanation">AI provides knowledge, context, or elaboration. This is Da Vinci's gesture &mdash; pure curiosity. "Tell me about this." The response appears nearby as a thought expansion.</div>
+          </div>
+          <div class="gesture-feedback">
+            <div class="icon" style="color: var(--accent-blue)">&#x1F4D6;</div>
+            <div class="fb-text">Knowledge<br>appears nearby</div>
+          </div>
+        </div>
+
+        <div class="gesture-row">
+          <div class="gesture-example">
+            <div class="handwriting">Send Sarah the Q3 update</div>
+            <div class="gesture-line wavy">
+              <svg viewBox="0 0 260 8" preserveAspectRatio="none">
+                <path d="M0,4 Q10,0 20,4 Q30,8 40,4 Q50,0 60,4 Q70,8 80,4 Q90,0 100,4 Q110,8 120,4 Q130,0 140,4 Q150,8 160,4 Q170,0 180,4 Q190,8 200,4 Q210,0 220,4 Q230,8 240,4 Q250,0 260,4" fill="none" stroke="#c47a2a" stroke-width="2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="gesture-desc">
+            <div class="intent" style="color: var(--accent-orange)">Wavy Underline &mdash; Execute</div>
+            <div class="explanation">AI takes action in the real world. Send a message, create a document, schedule an event. The wavy line's urgency matches the action's intent &mdash; something needs to move.</div>
+          </div>
+          <div class="gesture-feedback">
+            <div class="icon" style="color: var(--accent-orange)">&#x26A1;</div>
+            <div class="fb-text">Action<br>dispatched</div>
+          </div>
+        </div>
+
+        <div class="gesture-row">
+          <div class="gesture-example">
+            <div class="handwriting" style="text-decoration: line-through; text-decoration-color: rgba(138,74,74,0.5)">Old meeting notes from March</div>
+          </div>
+          <div class="gesture-desc">
+            <div class="intent" style="color: var(--accent-red)">Strikethrough &mdash; Forget</div>
+            <div class="explanation">Removes content from AI's context. Like crossing something off a list. Clean slate. The AI no longer considers this in future interactions.</div>
+          </div>
+          <div class="gesture-feedback">
+            <div class="icon" style="color: var(--accent-red)">&#x2718;</div>
+            <div class="fb-text">Context<br>cleared</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Canvas screenshot -->
+    <div class="mockup-container">
+      <img src="path3-underline.png" alt="Underline Lexicon canvas prototype">
+      <div class="mockup-caption">Canvas prototype showing the four gesture types with responses</div>
+    </div>
+
+    <h3>Interaction Flow (Double Underline Example)</h3>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num">Step 1</div>
+        <div class="step-text">Write anything on the canvas. "Describe the tongue of a woodpecker."</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 2</div>
+        <div class="step-text">Draw a double underline beneath it. Two quick horizontal strokes.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 3</div>
+        <div class="step-text">System recognizes the gesture. Brief pulse confirms recognition. Line subtly transforms.</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">Step 4</div>
+        <div class="step-text">AI response appears below the underlined text, naturally continuing the page flow.</div>
+      </div>
+    </div>
+
+    <div class="mockup-container">
+      <img src="path3-flow.png" alt="Underline Lexicon gesture types">
+      <div class="mockup-caption">The four gesture types: Remember, Explore, Execute, Forget</div>
+    </div>
+
+    <h3>Why This Feels Calm</h3>
+    <p>There is zero UI chrome. No buttons, no toolbars, no mode menus. The interaction vocabulary is entirely pen-based and maps to gestures people already know. A single underline beneath "Meeting at 3pm" to remember it. A double underline beneath "quantum entanglement" to explore it. A wavy line beneath "email the client" to execute it.</p>
+    <p>Each gesture has a <strong>distinct motor pattern</strong> that's nearly impossible to confuse accidentally. A single straight line feels different from two quick lines, which feels different from a wavy squiggle. This is important for preventing false triggers on a device meant for calm.</p>
+    <p>The "remember" gesture is especially powerful. It lets you <strong>build up context over time</strong> without asking a question. By the time you do ask (via double underline), the AI already knows your meeting is Thursday, your budget is tight, and Dave prefers email over Slack.</p>
+
+    <div class="eink-note">
+      <div class="eink-icon">&#9680;</div>
+      <div class="eink-text">
+        <strong>E-ink optimization:</strong> This is the most e-ink native approach. All interactions are pen strokes &mdash; the primary input on e-ink. Recognition feedback is a simple line style change (no animations). Responses render as static text. The entire experience could work with zero page refreshes for the gesture recognition phase. Only the response text triggers a partial refresh.
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h4>Strengths</h4>
+        <ul>
+          <li>Zero UI chrome &mdash; pure pen interaction</li>
+          <li>Maps to existing paper annotation habits</li>
+          <li>Four distinct intents from one gesture vocabulary</li>
+          <li>"Remember" builds AI context passively over time</li>
+          <li>Each gesture has a distinct motor pattern &mdash; low false positives</li>
+          <li>Most e-ink native of all three approaches</li>
+          <li>Content-targeted &mdash; AI knows exactly what you're referring to</li>
+          <li>Can coexist with the existing circle-and-hold gesture</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Tensions</h4>
+        <ul>
+          <li>Gesture recognition for underline types is non-trivial</li>
+          <li>Works best for text &mdash; less natural for sketches/diagrams</li>
+          <li>User must learn the vocabulary (though it's intuitive)</li>
+          <li>Need OCR to know what text is above the underline</li>
+          <li>Distinguishing "two quick strokes" from "one slow stroke" is hard</li>
+          <li>Doesn't support multi-content queries (circling multiple items)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tech-notes">
+      <h4>Technical Feasibility</h4>
+      <ul>
+        <li>Gesture detection: extend <code>gesture-detection.ts</code> to analyze stroke properties. Key signals: y-variance (low = horizontal), x-span (wide = underline), number of segments, waviness (y-oscillation frequency).</li>
+        <li>Text association: when underline detected, find the nearest content shapes above it using <code>editor.getCurrentPageShapes()</code> filtered by y-position.</li>
+        <li>Wavy detection: compute standard deviation of y-coordinates relative to the regression line. Wavy lines have high y-variance with regular periodicity. Use FFT or simple zero-crossing count.</li>
+        <li>Double detection: detect two near-parallel strokes drawn within 500ms of each other. Track last stroke timestamp and compare geometry.</li>
+        <li>Complexity: <strong>Medium-High</strong> &mdash; the gesture classifier is the most sophisticated new component. But it builds directly on existing <code>analyzeForEnclosingGesture</code> patterns.</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<div class="section-divider"><span>Comparison</span></div>
+
+<div class="path-card">
+  <div class="path-header">
+    <h2>Side-by-Side Comparison</h2>
+    <div class="tagline">Evaluating each path across key dimensions</div>
+  </div>
+  <div class="path-body">
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Margin River</th>
+          <th>Candle</th>
+          <th>Underline Lexicon</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="dim-label">Enforces slowness</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">Feels natural on paper</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">E-ink compatibility</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">Intent specificity</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">Technical complexity</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">Free sketching support</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">Coexists with circle+hold</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">AI context richness</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span></span></td>
+        </tr>
+        <tr>
+          <td class="dim-label">"Magical" feeling</td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span><span class="dot empty"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></td>
+          <td><span class="score"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot empty"></span></span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<div class="section-divider"><span>Synthesis</span></div>
+
+<div class="recommendation">
+  <h2>Recommendation: Compose, Don't Choose</h2>
+
+  <p>These three paradigms aren't competing alternatives &mdash; they're <strong>complementary layers</strong> that serve different moments in the thinking process. The most powerful version of Woodpecker would offer all three, each emerging naturally when the user needs it:</p>
+
+  <div class="highlight">
+    <p><strong>The Underline Lexicon</strong> is the foundation. It's the most natural, lowest-friction way to interact with AI from a pen-first interface. Single underlines passively build context. Double underlines satisfy curiosity. Wavy underlines dispatch actions. This should be the <strong>first to implement</strong> because it extends the pen vocabulary rather than adding UI.</p>
+  </div>
+
+  <div class="highlight">
+    <p><strong>The Candle</strong> is the philosopher's tool. When you want to think freely &mdash; sketch, mind-map, wander &mdash; and then receive a holistic reflection, light the candle. This is unique because it doesn't require you to specify what you want help with. The AI observes the arc of your thinking. <strong>Implement second</strong> as the "deep thinking" mode.</p>
+  </div>
+
+  <div class="highlight">
+    <p><strong>The Margin River</strong> is the scholar's tool. For users who want a persistent, spatial separation between their thinking and AI's knowledge &mdash; a reading-and-annotating mode rather than a free-sketching mode. This could be a <strong>page layout option</strong> rather than a global feature &mdash; "ruled page with margin" vs "blank canvas".</p>
+  </div>
+
+  <p>Together with the existing <strong>circle-and-hold</strong> (the quick, targeted dispatch), these four paradigms would create a remarkably rich yet calm interaction vocabulary:</p>
+
+  <table class="comparison-table" style="margin-top: 20px">
+    <thead>
+      <tr>
+        <th>When you want to...</th>
+        <th>You...</th>
+        <th>Metaphor</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Ask about specific content</td>
+        <td>Circle it + hold</td>
+        <td>Magnifying glass</td>
+      </tr>
+      <tr>
+        <td>Remember / explore / act / forget</td>
+        <td>Underline with the right stroke</td>
+        <td>Pen annotations</td>
+      </tr>
+      <tr>
+        <td>Think freely, then get reflection</td>
+        <td>Light the candle, write, extinguish</td>
+        <td>Candlelit study</td>
+      </tr>
+      <tr>
+        <td>Have a persistent thinking + reference space</td>
+        <td>Use a margined page layout</td>
+        <td>Scholar's manuscript</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 24px">The key principle across all of these: <strong>the user always initiates</strong>. The AI never interrupts. The AI never suggests. It waits. It observes. It responds only when summoned &mdash; and only through deliberate, physical gestures that feel like extensions of the pen, not departures from it.</p>
+
+  <p>This is how we compete with the phone. Not by being faster, but by being <em>better at being slow</em>.</p>
+</div>
+
+<footer>
+  <p>Woodpecker OS &mdash; Interaction Exploration &mdash; 20 April 2026</p>
+  <p style="margin-top: 8px; opacity: 0.5">Generated during a deep research session. All prototypes built on the live canvas.</p>
+</footer>
+
+</div>
+</body>
+</html>

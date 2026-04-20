@@ -125,7 +125,7 @@ async function getShapeElement(page: Page, shapeId: string) {
   // tldraw wraps shapes in containers; find the rendered content
   return page.evaluate((id: string) => {
     // Look for tables, code blocks, etc. inside the shape's rendered DOM
-    const containers = document.querySelectorAll(".tl-shape");
+    const containers = Array.from(document.querySelectorAll(".tl-shape"));
     for (const c of containers) {
       const html = c.innerHTML;
       if (html.includes("table") || html.includes("WOODPECKER")) {
@@ -477,7 +477,7 @@ test("card styling is applied (bg, border, label)", async (page) => {
 
   // Verify background color is applied
   const hasBg = await page.evaluate(() => {
-    const divs = document.querySelectorAll(".tl-shape div");
+    const divs = Array.from(document.querySelectorAll(".tl-shape div"));
     for (const d of divs) {
       const bg = (d as HTMLElement).style.background;
       if (bg && bg !== "" && bg !== "none") return true;
@@ -620,7 +620,7 @@ test("magic wand triggers and renders AI response card", async (_page, context) 
 
     // Assert rendered text contains mock response content
     const hasContent = await newPage.evaluate(() => {
-      const shapes = document.querySelectorAll(".tl-shape");
+      const shapes = Array.from(document.querySelectorAll(".tl-shape"));
       for (const s of shapes) {
         if (s.textContent?.includes("Analysis")) return true;
       }
@@ -636,7 +636,7 @@ test("magic wand triggers and renders AI response card", async (_page, context) 
 
     // Assert WOODPECKER label is visible
     const hasLabel = await newPage.evaluate(() => {
-      const shapes = document.querySelectorAll(".tl-shape");
+      const shapes = Array.from(document.querySelectorAll(".tl-shape"));
       for (const s of shapes) {
         if (s.textContent?.includes("WOODPECKER")) return true;
       }

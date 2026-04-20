@@ -5,15 +5,16 @@ import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 interface ThinkingIndicatorProps {
   label?: string;
   theme?: WoodpeckerCanvasTheme;
+  onCancel?: () => void;
 }
 
-export function ThinkingIndicator({ label = "thinking...", theme }: ThinkingIndicatorProps) {
+export function ThinkingIndicator({ label = "thinking...", theme, onCancel }: ThinkingIndicatorProps) {
   const color = theme?.thinkingColor ?? "#8b7355";
   const fontFamily = theme?.thinkingFont ?? "var(--font-kalam)";
 
   return (
     <div
-      className="fixed pointer-events-none z-50"
+      className="fixed z-50"
       style={{
         left: "50%",
         bottom: 32,
@@ -41,6 +42,23 @@ export function ThinkingIndicator({ label = "thinking...", theme }: ThinkingIndi
           <circle cx="8" cy="8" r="6" stroke={color} strokeWidth="2" strokeDasharray="20 12" />
         </svg>
         {label}
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            style={{
+              background: "none",
+              border: "none",
+              color,
+              cursor: "pointer",
+              fontSize: "14px",
+              opacity: 0.7,
+              pointerEvents: "auto",
+            }}
+            aria-label="Cancel"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       <style jsx>{`

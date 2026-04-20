@@ -9,7 +9,6 @@ export async function GET() {
   try {
     const sessions = await listSessions({ dir: cwd, limit: 100 });
 
-    const now = Date.now();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 

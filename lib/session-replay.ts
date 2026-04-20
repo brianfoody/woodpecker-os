@@ -1,6 +1,6 @@
 import { createShapeId, TLShapeId } from "tldraw";
 import { fetchSessionTranscript } from "@/lib/api-client";
-import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence";
+
 
 const SHAPE_GAP = 40;
 

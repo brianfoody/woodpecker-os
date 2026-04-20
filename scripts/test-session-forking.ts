@@ -17,8 +17,11 @@ import {
   forkSession,
   getSessionMessages,
   getSessionInfo,
-  deleteSession,
 } from "@anthropic-ai/claude-agent-sdk";
+
+// deleteSession exists at runtime but is not yet in the published type definitions
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { deleteSession } = require("@anthropic-ai/claude-agent-sdk") as { deleteSession: (id: string, opts: { dir: string }) => Promise<void> };
 
 const CWD = process.cwd();
 const sessionsToCleanup: string[] = [];

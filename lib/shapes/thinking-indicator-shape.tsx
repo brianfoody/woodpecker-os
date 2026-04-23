@@ -7,12 +7,34 @@ import {
 import React from 'react';
 import type { ThinkingAnimation } from '@/lib/woodpecker-theme';
 
+// Module-level ref for cancel callback — set by tldraw-canvas.tsx
+export const cancelClaudeCodeRef: { current: (() => void) | null } = { current: null };
+
+// Module-level ref for retry callback — set by tldraw-canvas.tsx
+export const retryClaudeCodeRef: { current: (() => void) | null } = { current: null };
+
+// Module-level ref for dismiss callback — set by tldraw-canvas.tsx
+export const dismissCancelledRef: { current: (() => void) | null } = { current: null };
+
+// ── Peach cancel palette ────────────────────────────────────────────────────
+const PEACH = {
+  accent: '#ff9966',
+  borderColor: '#ff996650',
+  cardBg: 'rgba(255,153,102,0.025)',
+  labelColor: '#ff996660',
+  dotColor: '#ff9966',
+  dotOpacity: 0.4,
+  statusColor: '#ff9966cc',
+  hintColor: '#ff996650',
+};
+
 export type ThinkingIndicatorShape = TLBaseShape<
   'thinking-indicator',
   {
     w: number;
     h: number;
     label: string;
+    cancelled: boolean;
     cardBg: string;
     cardBorder: string;
     cardBorderWidth: number;
@@ -142,6 +164,46 @@ function CyanRippleAnimation({ thinkingColor, label, cardFont }: {
   );
 }
 
+function CancelledState({ cardFont, label }: {
+  cardFont: string;
+  label: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        height: '24px',
+      }}
+    >
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: PEACH.dotColor,
+            opacity: PEACH.dotOpacity,
+          }}
+        />
+      ))}
+      <span
+        style={{
+          marginLeft: 8,
+          fontSize: '14px',
+          color: PEACH.statusColor,
+          opacity: 0.6,
+          fontFamily: cardFont,
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape> {
   static override type = 'thinking-indicator' as const;
 
@@ -150,6 +212,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
       w: 500,
       h: 90,
       label: 'thinking...',
+      cancelled: false,
       cardBg: '#f3f0eb',
       cardBorder: '#6b4f3a',
       cardBorderWidth: 5,
@@ -173,7 +236,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
 
   component(shape: ThinkingIndicatorShape) {
     const {
-      w, label,
+      w, label, cancelled,
       cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow,
       cardLabelText, cardLabelColor, cardFont, thinkingColor,
       thinkingAnimation,
@@ -192,10 +255,12 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
             minWidth: 500,
             fontFamily: cardFont,
             padding: '20px 24px',
-            background: cardBg,
-            borderLeft: cardBorderWidth ? `${cardBorderWidth}px solid ${cardBorder}` : undefined,
+            background: cancelled ? PEACH.cardBg : cardBg,
+            borderLeft: cancelled
+              ? `${cardBorderWidth || 2}px solid ${PEACH.borderColor}`
+              : cardBorderWidth ? `${cardBorderWidth}px solid ${cardBorder}` : undefined,
             borderRadius: `${cardRadius}px`,
-            boxShadow: cardShadow || undefined,
+            boxShadow: cancelled ? 'none' : (cardShadow || undefined),
             pointerEvents: 'none',
           }}
         >
@@ -205,7 +270,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
               fontWeight: labelFontWeight ?? 600,
               letterSpacing: labelLetterSpacing ?? '0.08em',
               textTransform: (labelUppercase !== false ? 'uppercase' : 'none') as React.CSSProperties['textTransform'],
-              color: cardLabelColor,
+              color: cancelled ? PEACH.labelColor : cardLabelColor,
               marginBottom: '14px',
               fontFamily: labelFont ?? cardFont,
             }}
@@ -213,11 +278,27 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
             {cardLabelText}
           </div>
 
-          <AnimationComponent
-            thinkingColor={thinkingColor}
-            label={label}
-            cardFont={cardFont}
-          />
+          {cancelled ? (
+            <CancelledState cardFont={cardFont} label={label} />
+          ) : (
+            <AnimationComponent
+              thinkingColor={thinkingColor}
+              label={label}
+              cardFont={cardFont}
+            />
+          )}
+
+          <div
+            style={{
+              fontSize: '12px',
+              color: cancelled ? PEACH.hintColor : thinkingColor,
+              opacity: cancelled ? 1 : 0.5,
+              fontFamily: cardFont,
+              marginTop: '8px',
+            }}
+          >
+            {cancelled ? 'tap to retry · scratch to dismiss' : 'tap to cancel'}
+          </div>
         </div>
       </HTMLContainer>
     );

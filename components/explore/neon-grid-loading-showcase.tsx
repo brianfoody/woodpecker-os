@@ -14,17 +14,180 @@ const SHADOW =
 const FONT = "'Share Tech Mono', monospace";
 const LABEL_FONT = "'Orbitron', sans-serif";
 
+// ─── Cancel Colour Palettes ─────────────────────────────────────────────────
+
+interface CancelPalette {
+  id: string;
+  name: string;
+  description: string;
+  accent: string;        // primary cancel accent
+  accentDim: string;     // dimmed version for borders/bg
+  cardBg: string;        // card background tint
+  borderColor: string;   // left accent border
+  dotOpacity: number;    // how dim the frozen indicators get
+  textColor: string;     // status text colour
+  hintColor: string;     // "tap to retry" hint
+  labelDim: string;      // WOODPECKER label dimmed
+  separatorColor: string;
+}
+
+const PALETTES: CancelPalette[] = [
+  {
+    id: "dimmed-green",
+    name: "A · Dimmed Green",
+    description: "Same hue, just powered down — no colour shift at all",
+    accent: "#00ffaa",
+    accentDim: "#00ffaa30",
+    cardBg: "rgba(0,255,170,0.02)",
+    borderColor: "#00ffaa40",
+    dotOpacity: 0.2,
+    textColor: "#00ffaa60",
+    hintColor: "#00ffaa40",
+    labelDim: "#00ffaa50",
+    separatorColor: "#00ffaa20",
+  },
+  {
+    id: "amber",
+    name: "B · Amber Warning",
+    description: "Warm caution signal — distinct but not aggressive",
+    accent: "#ffaa00",
+    accentDim: "#ffaa0040",
+    cardBg: "rgba(255,170,0,0.03)",
+    borderColor: "#ffaa0060",
+    dotOpacity: 0.35,
+    textColor: "#ffaa00",
+    hintColor: "#ffaa0060",
+    labelDim: "#00ffaa50",
+    separatorColor: "#ffaa0030",
+  },
+  {
+    id: "soft-red",
+    name: "C · Soft Red",
+    description: "Warmer, less saturated red — gentler than the current neon red",
+    accent: "#ff6b6b",
+    accentDim: "#ff6b6b30",
+    cardBg: "rgba(255,107,107,0.025)",
+    borderColor: "#ff6b6b50",
+    dotOpacity: 0.3,
+    textColor: "#ff6b6b",
+    hintColor: "#ff6b6b50",
+    labelDim: "#00ffaa50",
+    separatorColor: "#ff6b6b25",
+  },
+  {
+    id: "ghost",
+    name: "D · Ghost",
+    description: "Fully desaturated — like the power was cut",
+    accent: "#667788",
+    accentDim: "#66778840",
+    cardBg: "rgba(102,119,136,0.03)",
+    borderColor: "#66778850",
+    dotOpacity: 0.25,
+    textColor: "#667788",
+    hintColor: "#66778850",
+    labelDim: "#66778860",
+    separatorColor: "#66778825",
+  },
+  {
+    id: "magenta",
+    name: "E · Magenta Neon",
+    description: "Stays in the neon family — cancelled but still electric",
+    accent: "#ff44cc",
+    accentDim: "#ff44cc35",
+    cardBg: "rgba(255,68,204,0.025)",
+    borderColor: "#ff44cc50",
+    dotOpacity: 0.35,
+    textColor: "#ff44cc",
+    hintColor: "#ff44cc50",
+    labelDim: "#00ffaa50",
+    separatorColor: "#ff44cc25",
+  },
+  {
+    id: "ice",
+    name: "F · Ice Blue",
+    description: "Cool down from green to a cold, frozen blue",
+    accent: "#6688cc",
+    accentDim: "#6688cc40",
+    cardBg: "rgba(102,136,204,0.03)",
+    borderColor: "#6688cc50",
+    dotOpacity: 0.3,
+    textColor: "#6688cc",
+    hintColor: "#6688cc50",
+    labelDim: "#6688cc60",
+    separatorColor: "#6688cc25",
+  },
+];
+
 // ─── Shared Card Wrapper ────────────────────────────────────────────────────
 
-function IndicatorCard({
-  number,
-  name,
+function CancelCard({
+  palette,
   children,
 }: {
-  number: number;
-  name: string;
+  palette: CancelPalette;
   children: React.ReactNode;
 }) {
+  return (
+    <div
+      style={{
+        background: palette.cardBg,
+        borderLeft: `2px solid ${palette.borderColor}`,
+        borderRadius: 2,
+        padding: "16px 20px",
+        fontFamily: FONT,
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: palette.labelDim,
+          marginBottom: 8,
+          fontFamily: LABEL_FONT,
+        }}
+      >
+        WOODPECKER
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 10,
+          padding: "16px 0",
+        }}
+      >
+        {children}
+        <div
+          style={{
+            fontSize: 14,
+            color: palette.textColor,
+            fontFamily: FONT,
+            opacity: 0.6,
+          }}
+        >
+          cancelled
+        </div>
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: palette.hintColor,
+          fontFamily: FONT,
+          textAlign: "center",
+          marginTop: 4,
+        }}
+      >
+        tap to retry · scratch to dismiss
+      </div>
+    </div>
+  );
+}
+
+function ActiveCard({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -32,7 +195,7 @@ function IndicatorCard({
         borderLeft: `2px solid ${NEON_GREEN}`,
         borderRadius: 2,
         boxShadow: SHADOW,
-        padding: "20px 24px",
+        padding: "16px 20px",
         fontFamily: FONT,
         width: "100%",
       }}
@@ -55,8 +218,8 @@ function IndicatorCard({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 12,
-          padding: "20px 0",
+          gap: 10,
+          padding: "16px 0",
         }}
       >
         {children}
@@ -73,196 +236,194 @@ function IndicatorCard({
       </div>
       <div
         style={{
-          marginTop: 12,
-          paddingTop: 12,
-          borderTop: `1px solid ${CONNECTOR_FROM}40`,
-          fontSize: 12,
-          color: TEXT_SECONDARY,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
+          fontSize: 11,
+          color: `${NEON_GREEN}70`,
+          fontFamily: FONT,
+          textAlign: "center",
+          marginTop: 4,
         }}
       >
-        <span
-          style={{
-            background: NEON_GREEN,
-            color: "#0a0a14",
-            borderRadius: 2,
-            width: 22,
-            height: 22,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 11,
-            fontWeight: 700,
-            flexShrink: 0,
-            fontFamily: LABEL_FONT,
-          }}
-        >
-          {number}
-        </span>
-        <span style={{ fontWeight: 500 }}>{name}</span>
+        tap to cancel
       </div>
     </div>
   );
 }
 
-// ─── 1. Neon Sparkle ────────────────────────────────────────────────────────
+// ─── Indicator Internals (just the animated/frozen bits) ────────────────────
 
-function NeonSparkle() {
+function DotWaveInner({ color, animated }: { color: string; animated: boolean; opacity?: number }) {
+  const colors = animated
+    ? [NEON_GREEN, "#00ddbb", NEON_CYAN, "#00ddbb", NEON_GREEN]
+    : [color, color, color, color, color];
   return (
-    <IndicatorCard number={1} name="Neon Sparkle">
-      <div style={{ width: 32, height: 32 }}>
-        <svg
-          viewBox="0 0 32 32"
-          width="32"
-          height="32"
-          style={{
-            animation:
-              "ng-sparkle-breathe 2s ease-in-out infinite, ng-sparkle-rotate 8s linear infinite",
-          }}
-        >
-          <rect
-            x="13"
-            y="2"
-            width="6"
-            height="28"
-            rx="3"
-            fill={NEON_GREEN}
-            transform="rotate(0 16 16)"
-          />
-          <rect
-            x="13"
-            y="2"
-            width="6"
-            height="28"
-            rx="3"
-            fill={NEON_GREEN}
-            transform="rotate(60 16 16)"
-          />
-          <rect
-            x="13"
-            y="2"
-            width="6"
-            height="28"
-            rx="3"
-            fill={NEON_GREEN}
-            transform="rotate(120 16 16)"
-          />
-        </svg>
-      </div>
-      <style jsx>{`
-        @keyframes ng-sparkle-breathe {
-          0%,
-          100% {
-            transform: scale(0.9);
-          }
-          50% {
-            transform: scale(1.1);
-          }
-        }
-        @keyframes ng-sparkle-rotate {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 2. Pulsing Dot Trio ────────────────────────────────────────────────────
-
-function PulsingDotTrio() {
-  return (
-    <IndicatorCard number={2} name="Pulsing Dot Trio">
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {[NEON_GREEN, NEON_CYAN, NEON_GREEN].map((color, i) => (
+    <>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", height: 24 }}>
+        {colors.map((c, i) => (
           <div
             key={i}
             style={{
-              width: 10,
-              height: 10,
+              width: 7,
+              height: 7,
               borderRadius: "50%",
-              background: color,
-              animation: `ng-dot-pulse 1.2s ease-in-out ${i * 0.15}s infinite`,
+              background: c,
+              animation: animated
+                ? `ng-dot-wave 1.4s ease-in-out ${i * 0.12}s infinite`
+                : "none",
+              opacity: animated ? 1 : 0.35,
             }}
           />
         ))}
       </div>
-      <style jsx>{`
-        @keyframes ng-dot-pulse {
-          0%,
-          100% {
-            transform: scale(0.6);
-            opacity: 0.4;
+      {animated && (
+        <style>{`
+          @keyframes ng-dot-wave {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
           }
-          50% {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-      `}</style>
-    </IndicatorCard>
+        `}</style>
+      )}
+    </>
   );
 }
 
-// ─── 3. Data Stream ─────────────────────────────────────────────────────────
-
-function DataStream() {
+function DataStreamInner({ color, animated }: { color: string; animated: boolean }) {
   return (
-    <IndicatorCard number={3} name="Data Stream">
+    <>
       <div
         style={{
           width: 120,
           height: 3,
           borderRadius: 2,
-          background: `${CONNECTOR_FROM}30`,
+          background: animated ? `${CONNECTOR_FROM}30` : `${color}20`,
           overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            height: "100%",
-            borderRadius: 2,
-            background: `linear-gradient(90deg, ${CONNECTOR_FROM}, ${CONNECTOR_TO})`,
-            animation: "ng-vine-grow 1.8s ease-in-out infinite",
-          }}
-        />
+        {animated ? (
+          <div
+            style={{
+              height: "100%",
+              borderRadius: 2,
+              background: `linear-gradient(90deg, ${CONNECTOR_FROM}, ${CONNECTOR_TO})`,
+              animation: "ng-vine-grow 1.8s ease-in-out infinite",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              height: "100%",
+              width: "40%",
+              borderRadius: 2,
+              background: `${color}50`,
+            }}
+          />
+        )}
       </div>
-      <style jsx>{`
-        @keyframes ng-vine-grow {
-          0% {
-            width: 0%;
-            opacity: 0.6;
+      {animated && (
+        <style>{`
+          @keyframes ng-vine-grow {
+            0% { width: 0%; opacity: 0.6; }
+            50% { width: 100%; opacity: 1; }
+            100% { width: 100%; opacity: 0; }
           }
-          50% {
-            width: 100%;
-            opacity: 1;
-          }
-          100% {
-            width: 100%;
-            opacity: 0;
-          }
-        }
-      `}</style>
-    </IndicatorCard>
+        `}</style>
+      )}
+    </>
   );
 }
 
-// ─── 4. Breathing Ring ──────────────────────────────────────────────────────
-
-function BreathingRing() {
+function TerminalCursorInner({ color, animated }: { color: string; animated: boolean }) {
   return (
-    <IndicatorCard number={4} name="Breathing Ring">
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <span
+          style={{
+            fontSize: 15,
+            color: animated ? TEXT : color,
+            fontFamily: FONT,
+            opacity: animated ? 1 : 0.5,
+            textDecoration: animated ? "none" : "line-through",
+          }}
+        >
+          {animated ? "thinking" : "cancelled"}
+        </span>
+        {animated && (
+          <div
+            style={{
+              width: 2,
+              height: 18,
+              background: NEON_GREEN,
+              marginLeft: 1,
+              animation: "ng-cursor-blink 1s step-end infinite",
+            }}
+          />
+        )}
+        {!animated && (
+          <div
+            style={{
+              width: 8,
+              height: 2,
+              background: color,
+              marginLeft: 4,
+              opacity: 0.5,
+            }}
+          />
+        )}
+      </div>
+      {animated && (
+        <style>{`
+          @keyframes ng-cursor-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+          }
+        `}</style>
+      )}
+    </>
+  );
+}
+
+function SpinnerInner({ color, animated }: { color: string; animated: boolean }) {
+  return (
+    <>
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        style={{
+          animation: animated ? "ng-spin 1.5s linear infinite" : "none",
+          opacity: animated ? 1 : 0.3,
+        }}
+      >
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          stroke={animated ? NEON_GREEN : color}
+          strokeWidth="2.5"
+          strokeDasharray="22 14"
+          strokeLinecap="round"
+        />
+      </svg>
+      {animated && (
+        <style>{`
+          @keyframes ng-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      )}
+    </>
+  );
+}
+
+function BreathingRingInner({ color, animated }: { color: string; animated: boolean }) {
+  return (
+    <>
       <div
         style={{
           width: 28,
           height: 28,
-          animation: "ng-ring-breathe 2s ease-in-out infinite",
+          animation: animated ? "ng-ring-breathe 2s ease-in-out infinite" : "none",
         }}
       >
         <svg viewBox="0 0 28 28" width="28" height="28">
@@ -271,282 +432,22 @@ function BreathingRing() {
             cy="14"
             r="11"
             fill="none"
-            stroke={NEON_GREEN}
+            stroke={animated ? NEON_GREEN : color}
             strokeWidth="2"
+            opacity={animated ? 1 : 0.3}
+            {...(!animated ? { strokeDasharray: "6 4" } : {})}
           />
         </svg>
       </div>
-      <style jsx>{`
-        @keyframes ng-ring-breathe {
-          0%,
-          100% {
-            transform: scale(0.85);
-            opacity: 0.5;
+      {animated && (
+        <style>{`
+          @keyframes ng-ring-breathe {
+            0%, 100% { transform: scale(0.85); opacity: 0.5; }
+            50% { transform: scale(1.15); opacity: 1; }
           }
-          50% {
-            transform: scale(1.15);
-            opacity: 1;
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 5. Neon Spinner ────────────────────────────────────────────────────────
-
-function NeonSpinner() {
-  return (
-    <IndicatorCard number={5} name="Neon Spinner">
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ animation: "ng-spin 1.5s linear infinite" }}
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-          stroke={NEON_GREEN}
-          strokeWidth="2.5"
-          strokeDasharray="22 14"
-          strokeLinecap="round"
-        />
-      </svg>
-      <style jsx>{`
-        @keyframes ng-spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 6. Cyan Ripple ─────────────────────────────────────────────────────────
-
-function CyanRipple() {
-  return (
-    <IndicatorCard number={6} name="Cyan Ripple">
-      <div style={{ width: 40, height: 40, position: "relative" }}>
-        {[0, 0.6, 1.2].map((delay, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: "50%",
-              border: `2px solid ${NEON_CYAN}`,
-              animation: `ng-ripple-expand 2.4s ease-out ${delay}s infinite`,
-              opacity: 0,
-            }}
-          />
-        ))}
-      </div>
-      <style jsx>{`
-        @keyframes ng-ripple-expand {
-          0% {
-            transform: scale(0.3);
-            opacity: 0.8;
-          }
-          100% {
-            transform: scale(1.2);
-            opacity: 0;
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 7. Dot Wave ────────────────────────────────────────────────────────────
-
-function DotWave() {
-  const colors = [NEON_GREEN, "#00ddbb", NEON_CYAN, "#00ddbb", NEON_GREEN];
-  return (
-    <IndicatorCard number={7} name="Dot Wave">
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          alignItems: "center",
-          height: 24,
-        }}
-      >
-        {colors.map((color, i) => (
-          <div
-            key={i}
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: color,
-              animation: `ng-dot-wave 1.4s ease-in-out ${i * 0.12}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-      <style jsx>{`
-        @keyframes ng-dot-wave {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-8px);
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 8. Terminal Cursor ─────────────────────────────────────────────────────
-
-function TerminalCursor() {
-  return (
-    <IndicatorCard number={8} name="Terminal Cursor">
-      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-        <span style={{ fontSize: 15, color: TEXT, fontFamily: FONT }}>
-          thinking
-        </span>
-        <div
-          style={{
-            width: 2,
-            height: 18,
-            background: NEON_GREEN,
-            marginLeft: 1,
-            animation: "ng-cursor-blink 1s step-end infinite",
-          }}
-        />
-      </div>
-      <style jsx>{`
-        @keyframes ng-cursor-blink {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0;
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 9. Orbiting Nodes ──────────────────────────────────────────────────────
-
-function OrbitingNodes() {
-  return (
-    <IndicatorCard number={9} name="Orbiting Nodes">
-      <div style={{ width: 36, height: 36, position: "relative" }}>
-        <div
-          style={{
-            position: "absolute",
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: NEON_CYAN,
-            animation: "ng-orbit-a 2.4s ease-in-out infinite",
-            top: "50%",
-            left: "50%",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: NEON_GREEN,
-            animation: "ng-orbit-b 2.4s ease-in-out infinite",
-            top: "50%",
-            left: "50%",
-          }}
-        />
-      </div>
-      <style jsx>{`
-        @keyframes ng-orbit-a {
-          0% {
-            transform: translate(-50%, -50%) translate(14px, 0px);
-          }
-          25% {
-            transform: translate(-50%, -50%) translate(0px, -10px);
-          }
-          50% {
-            transform: translate(-50%, -50%) translate(-14px, 0px);
-          }
-          75% {
-            transform: translate(-50%, -50%) translate(0px, 10px);
-          }
-          100% {
-            transform: translate(-50%, -50%) translate(14px, 0px);
-          }
-        }
-        @keyframes ng-orbit-b {
-          0% {
-            transform: translate(-50%, -50%) translate(-14px, 0px);
-          }
-          25% {
-            transform: translate(-50%, -50%) translate(0px, 10px);
-          }
-          50% {
-            transform: translate(-50%, -50%) translate(14px, 0px);
-          }
-          75% {
-            transform: translate(-50%, -50%) translate(0px, -10px);
-          }
-          100% {
-            transform: translate(-50%, -50%) translate(-14px, 0px);
-          }
-        }
-      `}</style>
-    </IndicatorCard>
-  );
-}
-
-// ─── 10. Fading Blocks ──────────────────────────────────────────────────────
-
-function FadingBlocks() {
-  return (
-    <IndicatorCard number={10} name="Fading Blocks">
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {[0, 0.3, 0.6].map((delay, i) => (
-          <div
-            key={i}
-            style={{
-              width: 20,
-              height: 14,
-              borderRadius: 2,
-              background: "rgba(0,255,170,0.08)",
-              borderLeft: `2px solid ${NEON_GREEN}`,
-              boxShadow: "0 0 8px rgba(0,255,170,0.1)",
-              animation: `ng-block-fade 1.5s ease-in-out ${delay}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-      <style jsx>{`
-        @keyframes ng-block-fade {
-          0%,
-          100% {
-            opacity: 0.2;
-            transform: scale(0.9);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-      `}</style>
-    </IndicatorCard>
+        `}</style>
+      )}
+    </>
   );
 }
 
@@ -566,13 +467,8 @@ export default function NeonGridLoadingShowcase() {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700&display=swap"
       />
-      <div
-        style={{
-          maxWidth: 860,
-          margin: "0 auto",
-        }}
-      >
-        <div style={{ marginBottom: 40 }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div style={{ marginBottom: 48 }}>
           <h1
             style={{
               fontSize: 24,
@@ -584,7 +480,7 @@ export default function NeonGridLoadingShowcase() {
               letterSpacing: "0.1em",
             }}
           >
-            Loading Indicators
+            Cancel State — Colour Variants
           </h1>
           <p
             style={{
@@ -592,33 +488,104 @@ export default function NeonGridLoadingShowcase() {
               color: TEXT_SECONDARY,
               marginTop: 8,
               fontFamily: FONT,
-              lineHeight: 1.5,
+              lineHeight: 1.6,
+              maxWidth: 700,
             }}
           >
-            10 styles for the Neon Grid theme. Each renders inline below the
-            last Woodpecker card while Claude is streaming.
+            Active state on the left for reference. Each row shows the same 5
+            indicators in a different cancel colour palette. Pick the one that
+            feels right for Neon Grid.
           </p>
         </div>
 
+        {/* ── Active reference row ────────────────────────────── */}
+        <SectionLabel color={NEON_GREEN}>
+          Reference — Active State
+        </SectionLabel>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 20,
+            gridTemplateColumns: "repeat(5, 1fr)",
+            gap: 16,
+            marginBottom: 48,
           }}
         >
-          <NeonSparkle />
-          <PulsingDotTrio />
-          <DataStream />
-          <BreathingRing />
-          <NeonSpinner />
-          <CyanRipple />
-          <DotWave />
-          <TerminalCursor />
-          <OrbitingNodes />
-          <FadingBlocks />
+          <ActiveCard><DotWaveInner color={NEON_GREEN} animated /></ActiveCard>
+          <ActiveCard><DataStreamInner color={NEON_GREEN} animated /></ActiveCard>
+          <ActiveCard><TerminalCursorInner color={NEON_GREEN} animated /></ActiveCard>
+          <ActiveCard><SpinnerInner color={NEON_GREEN} animated /></ActiveCard>
+          <ActiveCard><BreathingRingInner color={NEON_GREEN} animated /></ActiveCard>
         </div>
+
+        {/* ── Cancel palette rows ─────────────────────────────── */}
+        {PALETTES.map((palette) => (
+          <div key={palette.id} style={{ marginBottom: 48 }}>
+            <SectionLabel color={palette.accent}>
+              {palette.name}
+            </SectionLabel>
+            <p
+              style={{
+                fontSize: 12,
+                color: TEXT_SECONDARY,
+                fontFamily: FONT,
+                margin: "4px 0 16px 0",
+                opacity: 0.6,
+              }}
+            >
+              {palette.description}
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: 16,
+              }}
+            >
+              <CancelCard palette={palette}>
+                <DotWaveInner color={palette.accent} animated={false} />
+              </CancelCard>
+              <CancelCard palette={palette}>
+                <DataStreamInner color={palette.accent} animated={false} />
+              </CancelCard>
+              <CancelCard palette={palette}>
+                <TerminalCursorInner color={palette.accent} animated={false} />
+              </CancelCard>
+              <CancelCard palette={palette}>
+                <SpinnerInner color={palette.accent} animated={false} />
+              </CancelCard>
+              <CancelCard palette={palette}>
+                <BreathingRingInner color={palette.accent} animated={false} />
+              </CancelCard>
+            </div>
+          </div>
+        ))}
       </div>
+    </div>
+  );
+}
+
+function SectionLabel({
+  color,
+  children,
+}: {
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        fontFamily: LABEL_FONT,
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        color,
+        borderBottom: `1px solid ${color}30`,
+        paddingBottom: 8,
+        marginBottom: 12,
+      }}
+    >
+      {children}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import type { ThemeConfig } from "./themes/types";
-import { earthTones, minimalThreads, cyberpunk } from "./themes";
 
 interface ThemePickerProps {
   themes: ThemeConfig[];
@@ -12,6 +11,7 @@ interface ThemePickerProps {
 }
 
 export function ThemePicker({
+  themes,
   selectedId,
   isDark,
   onSelectTheme,
@@ -37,47 +37,6 @@ export function ThemePicker({
   const panelBg = isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)";
   const borderColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
 
-  const renderGroup = (label: string, items: ThemeConfig[]) => (
-    <div style={{ marginBottom: 16 }}>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: mutedColor,
-          marginBottom: 6,
-          padding: "0 10px",
-        }}
-      >
-        {label}
-      </div>
-      {items.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onSelectTheme(t.id)}
-          style={{
-            ...btnBase,
-            background: t.id === selectedId ? activeBg : "transparent",
-            color: t.id === selectedId ? textColor : mutedColor,
-            fontWeight: t.id === selectedId ? 500 : 400,
-          }}
-          onMouseEnter={(e) => {
-            if (t.id !== selectedId) {
-              e.currentTarget.style.background = hoverBg;
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background =
-              t.id === selectedId ? activeBg : "transparent";
-          }}
-        >
-          {t.name}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div
       style={{
@@ -97,9 +56,44 @@ export function ThemePicker({
           : "0 4px 20px rgba(0,0,0,0.08)",
       }}
     >
-      {renderGroup("Earth Tones", earthTones)}
-      {renderGroup("Minimal Thread", minimalThreads)}
-      {renderGroup("Cyberpunk", cyberpunk)}
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: mutedColor,
+            marginBottom: 6,
+            padding: "0 10px",
+          }}
+        >
+          Themes
+        </div>
+        {themes.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => onSelectTheme(t.id)}
+            style={{
+              ...btnBase,
+              background: t.id === selectedId ? activeBg : "transparent",
+              color: t.id === selectedId ? textColor : mutedColor,
+              fontWeight: t.id === selectedId ? 500 : 400,
+            }}
+            onMouseEnter={(e) => {
+              if (t.id !== selectedId) {
+                e.currentTarget.style.background = hoverBg;
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background =
+                t.id === selectedId ? activeBg : "transparent";
+            }}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
 
       <div
         style={{

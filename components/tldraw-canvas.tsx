@@ -21,8 +21,10 @@ import {
   ThinkingIndicatorShapeUtil,
 } from "@/lib/shapes";
 
-import { analyzeForSingleLoop } from "@/lib/gesture-detection";
+import { analyzeForSingleLoop, extractPointsFromShape } from "@/lib/gesture-detection";
 import { HoldDetector } from "@/lib/hold-detection";
+import { ScratchOutDetector } from "@/lib/scratch-out-detection";
+import { cancelClaudeCodeRef, retryClaudeCodeRef, dismissCancelledRef } from "@/lib/shapes/thinking-indicator-shape";
 import {
   loadCanvasData,
   CanvasAutoSaver,
@@ -106,6 +108,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
   const holdDetectorRef = useRef<HoldDetector | null>(null);
+  const scratchOutDetectorRef = useRef<ScratchOutDetector | null>(null);
   const themeStyleRef = useRef<HTMLStyleElement | null>(null);
   const gestureCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [originalStrokeProps, setOriginalStrokeProps] = useState<{
@@ -125,7 +128,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Claude Code hook
-  const { execute: executeClaudeCode, cancel: cancelClaudeCode, thinking } = useClaudeCode({
+  const { execute: executeClaudeCode, cancel: cancelClaudeCode, retry: retryClaudeCode, dismiss: dismissCancelledClaudeCode, thinking } = useClaudeCode({
     editorRef,
     responseRendererRef,
     theme,
@@ -588,6 +591,24 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     };
   }, [handleMagicWandGesture]);
 
+  // Expose cancel/retry/dismiss to the thinking-indicator shape
+  useEffect(() => {
+    cancelClaudeCodeRef.current = cancelClaudeCode;
+    retryClaudeCodeRef.current = retryClaudeCode;
+    dismissCancelledRef.current = dismissCancelledClaudeCode;
+    return () => {
+      if (cancelClaudeCodeRef.current === cancelClaudeCode) {
+        cancelClaudeCodeRef.current = null;
+      }
+      if (retryClaudeCodeRef.current === retryClaudeCode) {
+        retryClaudeCodeRef.current = null;
+      }
+      if (dismissCancelledRef.current === dismissCancelledClaudeCode) {
+        dismissCancelledRef.current = null;
+      }
+    };
+  }, [cancelClaudeCode, retryClaudeCode, dismissCancelledClaudeCode]);
+
   // Register the onboarding callback
   useEffect(() => {
     onboardingCallbackRef.current = handleOnboardingAction;
@@ -843,6 +864,26 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             }
           });
 
+          // Initialize scratch-out detector for cancelling/dismissing
+          scratchOutDetectorRef.current = new ScratchOutDetector();
+          scratchOutDetectorRef.current.setScratchCallback(() => {
+            const allShapes = editor.getCurrentPageShapes();
+            const thinkingShape = allShapes.find(
+              (s: any) => s.type === "thinking-indicator"
+            );
+            const isCancelled = thinkingShape && (thinkingShape as any).props?.cancelled;
+
+            if (isCancelled) {
+              console.log("Scratch-out dismiss gesture detected!");
+              // Dismiss is handled in the pointer_up handler
+            } else {
+              console.log("Scratch-out cancel gesture detected!");
+              if (cancelClaudeCodeRef.current) {
+                cancelClaudeCodeRef.current();
+              }
+            }
+          });
+
           // Auto-revert to pen after other tools
           editor.on("event", (info) => {
             if (info.type === "pointer" && info.name === "pointer_up") {
@@ -860,6 +901,11 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           });
 
           // Gesture detection
+          const TAP_CANCEL_THRESHOLD = 15; // max px movement to count as a tap
+          let tapStartPagePoint: { x: number; y: number } | null = null;
+          let thinkingBoundsOnDown: { minX: number; maxX: number; minY: number; maxY: number } | null = null;
+          let wasCancelledOnDown = false; // was the shape already cancelled when we pressed?
+
           editor.on("event", async (info) => {
             if (info.type === "pointer" && info.name === "pointer_down") {
               if (holdDetectorRef.current) {
@@ -869,6 +915,117 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
                 clearTimeout(gestureCheckTimerRef.current);
                 gestureCheckTimerRef.current = null;
               }
+
+              // Record pointer_down position (page coords) for tap-to-cancel
+              tapStartPagePoint = info.point ? { x: info.point.x, y: info.point.y } : null;
+              thinkingBoundsOnDown = null;
+
+              // Update scratch-out target bounds from any active thinking indicator
+              const allShapes = editor.getCurrentPageShapes();
+              const thinkingShape = allShapes.find(
+                (s: any) => s.type === "thinking-indicator"
+              );
+              if (thinkingShape) {
+                const bounds = editor.getShapeGeometry(thinkingShape).bounds;
+                const shapeBounds = {
+                  minX: thinkingShape.x + bounds.minX,
+                  maxX: thinkingShape.x + bounds.maxX,
+                  minY: thinkingShape.y + bounds.minY,
+                  maxY: thinkingShape.y + bounds.maxY,
+                };
+                thinkingBoundsOnDown = shapeBounds;
+                wasCancelledOnDown = !!(thinkingShape as any).props?.cancelled;
+                if (scratchOutDetectorRef.current) {
+                  scratchOutDetectorRef.current.setTargetBounds(shapeBounds);
+                }
+              } else {
+                if (scratchOutDetectorRef.current) {
+                  scratchOutDetectorRef.current.setTargetBounds(null);
+                }
+              }
+            }
+
+            // Check cancel/retry gestures on pointer up
+            if (info.type === "pointer" && info.name === "pointer_up") {
+              // Use the cancelled state captured at pointer_down time — NOT the
+              // current shape state, which may have changed mid-gesture.
+              const isCancelledState = wasCancelledOnDown;
+
+              // 1. Check for scratch-out gesture first (takes priority over tap)
+              let wasScratchOut = false;
+              if (scratchOutDetectorRef.current?.getTargetBounds()) {
+                const allShapesUp = editor.getCurrentPageShapes();
+                const drawShapes = allShapesUp.filter(
+                  (s: any) => s.type === "draw"
+                );
+                const lastStroke = drawShapes[drawShapes.length - 1];
+                if (lastStroke) {
+                  const points = extractPointsFromShape(lastStroke as any);
+                  wasScratchOut = scratchOutDetectorRef.current.checkStroke(points);
+                  if (wasScratchOut) {
+                    // Delete the scratch-out stroke so it doesn't litter the canvas
+                    try { editor.deleteShape(lastStroke.id); } catch {}
+
+                    if (isCancelledState) {
+                      // Scratch on cancelled → dismiss
+                      console.log("Scratch-to-dismiss triggered on cancelled indicator");
+                      if (dismissCancelledRef.current) {
+                        dismissCancelledRef.current();
+                      }
+                    }
+                    // Scratch on active → cancel (already handled by scratchOutDetector callback)
+                  }
+                }
+              }
+
+              // 2. If not a scratch-out, check for tap
+              if (!wasScratchOut && tapStartPagePoint && thinkingBoundsOnDown && info.point) {
+                // Convert screen coords to page coords
+                const camera = editor.getCamera();
+                const pageX = (info.point.x - camera.x) / camera.z;
+                const pageY = (info.point.y - camera.y) / camera.z;
+                const startPageX = (tapStartPagePoint.x - camera.x) / camera.z;
+                const startPageY = (tapStartPagePoint.y - camera.y) / camera.z;
+
+                const dx = pageX - startPageX;
+                const dy = pageY - startPageY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < TAP_CANCEL_THRESHOLD) {
+                  // Check if the tap landed inside the thinking indicator bounds (page coords)
+                  const px = pageX;
+                  const py = pageY;
+                  const b = thinkingBoundsOnDown;
+                  if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY) {
+                    if (isCancelledState) {
+                      // Tap on cancelled → retry
+                      console.log("Tap-to-retry triggered on cancelled indicator");
+                      if (retryClaudeCodeRef.current) {
+                        retryClaudeCodeRef.current();
+                      }
+                    } else {
+                      // Tap on active → cancel
+                      console.log("Tap-to-cancel triggered on thinking indicator");
+                      if (cancelClaudeCodeRef.current) {
+                        cancelClaudeCodeRef.current();
+                      }
+                    }
+
+                    // Delete the tiny dot/stroke that the tap created
+                    const allShapesUp = editor.getCurrentPageShapes();
+                    const drawShapes = allShapesUp.filter(
+                      (s: any) => s.type === "draw"
+                    );
+                    const lastStroke = drawShapes[drawShapes.length - 1];
+                    if (lastStroke) {
+                      try { editor.deleteShape(lastStroke.id); } catch {}
+                    }
+                  }
+                }
+              }
+
+              tapStartPagePoint = null;
+              thinkingBoundsOnDown = null;
             }
 
             if (info.type === "pointer" && info.name === "pointer_move") {
@@ -890,6 +1047,18 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
 
                   gestureCheckTimerRef.current = setTimeout(() => {
                     const latestShapes = editor.getCurrentPageShapes();
+
+                    // Skip enclosing gesture detection if a thinking indicator
+                    // is active — the user is likely scribbling to cancel, not
+                    // trying to circle content for a new session.
+                    const hasThinking = latestShapes.some(
+                      (s: any) => s.type === "thinking-indicator"
+                    );
+                    if (hasThinking) {
+                      gestureCheckTimerRef.current = null;
+                      return;
+                    }
+
                     const latestDrawShapes = latestShapes.filter(
                       (shape) => shape.type === "draw"
                     );
@@ -929,6 +1098,9 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             }
             if (holdDetectorRef.current) {
               holdDetectorRef.current.cancelHoldDetection();
+            }
+            if (scratchOutDetectorRef.current) {
+              scratchOutDetectorRef.current.cleanup();
             }
             if (gestureCheckTimerRef.current) {
               clearTimeout(gestureCheckTimerRef.current);

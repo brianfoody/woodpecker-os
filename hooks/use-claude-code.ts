@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createShapeId, TLShapeId } from "tldraw";
 import { claudeCodeFetch, extractTextFromImage } from "@/lib/api-client";
 import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence";
-import type { StreamEvent } from "@/lib/claude-code";
+
+type StreamEvent = {
+  type: "text_delta" | "tool_use" | "tool_result" | "status" | "error" | "done";
+  content?: string;
+  toolName?: string;
+  sessionId?: string;
+  forkSessionId?: string;
+};
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 import { toast } from "@/hooks/use-toast";
@@ -16,6 +23,7 @@ interface UseClaudeCodeOptions {
 export interface ThinkingState {
   visible: boolean;
   label: string;
+  cancelled?: boolean;
 }
 
 const SHAPE_GAP = 16; // vertical gap between response shapes
@@ -122,11 +130,22 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       onStrokeCleanup?: () => void,
       sourceShapeId?: TLShapeId,
       branchDirection?: "right" | "right-under" | "under" | "left" | "left-under",
-      branchStartAnchorY?: number
+      branchStartAnchorY?: number,
+      isRetry?: boolean
     ) => {
       const editor = editorRef.current;
       const renderer = responseRendererRef.current;
       if (!editor || !renderer) return;
+
+      // Store args for retry
+      lastExecutionRef.current = {
+        prompt,
+        opts,
+        position,
+        sourceShapeId,
+        branchDirection,
+        branchStartAnchorY,
+      };
 
       // Abort any previous in-flight request
       if (abortControllerRef.current) {
@@ -163,6 +182,19 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       let thinkingArrowId: TLShapeId | null = null;
 
       const createThinkingShape = (label: string) => {
+        // On retry, reuse the existing cancelled thinking shape instead of deleting/recreating
+        if (isRetry && thinkingShapeIdRef.current) {
+          thinkingShapeId = thinkingShapeIdRef.current;
+          try {
+            editor.updateShape({
+              id: thinkingShapeId,
+              type: "thinking-indicator",
+              props: { cancelled: false, label },
+            });
+          } catch {}
+          setThinking({ visible: true, label, cancelled: false });
+          return;
+        }
         removeThinkingShape();
         if (!theme) return;
         thinkingShapeId = createShapeId();
@@ -444,8 +476,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         needNewShape = false;
       };
 
-      // Create "YOU" echo card before the AI response (themed only)
-      if (theme) {
+      // Create "YOU" echo card before the AI response (themed only, skip on retry)
+      if (theme && !isRetry) {
         // Create YOU card immediately with placeholder text (loading state)
         userCardId = createShapeId();
         editor.createShapes([{
@@ -521,13 +553,13 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           editor.deleteShapes([userCardId]);
           userCardId = undefined as any;
         }
-      } else {
+      } else if (!isRetry) {
         // Non-themed: clean up stroke immediately
         if (onStrokeCleanup) onStrokeCleanup();
       }
 
-      // Show thinking indicator below user card (or keep the one from above if no user card)
-      createThinkingShape("waking up...");
+      // Show thinking indicator (on retry this transitions the cancelled shape back to active)
+      createThinkingShape(isRetry ? "retrying..." : "waking up...");
 
       try {
         const response = await claudeCodeFetch(prompt, opts);
@@ -728,16 +760,64 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
     [editorRef, responseRendererRef, theme]
   );
 
+  // Store last execution args so we can retry after cancel
+  const lastExecutionRef = useRef<{
+    prompt: string;
+    opts?: { resumeSessionId?: string; image?: string };
+    position: { x: number; y: number };
+    sourceShapeId?: any;
+    branchDirection?: "right" | "right-under" | "under" | "left" | "left-under";
+    branchStartAnchorY?: number;
+  } | null>(null);
+
   const cancel = useCallback(() => {
     streamActiveRef.current = false;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Clean up any lingering thinking indicator shapes
+
+    const editor = editorRef.current;
+
+    // Transition thinking shape to cancelled state instead of deleting it
+    if (thinkingShapeIdRef.current && editor) {
+      try {
+        editor.updateShape({
+          id: thinkingShapeIdRef.current,
+          type: "thinking-indicator",
+          props: { cancelled: true, label: "cancelled" },
+        });
+      } catch {
+        // Shape may not exist — fall back to cleanup
+        cleanupOrphanedThinking();
+      }
+    }
+
+    setThinking({ visible: true, label: "cancelled", cancelled: true });
+  }, [cleanupOrphanedThinking, editorRef]);
+
+  const retry = useCallback(() => {
+    // Re-execute with the same args — isRetry=true reuses the existing shape
+    const last = lastExecutionRef.current;
+    if (last) {
+      execute(
+        last.prompt,
+        last.opts,
+        last.position,
+        undefined, // no stroke cleanup on retry
+        last.sourceShapeId,
+        last.branchDirection,
+        last.branchStartAnchorY,
+        true // isRetry — reuse cancelled thinking shape in-place
+      );
+    }
+  }, [execute]);
+
+  const dismiss = useCallback(() => {
     cleanupOrphanedThinking();
-    setThinking((prev) => ({ ...prev, visible: false }));
+    setThinking({ visible: false, label: "", cancelled: false });
+    lastExecutionRef.current = null;
   }, [cleanupOrphanedThinking]);
 
-  return { execute, cancel, thinking };
+  return { execute, cancel, retry, dismiss, thinking };
 }

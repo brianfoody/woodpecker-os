@@ -22,7 +22,7 @@ import {
 } from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
-import { HoldDetector } from "@/lib/hold-detection";
+import { MysticSmokeFilter } from "@/components/explore/mystic-smoke-filter";
 import { cancelClaudeCodeRef, retryClaudeCodeRef, dismissCancelledRef } from "@/lib/shapes/thinking-indicator-shape";
 import {
   loadCanvasData,
@@ -46,8 +46,6 @@ import { replayMissedSessionContent } from "@/lib/session-replay";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 import { SessionPanel, SessionPanelToggle } from "@/components/session-panel";
 
-const GESTURE_CHECK_DELAY = 300;
-
 // ── HMR-stable singletons ───────────────────────────────────────────
 // These are declared at module scope so they survive hot-module replacement.
 // tldraw throws if shapeUtils changes identity between renders, so we
@@ -61,7 +59,8 @@ const shapeUtils = [
 ];
 
 // Shared refs for cross-component communication (survives HMR)
-const magicWandCallbackRef: { current: ((stroke: any, editor: any, holdPosition?: { x: number; y: number }) => Promise<void>) | null } = { current: null };
+const magicWandCallbackRef: { current: ((stroke: any, editor: any) => Promise<void>) | null } = { current: null };
+const magicPenActiveRef: { current: boolean } = { current: false };
 const onboardingCallbackRef: { current: ((actionType: string, additionalData?: any) => void) | null } = { current: null };
 
 // ── Error boundary ──────────────────────────────────────────────────
@@ -106,13 +105,16 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
-  const holdDetectorRef = useRef<HoldDetector | null>(null);
   const themeStyleRef = useRef<HTMLStyleElement | null>(null);
-  const gestureCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [originalStrokeProps, setOriginalStrokeProps] = useState<{
     color: string;
     size: string;
   } | null>(null);
+
+  // Magic pen state
+  const [magicPenActive, setMagicPenActive] = useState(false);
+  const magicShapeIdsRef = useRef<Set<string>>(new Set());
+  const [magicShapeIds, setMagicShapeIds] = useState<string[]>([]);
 
   // Session panel state
   const [showSessionPanel, setShowSessionPanel] = useState(false);
@@ -335,13 +337,11 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     });
   }, []);
 
-  // ===== MAGIC WAND GESTURE — now a single Claude Code path =====
+  // ===== MAGIC PEN GESTURE — triggered on pen lift when loop detected =====
   const handleMagicWandGesture = useCallback(
     async (
       stroke: any,
       eventEditor: any,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      _holdPosition?: { x: number; y: number }
     ) => {
       try {
         // Extract points from the stroke
@@ -634,6 +634,50 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
     };
   }, [handleMagicWandGesture]);
 
+  // Keep magic pen ref in sync for use inside event handlers
+  useEffect(() => {
+    magicPenActiveRef.current = magicPenActive;
+  }, [magicPenActive]);
+
+  const handleToggleMagicPen = useCallback(() => {
+    setMagicPenActive((prev) => {
+      const next = !prev;
+      if (editorRef.current) {
+        // Always stay on draw tool, magic pen just changes the ink style
+        editorRef.current.setCurrentTool("draw");
+      }
+      return next;
+    });
+  }, []);
+
+  // Track magic pen strokes
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const unsub = editor.store.listen((event: any) => {
+      if (!magicPenActiveRef.current) return;
+
+      const added = Object.values(event.changes.added) as any[];
+      let changed = false;
+
+      for (const record of added) {
+        if (record.typeName === "shape" && record.type === "draw") {
+          if (!magicShapeIdsRef.current.has(record.id)) {
+            magicShapeIdsRef.current.add(record.id);
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        setMagicShapeIds(Array.from(magicShapeIdsRef.current));
+      }
+    });
+
+    return unsub;
+  }, [magicPenActive]);
+
   // Expose cancel/retry/dismiss to the thinking-indicator shape
   useEffect(() => {
     cancelClaudeCodeRef.current = cancelClaudeCode;
@@ -681,32 +725,54 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
 
   const uiOverrides: TLUiOverrides = useMemo(() => ({}), []);
 
-  const uiComponents: TLComponents = useMemo(() => onToggleDarkMode
-    ? {
-        Toolbar: (props: any) => (
-          <DefaultToolbar {...props}>
-            <DefaultToolbarContent />
-            <button
-              onClick={onToggleDarkMode}
-              aria-label="Toggle dark mode"
-              style={{
-                width: 40,
-                height: 40,
-                background: "none",
-                border: "none",
-                fontSize: 18,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {darkMode ? "\u{1F319}" : "\u2600\uFE0F"}
-            </button>
-          </DefaultToolbar>
-        ),
-      }
-    : {}, [onToggleDarkMode, darkMode]);
+  const uiComponents: TLComponents = useMemo(() => ({
+    Toolbar: (props: any) => (
+      <DefaultToolbar {...props}>
+        <DefaultToolbarContent />
+        <button
+          onClick={handleToggleMagicPen}
+          aria-label="Toggle magic pen"
+          title={magicPenActive ? "Magic Pen On" : "Magic Pen"}
+          style={{
+            width: 40,
+            height: 40,
+            background: magicPenActive
+              ? "linear-gradient(135deg, rgba(102,68,204,0.3), rgba(68,136,255,0.25))"
+              : "none",
+            border: magicPenActive ? "1px solid rgba(170,68,255,0.4)" : "none",
+            borderRadius: 6,
+            fontSize: 18,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "background 0.2s, border-color 0.2s",
+          }}
+        >
+          <MagicPenIcon active={magicPenActive} />
+        </button>
+        {onToggleDarkMode && (
+          <button
+            onClick={onToggleDarkMode}
+            aria-label="Toggle dark mode"
+            style={{
+              width: 40,
+              height: 40,
+              background: "none",
+              border: "none",
+              fontSize: 18,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {darkMode ? "\u{1F319}" : "\u2600\uFE0F"}
+          </button>
+        )}
+      </DefaultToolbar>
+    ),
+  }), [onToggleDarkMode, darkMode, magicPenActive, handleToggleMagicPen]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
@@ -894,21 +960,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           setTimeout(() => editor.setCurrentTool("draw"), 100);
           setTimeout(() => editor.setCurrentTool("draw"), 200);
 
-          // Initialize hold detector
-          holdDetectorRef.current = new HoldDetector();
-          holdDetectorRef.current.setHoldCallback(async (stroke, holdPosition) => {
-            console.log("Magic wand gesture triggered!");
-            if (magicWandCallbackRef.current) {
-              try {
-                await magicWandCallbackRef.current(stroke, editor, holdPosition);
-              } catch (error) {
-                console.error("Error in magic wand callback:", error);
-              }
-            }
-          });
-
-          // Scratch-out detector disabled — was triggering woodpecker sessions unintentionally
-
           // Auto-revert to pen after other tools
           editor.on("event", (info) => {
             if (info.type === "pointer" && info.name === "pointer_up") {
@@ -925,87 +976,58 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             }
           });
 
-          // Gesture detection
-          const TAP_CANCEL_THRESHOLD = 15; // max px movement to count as a tap
+          // Tap-to-cancel/retry on thinking indicator + magic pen loop detection
+          const TAP_CANCEL_THRESHOLD = 15;
           let tapStartPagePoint: { x: number; y: number } | null = null;
           let thinkingBoundsOnDown: { minX: number; maxX: number; minY: number; maxY: number } | null = null;
-          let wasCancelledOnDown = false; // was the shape already cancelled when we pressed?
+          let wasCancelledOnDown = false;
 
           editor.on("event", async (info) => {
             if (info.type === "pointer" && info.name === "pointer_down") {
-              if (holdDetectorRef.current) {
-                holdDetectorRef.current.cancelHoldDetection();
-              }
-              if (gestureCheckTimerRef.current) {
-                clearTimeout(gestureCheckTimerRef.current);
-                gestureCheckTimerRef.current = null;
-              }
-
-              // Record pointer_down position (page coords) for tap-to-cancel
               tapStartPagePoint = info.point ? { x: info.point.x, y: info.point.y } : null;
               thinkingBoundsOnDown = null;
 
-              // Update scratch-out target bounds from any active thinking indicator
               const allShapes = editor.getCurrentPageShapes();
               const thinkingShape = allShapes.find(
                 (s: any) => s.type === "thinking-indicator"
               );
               if (thinkingShape) {
                 const bounds = editor.getShapeGeometry(thinkingShape).bounds;
-                const shapeBounds = {
+                thinkingBoundsOnDown = {
                   minX: thinkingShape.x + bounds.minX,
                   maxX: thinkingShape.x + bounds.maxX,
                   minY: thinkingShape.y + bounds.minY,
                   maxY: thinkingShape.y + bounds.maxY,
                 };
-                thinkingBoundsOnDown = shapeBounds;
                 wasCancelledOnDown = !!(thinkingShape as any).props?.cancelled;
-              } else {
               }
             }
 
-            // Check cancel/retry gestures on pointer up
             if (info.type === "pointer" && info.name === "pointer_up") {
-              // Use the cancelled state captured at pointer_down time — NOT the
-              // current shape state, which may have changed mid-gesture.
               const isCancelledState = wasCancelledOnDown;
 
-              // Check for tap gesture
+              // Tap-to-cancel/retry on thinking indicator
               if (tapStartPagePoint && thinkingBoundsOnDown && info.point) {
-                // Convert screen coords to page coords
                 const camera = editor.getCamera();
                 const pageX = (info.point.x - camera.x) / camera.z;
                 const pageY = (info.point.y - camera.y) / camera.z;
                 const startPageX = (tapStartPagePoint.x - camera.x) / camera.z;
                 const startPageY = (tapStartPagePoint.y - camera.y) / camera.z;
 
-                const dx = pageX - startPageX;
-                const dy = pageY - startPageY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
+                const dist = Math.sqrt(
+                  (pageX - startPageX) ** 2 + (pageY - startPageY) ** 2
+                );
 
                 if (dist < TAP_CANCEL_THRESHOLD) {
-                  // Check if the tap landed inside the thinking indicator bounds (page coords)
-                  const px = pageX;
-                  const py = pageY;
                   const b = thinkingBoundsOnDown;
-                  if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY) {
+                  if (pageX >= b.minX && pageX <= b.maxX && pageY >= b.minY && pageY <= b.maxY) {
                     if (isCancelledState) {
-                      // Tap on cancelled → retry
-                      console.log("Tap-to-retry triggered on cancelled indicator");
-                      if (retryClaudeCodeRef.current) {
-                        retryClaudeCodeRef.current();
-                      }
+                      if (retryClaudeCodeRef.current) retryClaudeCodeRef.current();
                     } else {
-                      // Tap on active → cancel
-                      console.log("Tap-to-cancel triggered on thinking indicator");
-                      if (cancelClaudeCodeRef.current) {
-                        cancelClaudeCodeRef.current();
-                      }
+                      if (cancelClaudeCodeRef.current) cancelClaudeCodeRef.current();
                     }
 
-                    // Delete the tiny dot/stroke that the tap created
-                    const allShapesUp = editor.getCurrentPageShapes();
-                    const drawShapes = allShapesUp.filter(
+                    const drawShapes = editor.getCurrentPageShapes().filter(
                       (s: any) => s.type === "draw"
                     );
                     const lastStroke = drawShapes[drawShapes.length - 1];
@@ -1018,67 +1040,29 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
 
               tapStartPagePoint = null;
               thinkingBoundsOnDown = null;
-            }
 
-            if (info.type === "pointer" && info.name === "pointer_move") {
-              const allShapes = editor.getCurrentPageShapes();
-              const drawShapes = allShapes.filter(
-                (shape) => shape.type === "draw"
-              );
-              const currentStroke = drawShapes[drawShapes.length - 1];
+              // Magic pen: check if the latest stroke forms a closed loop
+              if (magicPenActiveRef.current) {
+                // Skip if a thinking indicator is already active
+                const hasThinking = editor.getCurrentPageShapes().some(
+                  (s: any) => s.type === "thinking-indicator"
+                );
+                if (hasThinking) return;
 
-              if (currentStroke && currentStroke.type === "draw") {
-                const currentHoldShape = holdDetectorRef.current?.getCurrentShape();
-                if (
-                  !currentHoldShape ||
-                  currentHoldShape.id !== currentStroke.id
-                ) {
-                  if (gestureCheckTimerRef.current) {
-                    clearTimeout(gestureCheckTimerRef.current);
+                const drawShapes = editor.getCurrentPageShapes().filter(
+                  (s: any) => s.type === "draw"
+                );
+                const latestStroke = drawShapes[drawShapes.length - 1];
+                if (latestStroke && analyzeForSingleLoop(latestStroke as any)) {
+                  console.log("Magic pen loop detected — triggering session");
+                  if (magicWandCallbackRef.current) {
+                    try {
+                      await magicWandCallbackRef.current(latestStroke, editor);
+                    } catch (error) {
+                      console.error("Error in magic pen callback:", error);
+                    }
                   }
-
-                  gestureCheckTimerRef.current = setTimeout(() => {
-                    const latestShapes = editor.getCurrentPageShapes();
-
-                    // Skip enclosing gesture detection if a thinking indicator
-                    // is active — the user is likely scribbling to cancel, not
-                    // trying to circle content for a new session.
-                    const hasThinking = latestShapes.some(
-                      (s: any) => s.type === "thinking-indicator"
-                    );
-                    if (hasThinking) {
-                      gestureCheckTimerRef.current = null;
-                      return;
-                    }
-
-                    const latestDrawShapes = latestShapes.filter(
-                      (shape) => shape.type === "draw"
-                    );
-                    const latestStroke =
-                      latestDrawShapes[latestDrawShapes.length - 1];
-
-                    if (latestStroke && latestStroke.id === currentStroke.id) {
-                      const isEnclosingGesture = analyzeForSingleLoop(
-                        latestStroke as any
-                      );
-
-                      if (isEnclosingGesture) {
-                        const initialPosition = info.point
-                          ? { x: info.point.x, y: info.point.y }
-                          : undefined;
-                        holdDetectorRef.current?.startHoldDetection(
-                          latestStroke,
-                          initialPosition
-                        );
-                      }
-                    }
-                    gestureCheckTimerRef.current = null;
-                  }, GESTURE_CHECK_DELAY);
                 }
-              }
-
-              if (holdDetectorRef.current && info.point) {
-                holdDetectorRef.current.updatePosition({ x: info.point.x, y: info.point.y });
               }
             }
           });
@@ -1087,13 +1071,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
           return () => {
             if (autoSaverRef.current) {
               autoSaverRef.current.forceSave();
-            }
-            if (holdDetectorRef.current) {
-              holdDetectorRef.current.cancelHoldDetection();
-            }
-            if (gestureCheckTimerRef.current) {
-              clearTimeout(gestureCheckTimerRef.current);
-              gestureCheckTimerRef.current = null;
             }
             if (responseRendererRef.current) {
               responseRendererRef.current.clearResponses();
@@ -1113,6 +1090,9 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
         }}
       />
       </TldrawErrorBoundary>
+
+      {/* Mystic Smoke filter for magic pen strokes */}
+      <MysticSmokeFilter shapeIds={magicShapeIds} />
 
       {thinking.visible && !theme && (
         <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />
@@ -1138,6 +1118,27 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
         darkMode={darkMode}
       />
     </div>
+  );
+}
+
+function MagicPenIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M2 14L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
+        stroke={active ? "#aa88ff" : "currentColor"}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {active && (
+        <>
+          <circle cx="3" cy="3" r="0.8" fill="#aa88ff" opacity={0.8} />
+          <circle cx="5" cy="1.5" r="0.6" fill="#6644cc" opacity={0.6} />
+          <circle cx="1.5" cy="5.5" r="0.5" fill="#4488ff" opacity={0.7} />
+        </>
+      )}
+    </svg>
   );
 }
 

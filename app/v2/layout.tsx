@@ -1,7 +1,15 @@
 export default function V2Layout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <style>{`body { background-color: #0a0a14 !important; }`}</style>
+      <style>{`
+        body { background-color: #0a0a14 !important; }
+        .tl-container {
+          --tl-font-draw: 'Orbitron', sans-serif;
+          --tl-font-sans: 'Orbitron', sans-serif;
+          --tl-font-serif: 'Orbitron', sans-serif;
+          --tl-font-mono: 'Share Tech Mono', monospace;
+        }
+      `}</style>
       {children}
     </>
   );

@@ -201,19 +201,15 @@ function MagicPenIcon({ active }: { active: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path
-        d="M2 14L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
+        d="M10.5 2.5L13.5 5.5L6 13H3V10L10.5 2.5Z"
         stroke={active ? "#aa88ff" : "currentColor"}
-        strokeWidth={1.5}
+        strokeWidth={1.3}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {active && (
-        <>
-          <circle cx="3" cy="3" r="0.8" fill="#aa88ff" opacity={0.8} />
-          <circle cx="5" cy="1.5" r="0.6" fill="#6644cc" opacity={0.6} />
-          <circle cx="1.5" cy="5.5" r="0.5" fill="#4488ff" opacity={0.7} />
-        </>
-      )}
+      <path d="M3 13L5 11" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1.3} strokeLinecap="round" />
+      <line x1="12" y1="0.5" x2="12" y2="3" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
+      <line x1="10.5" y1="1.5" x2="13.5" y2="1.5" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
     </svg>
   );
 }

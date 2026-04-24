@@ -1095,18 +1095,21 @@ function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () 
       }}
     >
       <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-        {/* Wand body */}
+        {/* Pen body — angled marker */}
         <path
-          d="M2.5 13.5L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
+          d="M10.5 2.5L13.5 5.5L6 13H3V10L10.5 2.5Z"
           stroke="currentColor"
-          strokeWidth={1.5}
+          strokeWidth={1.3}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Sparkles — always visible, coloured when active */}
-        <circle cx="3.5" cy="2.5" r="0.9" fill={active ? "#aa88ff" : "currentColor"} opacity={active ? 0.9 : 0.3} />
-        <circle cx="1.5" cy="5" r="0.7" fill={active ? "#6644cc" : "currentColor"} opacity={active ? 0.8 : 0.25} />
-        <circle cx="5.5" cy="1" r="0.6" fill={active ? "#4488ff" : "currentColor"} opacity={active ? 0.8 : 0.2} />
+        {/* Pen tip */}
+        <path d="M3 13L5 11" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" />
+        {/* Sparkles */}
+        <line x1="12" y1="0.5" x2="12" y2="3" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
+        <line x1="10.5" y1="1.5" x2="13.5" y2="1.5" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
+        <line x1="14.5" y1="4" x2="14.5" y2="6" stroke={active ? "#4488ff" : "currentColor"} strokeWidth={0.8} opacity={active ? 0.8 : 0.2} strokeLinecap="round" />
+        <line x1="13.5" y1="5" x2="15.5" y2="5" stroke={active ? "#4488ff" : "currentColor"} strokeWidth={0.8} opacity={active ? 0.8 : 0.2} strokeLinecap="round" />
       </svg>
       {/* Active indicator dot — matches tldraw's selected-tool pattern */}
       {active && (

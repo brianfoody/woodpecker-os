@@ -7,7 +7,7 @@ import { createNeonGridTheme } from "@/lib/woodpecker-theme";
 const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-screen">
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: "#0a0a14", color: "#88ccaa", fontFamily: "'Share Tech Mono', monospace" }}>
       Loading canvas...
     </div>
   ),

@@ -38,6 +38,9 @@ export interface WoodpeckerCanvasTheme {
   labelLetterSpacing?: string;
   labelUppercase?: boolean;
   labelFont?: string;
+  // User card layout
+  userLabelMarginBottom?: number;
+  userLineHeight?: number;
   // Thinking indicator dot colors
   thinkingDotColors?: string[];
 }
@@ -110,6 +113,8 @@ export function createNeonGridTheme(mode: "light" | "dark" = "light"): Woodpecke
     userLabelColor: tokens.labelUser ?? tokens.accentUser,
     userLabelOpacity: 0.6,
     userFont: "'Caveat', cursive",
+    userLabelMarginBottom: 4,
+    userLineHeight: 1.4,
     // Label styling
     labelFontSize: t.labelFontSize,
     labelFontWeight: t.labelFontWeight,

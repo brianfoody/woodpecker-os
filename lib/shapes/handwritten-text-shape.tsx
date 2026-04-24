@@ -274,6 +274,8 @@ export type HandwrittenTextShape = TLBaseShape<
     labelFontWeight: number | null;
     labelLetterSpacing: string | null;
     labelUppercase: boolean | null;
+    labelMarginBottom: number | null;
+    cardLineHeight: number | null;
   }
 >;
 
@@ -307,6 +309,8 @@ export class HandwrittenTextShapeUtil extends ShapeUtil<HandwrittenTextShape> {
       labelFontWeight: null,
       labelLetterSpacing: null,
       labelUppercase: null,
+      labelMarginBottom: null,
+      cardLineHeight: null,
     };
   }
 
@@ -367,7 +371,7 @@ function HandwrittenTextComponent({
   editor: any;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { text, font, size, color, cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow, cardLabel, cardLabelColor, cardFont, cardPadding, cardLabelOpacity, cardTextOpacity, labelFont, labelFontSize, labelFontWeight, labelLetterSpacing, labelUppercase } = shape.props;
+  const { text, font, size, color, cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow, cardLabel, cardLabelColor, cardFont, cardPadding, cardLabelOpacity, cardTextOpacity, labelFont, labelFontSize, labelFontWeight, labelLetterSpacing, labelUppercase, labelMarginBottom, cardLineHeight } = shape.props;
 
   const sizeMap = {
     s: '16px',
@@ -484,7 +488,7 @@ function HandwrittenTextComponent({
             fontFamily,
             fontSize,
             color: effectiveColor,
-            lineHeight: 1.6,
+            lineHeight: cardLineHeight ?? 1.6,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             overflow: 'hidden',
@@ -505,7 +509,7 @@ function HandwrittenTextComponent({
                 textTransform: (labelUppercase !== false ? 'uppercase' : 'none') as React.CSSProperties['textTransform'],
                 color: cardLabelColor || cardBorder || color,
                 opacity: cardLabelOpacity,
-                marginBottom: '8px',
+                marginBottom: labelMarginBottom != null ? `${labelMarginBottom}px` : '8px',
                 fontFamily: labelFont ?? fontFamily,
               }}
             >

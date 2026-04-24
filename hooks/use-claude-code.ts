@@ -510,6 +510,8 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
             labelFontWeight: theme.labelFontWeight ?? null,
             labelLetterSpacing: theme.labelLetterSpacing ?? null,
             labelUppercase: theme.labelUppercase ?? null,
+            labelMarginBottom: theme.userLabelMarginBottom ?? null,
+            cardLineHeight: theme.userLineHeight ?? null,
           },
           opacity: 0.5,
         }]);

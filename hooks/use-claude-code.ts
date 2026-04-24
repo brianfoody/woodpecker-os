@@ -479,49 +479,42 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
 
       // Create "YOU" echo card before the AI response (themed only, skip on retry)
       if (theme && !isRetry) {
-        // Create YOU card immediately with placeholder text (loading state)
-        userCardId = createShapeId();
+        // Show thinking indicator with YOU styling while OCR runs
+        const userThinkingId = createShapeId();
         editor.createShapes([{
-          id: userCardId,
-          type: "handwritten-text",
+          id: userThinkingId,
+          type: "thinking-indicator",
           x: position.x,
           y: nextY,
           props: {
-            text: "...",
-            font: "sans",
-            size: "m",
-            color: theme.userTextColor,
-            autoSize: true,
             w: 665,
-            h: 40,
+            h: 90,
+            label: "reading...",
             cardBg: theme.userCardBg,
-            cardBorder: theme.userCardBorder,
-            cardBorderWidth: theme.userCardBorderWidth,
+            cardBorder: theme.userCardBorder ?? theme.aiCardBorder,
+            cardBorderWidth: theme.userCardBorderWidth || 1,
             cardRadius: theme.userCardRadius,
-            cardShadow: null,
-            cardLabel: theme.userLabelText,
+            cardShadow: "",
+            cardLabelText: theme.userLabelText,
             cardLabelColor: theme.userLabelColor,
-            cardLabelOpacity: theme.userLabelOpacity,
-            cardTextOpacity: theme.userTextOpacity,
-            cardPadding: "12px 16px",
             cardFont: theme.userFont,
-            labelFont: theme.labelFont ?? null,
-            labelFontSize: theme.labelFontSize ?? null,
-            labelFontWeight: theme.labelFontWeight ?? null,
-            labelLetterSpacing: theme.labelLetterSpacing ?? null,
-            labelUppercase: theme.labelUppercase ?? null,
-            labelMarginBottom: theme.userLabelMarginBottom ?? null,
-            cardLineHeight: theme.userLineHeight ?? null,
+            thinkingColor: theme.userLabelColor,
+            thinkingAnimation: theme.thinkingAnimation,
+            dotColors: theme.thinkingDotColors,
+            labelFont: theme.labelFont,
+            labelFontSize: theme.labelFontSize,
+            labelFontWeight: theme.labelFontWeight,
+            labelLetterSpacing: theme.labelLetterSpacing,
+            labelUppercase: theme.labelUppercase,
           },
-          opacity: 0.5,
         }]);
 
-        // Connect source AI card → user card when branching
+        // Connect source AI card → user thinking indicator when branching
         if (sourceShapeId && branchDirection) {
           const anchors = getBranchAnchors(branchDirection);
           const useElbow = ["right", "left", "right-under", "left-under"].includes(branchDirection);
           const connDash = branchDirection === "under" ? "dashed" as const : "solid" as const;
-          connectToPreviousShape(sourceShapeId, userCardId, anchors.start, anchors.end, useElbow, connDash);
+          connectToPreviousShape(sourceShapeId, userThinkingId, anchors.start, anchors.end, useElbow, connDash);
         }
 
         // Run OCR to get actual text
@@ -537,16 +530,53 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         // OCR complete — remove the orange highlight stroke and gesture
         if (onStrokeCleanup) onStrokeCleanup();
 
+        // Remove thinking indicator
+        try { editor.deleteShape(userThinkingId); } catch {}
+
         if (userDisplayText) {
-          // Update YOU card with actual text and restore opacity
-          editor.updateShapes([{
+          // Create the real YOU card with actual text
+          userCardId = createShapeId();
+          editor.createShapes([{
             id: userCardId,
             type: "handwritten-text",
-            opacity: 1.0,
+            x: position.x,
+            y: nextY,
             props: {
               text: userDisplayText,
+              font: "sans",
+              size: "m",
+              color: theme.userTextColor,
+              autoSize: true,
+              w: 665,
+              h: 40,
+              cardBg: theme.userCardBg,
+              cardBorder: theme.userCardBorder,
+              cardBorderWidth: theme.userCardBorderWidth,
+              cardRadius: theme.userCardRadius,
+              cardShadow: null,
+              cardLabel: theme.userLabelText,
+              cardLabelColor: theme.userLabelColor,
+              cardLabelOpacity: theme.userLabelOpacity,
+              cardTextOpacity: theme.userTextOpacity,
+              cardPadding: "12px 16px",
+              cardFont: theme.userFont,
+              labelFont: theme.labelFont ?? null,
+              labelFontSize: theme.labelFontSize ?? null,
+              labelFontWeight: theme.labelFontWeight ?? null,
+              labelLetterSpacing: theme.labelLetterSpacing ?? null,
+              labelUppercase: theme.labelUppercase ?? null,
+              labelMarginBottom: theme.userLabelMarginBottom ?? null,
+              cardLineHeight: theme.userLineHeight ?? null,
             },
           }]);
+
+          // Reconnect source → user card
+          if (sourceShapeId && branchDirection) {
+            const anchors = getBranchAnchors(branchDirection);
+            const useElbow = ["right", "left", "right-under", "left-under"].includes(branchDirection);
+            const connDash = branchDirection === "under" ? "dashed" as const : "solid" as const;
+            connectToPreviousShape(sourceShapeId, userCardId, anchors.start, anchors.end, useElbow, connDash);
+          }
 
           // Advance past the user card
           const userCardHeight = estimateTextHeight(userDisplayText);

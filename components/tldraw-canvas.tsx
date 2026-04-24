@@ -575,36 +575,21 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           branchDir = "under";
         }
 
+        // Discard the magic pen stroke immediately — don't wait for API
+        try { eventEditor.deleteShape(stroke.id); } catch {}
+        setOriginalStrokeProps(null);
+
         // Execute Claude Code with image for vision-based content extraction
         await executeClaudeCode(
           prompt, sessionOpts,
           { x: bubbleX, y: bubbleY },
-          () => {
-            // Cleanup callback: remove gesture stroke
-            try { eventEditor.deleteShape(stroke.id); } catch {}
-            setOriginalStrokeProps(null);
-          },
+          undefined,
           sourceId,
           branchDir,
           branchAnchorY
         );
-
-        // If cleanup wasn't triggered (no content received), clean up now
-        setOriginalStrokeProps(null);
       } catch (error) {
         console.error("Magic wand processing failed:", error);
-
-        // Restore original stroke appearance
-        if (originalStrokeProps && stroke.id) {
-          try {
-            eventEditor.updateShape({
-              id: stroke.id,
-              type: "draw",
-              props: originalStrokeProps,
-            });
-          } catch {}
-        }
-        setOriginalStrokeProps(null);
       }
     },
     [originalStrokeProps, executeClaudeCode, resizeAndEncodeImage]

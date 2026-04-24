@@ -218,6 +218,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
             cardFont: theme.aiFont,
             thinkingColor: theme.thinkingColor,
             thinkingAnimation: theme.thinkingAnimation,
+            dotColors: theme.thinkingDotColors,
             labelFont: theme.labelFont,
             labelFontSize: theme.labelFontSize,
             labelFontWeight: theme.labelFontWeight,

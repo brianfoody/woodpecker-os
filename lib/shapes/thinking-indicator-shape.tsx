@@ -50,16 +50,19 @@ export type ThinkingIndicatorShape = TLBaseShape<
     labelFontWeight?: number;
     labelLetterSpacing?: string;
     labelUppercase?: boolean;
+    dotColors?: string[];
   }
 >;
 
 const DOT_COLORS = ['#6b4f3a', '#6a5c42', '#9a8e7e', '#6a6e52', '#5a6e48'];
 
-function DotWaveAnimation({ thinkingColor, label, cardFont }: {
+function DotWaveAnimation({ thinkingColor, label, cardFont, dotColors }: {
   thinkingColor: string;
   label: string;
   cardFont: string;
+  dotColors?: string[];
 }) {
+  const colors = dotColors ?? DOT_COLORS;
   return (
     <>
       <div
@@ -70,7 +73,7 @@ function DotWaveAnimation({ thinkingColor, label, cardFont }: {
           height: '24px',
         }}
       >
-        {DOT_COLORS.map((color, i) => (
+        {colors.map((color, i) => (
           <div
             key={i}
             style={{
@@ -108,6 +111,7 @@ function CyanRippleAnimation({ thinkingColor, label, cardFont }: {
   thinkingColor: string;
   label: string;
   cardFont: string;
+  dotColors?: string[];
 }) {
   return (
     <>
@@ -239,7 +243,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
       w, label, cancelled,
       cardBg, cardBorder, cardBorderWidth, cardRadius, cardShadow,
       cardLabelText, cardLabelColor, cardFont, thinkingColor,
-      thinkingAnimation,
+      thinkingAnimation, dotColors,
       labelFont, labelFontSize, labelFontWeight, labelLetterSpacing, labelUppercase,
     } = shape.props;
 
@@ -256,6 +260,9 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
             fontFamily: cardFont,
             padding: '20px 24px',
             background: cancelled ? PEACH.cardBg : cardBg,
+            border: cancelled
+              ? `1px solid ${PEACH.borderColor}`
+              : cardBorderWidth ? `1px solid ${cardBorder}` : undefined,
             borderLeft: cancelled
               ? `${cardBorderWidth || 2}px solid ${PEACH.borderColor}`
               : cardBorderWidth ? `${cardBorderWidth}px solid ${cardBorder}` : undefined,
@@ -285,6 +292,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
               thinkingColor={thinkingColor}
               label={label}
               cardFont={cardFont}
+              dotColors={dotColors}
             />
           )}
 

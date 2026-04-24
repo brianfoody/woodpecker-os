@@ -38,6 +38,8 @@ export interface WoodpeckerCanvasTheme {
   labelLetterSpacing?: string;
   labelUppercase?: boolean;
   labelFont?: string;
+  // Thinking indicator dot colors
+  thinkingDotColors?: string[];
 }
 
 export function createMossBarkTheme(): WoodpeckerCanvasTheme {
@@ -81,20 +83,18 @@ export function createNeonGridTheme(mode: "light" | "dark" = "light"): Woodpecke
   const isDark = mode === "dark";
   return {
     canvasBg: isDark ? "#0a0a14" : "#f9fafb",
-    aiTextColor: tokens.textPrimary,
+    aiTextColor: tokens.textSecondary,
     aiCardBg: tokens.cardAiBg ?? (isDark ? "#0a141a" : "rgba(0,200,255,0.06)"),
     aiCardBorder: tokens.accentAi,
     aiCardBorderWidth: t.accentBorderWidth ?? 2,
     aiCardRadius: t.cardRadius ?? 2,
-    aiCardShadow: isDark
-      ? "0 0 14px rgba(0,255,170,0.10), 0 0 28px rgba(0,200,255,0.05)"
-      : (tokens.shadow ?? "0 0 12px rgba(0,255,170,0.08), 0 0 24px rgba(0,200,255,0.04)"),
+    aiCardShadow: tokens.shadow ?? "0 0 12px rgba(0,255,170,0.08), 0 0 24px rgba(0,200,255,0.04)",
     aiLabelText: "WOODPECKER",
     aiLabelColor: tokens.labelAi ?? tokens.accentAi,
     aiFont: t.fonts.primary,
     thinkingColor: tokens.accentAi,
     thinkingFont: t.fonts.primary,
-    thinkingAnimation: "cyan-ripple",
+    thinkingAnimation: "dot-wave",
     toggleActiveBg: tokens.accentAi,
     toggleActiveColor: isDark ? "#0a0a14" : "#ffffff",
     toggleInactiveBg: tokens.cardAiBg ?? (isDark ? "#0a141a" : "rgba(0,200,255,0.06)"),
@@ -102,19 +102,27 @@ export function createNeonGridTheme(mode: "light" | "dark" = "light"): Woodpecke
     errorColor: "#ff4444",
     googleFontsUrl: t.googleFontsUrl,
     // User echo card tokens
-    userCardBg: tokens.cardUserBg ?? (isDark ? "#0a1a12" : "rgba(0,255,170,0.06)"),
+    userCardBg: `${tokens.accentUser}08`,
     userCardRadius: t.cardRadius ?? 2,
     userTextColor: tokens.textPrimary,
     userTextOpacity: 1,
     userLabelText: "YOU",
     userLabelColor: tokens.labelUser ?? tokens.accentUser,
-    userLabelOpacity: 0.8,
-    userFont: t.fonts.primary,
+    userLabelOpacity: 0.6,
+    userFont: "'Caveat', cursive",
     // Label styling
     labelFontSize: t.labelFontSize,
     labelFontWeight: t.labelFontWeight,
     labelLetterSpacing: t.labelLetterSpacing,
     labelUppercase: t.labelUppercase,
     labelFont: t.fonts.label,
+    // Thinking dots — alternate accentAi and connectorFrom
+    thinkingDotColors: [
+      tokens.accentAi,
+      tokens.connectorFrom ?? tokens.accentAi,
+      tokens.connectorTo ?? tokens.accentAi,
+      tokens.connectorFrom ?? tokens.accentAi,
+      tokens.accentAi,
+    ],
   };
 }

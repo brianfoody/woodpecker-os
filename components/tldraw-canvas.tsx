@@ -101,7 +101,7 @@ class TldrawErrorBoundary extends React.Component<
   }
 }
 
-export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDarkMode }: { theme?: WoodpeckerCanvasTheme; storageKey?: string; darkMode?: boolean; onToggleDarkMode?: () => void }) {
+export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: WoodpeckerCanvasTheme; storageKey?: string; darkMode?: boolean }) {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
@@ -728,51 +728,11 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   const uiComponents: TLComponents = useMemo(() => ({
     Toolbar: (props: any) => (
       <DefaultToolbar {...props}>
+        <MagicPenToolButton active={magicPenActive} onClick={handleToggleMagicPen} />
         <DefaultToolbarContent />
-        <button
-          onClick={handleToggleMagicPen}
-          aria-label="Toggle magic pen"
-          title={magicPenActive ? "Magic Pen On" : "Magic Pen"}
-          style={{
-            width: 40,
-            height: 40,
-            background: magicPenActive
-              ? "linear-gradient(135deg, rgba(102,68,204,0.3), rgba(68,136,255,0.25))"
-              : "none",
-            border: magicPenActive ? "1px solid rgba(170,68,255,0.4)" : "none",
-            borderRadius: 6,
-            fontSize: 18,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "background 0.2s, border-color 0.2s",
-          }}
-        >
-          <MagicPenIcon active={magicPenActive} />
-        </button>
-        {onToggleDarkMode && (
-          <button
-            onClick={onToggleDarkMode}
-            aria-label="Toggle dark mode"
-            style={{
-              width: 40,
-              height: 40,
-              background: "none",
-              border: "none",
-              fontSize: 18,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {darkMode ? "\u{1F319}" : "\u2600\uFE0F"}
-          </button>
-        )}
       </DefaultToolbar>
     ),
-  }), [onToggleDarkMode, darkMode, magicPenActive, handleToggleMagicPen]);
+  }), [magicPenActive, handleToggleMagicPen]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
@@ -1121,24 +1081,49 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   );
 }
 
-function MagicPenIcon({ active }: { active: boolean }) {
+function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M2 14L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
-        stroke={active ? "#aa88ff" : "currentColor"}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <button
+      className="tlui-toolbar__button"
+      data-testid="magic-pen-tool"
+      onClick={onClick}
+      aria-label="Magic pen"
+      title="Magic Pen"
+      style={{
+        position: "relative",
+        color: active ? "#aa88ff" : "var(--color-text-1)",
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        {/* Wand body */}
+        <path
+          d="M2.5 13.5L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Sparkles — always visible, coloured when active */}
+        <circle cx="3.5" cy="2.5" r="0.9" fill={active ? "#aa88ff" : "currentColor"} opacity={active ? 0.9 : 0.3} />
+        <circle cx="1.5" cy="5" r="0.7" fill={active ? "#6644cc" : "currentColor"} opacity={active ? 0.8 : 0.25} />
+        <circle cx="5.5" cy="1" r="0.6" fill={active ? "#4488ff" : "currentColor"} opacity={active ? 0.8 : 0.2} />
+      </svg>
+      {/* Active indicator dot — matches tldraw's selected-tool pattern */}
       {active && (
-        <>
-          <circle cx="3" cy="3" r="0.8" fill="#aa88ff" opacity={0.8} />
-          <circle cx="5" cy="1.5" r="0.6" fill="#6644cc" opacity={0.6} />
-          <circle cx="1.5" cy="5.5" r="0.5" fill="#4488ff" opacity={0.7} />
-        </>
+        <div
+          style={{
+            position: "absolute",
+            bottom: 4,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 4,
+            height: 4,
+            borderRadius: "50%",
+            background: "#aa88ff",
+          }}
+        />
       )}
-    </svg>
+    </button>
   );
 }
 

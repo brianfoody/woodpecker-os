@@ -4,6 +4,7 @@ import { useExploreTheme } from "./explore-theme-context";
 import { ConversationPanel } from "./conversation-panel";
 import { StatesShowcase } from "./states-showcase";
 import { LiveDesign } from "./live-design";
+import { MagicInkShowcase } from "./magic-ink-showcase";
 
 export function CanvasConversation() {
   const { theme, isDark } = useExploreTheme();
@@ -44,6 +45,18 @@ export function CanvasConversation() {
         }}
       >
         <StatesShowcase theme={theme} isDark={isDark} />
+      </div>
+
+      {/* Far right column: Magic Ink showcase */}
+      <div
+        style={{
+          position: "absolute",
+          left: 2250,
+          top: 100,
+          pointerEvents: "none",
+        }}
+      >
+        <MagicInkShowcase theme={theme} isDark={isDark} />
       </div>
     </>
   );

@@ -16,12 +16,50 @@ interface SessionPanelProps {
   editorRef: React.MutableRefObject<any>;
   open: boolean;
   onClose: () => void;
+  darkMode?: boolean;
 }
 
-export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
+function panelColors(dark: boolean) {
+  return dark
+    ? {
+        bg: "#1a1a1a",
+        border: "#333",
+        text: "#e0e0e0",
+        textMuted: "#999",
+        textDim: "#777",
+        textFaint: "#666",
+        shadow: "-4px 0 20px rgba(0,0,0,0.3)",
+        badgeBg: "#333",
+        rowActiveBg: "#2a2a2a",
+        rowActiveBorder: "#444",
+        rowHoverBg: "#222",
+        rowActiveText: "#fff",
+        rowText: "#ccc",
+        idColor: "#555",
+      }
+    : {
+        bg: "#ffffff",
+        border: "#e0e0e0",
+        text: "#1a1a1a",
+        textMuted: "#666",
+        textDim: "#888",
+        textFaint: "#aaa",
+        shadow: "-4px 0 20px rgba(0,0,0,0.08)",
+        badgeBg: "#eee",
+        rowActiveBg: "#f0f0f0",
+        rowActiveBorder: "#ccc",
+        rowHoverBg: "#f5f5f5",
+        rowActiveText: "#000",
+        rowText: "#333",
+        idColor: "#aaa",
+      };
+}
+
+export function SessionPanel({ editorRef, open, onClose, darkMode }: SessionPanelProps) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const c = panelColors(darkMode ?? true);
 
   useEffect(() => {
     if (!open) return;
@@ -107,21 +145,22 @@ export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
         right: 0,
         bottom: 0,
         width: 360,
-        background: "#1a1a1a",
-        borderLeft: "1px solid #333",
+        background: c.bg,
+        borderLeft: `1px solid ${c.border}`,
         zIndex: 1000,
         display: "flex",
         flexDirection: "column",
         fontFamily: "system-ui, -apple-system, sans-serif",
-        color: "#e0e0e0",
-        boxShadow: "-4px 0 20px rgba(0,0,0,0.3)",
+        color: c.text,
+        boxShadow: c.shadow,
+        transition: "background 0.2s, color 0.2s, border-color 0.2s",
       }}
     >
       {/* Header */}
       <div
         style={{
           padding: "16px 20px",
-          borderBottom: "1px solid #333",
+          borderBottom: `1px solid ${c.border}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -134,10 +173,10 @@ export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
           <span
             style={{
               fontSize: 11,
-              background: "#333",
+              background: c.badgeBg,
               borderRadius: 10,
               padding: "2px 8px",
-              color: "#999",
+              color: c.textMuted,
             }}
           >
             {sessions.length}
@@ -148,7 +187,7 @@ export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
           style={{
             background: "none",
             border: "none",
-            color: "#999",
+            color: c.textMuted,
             cursor: "pointer",
             padding: 4,
             display: "flex",
@@ -167,11 +206,11 @@ export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
         }}
       >
         {loading ? (
-          <div style={{ padding: 20, textAlign: "center", color: "#666" }}>
+          <div style={{ padding: 20, textAlign: "center", color: c.textFaint }}>
             Loading...
           </div>
         ) : sessions.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "#666" }}>
+          <div style={{ padding: 20, textAlign: "center", color: c.textFaint }}>
             No sessions yet.
           </div>
         ) : (
@@ -181,6 +220,7 @@ export function SessionPanel({ editorRef, open, onClose }: SessionPanelProps) {
               session={s}
               active={activeSessionId === s.session_id}
               onFocus={() => focusSession(s.session_id)}
+              colors={c}
             />
           ))
         )}
@@ -193,10 +233,12 @@ function SessionRow({
   session,
   active,
   onFocus,
+  colors: c,
 }: {
   session: SessionInfo;
   active: boolean;
   onFocus: () => void;
+  colors: ReturnType<typeof panelColors>;
 }) {
   const summary = session.summary || "(no prompt)";
   const truncated =
@@ -219,18 +261,18 @@ function SessionRow({
         display: "block",
         width: "100%",
         textAlign: "left",
-        background: active ? "#2a2a2a" : "transparent",
-        border: active ? "1px solid #444" : "1px solid transparent",
+        background: active ? c.rowActiveBg : "transparent",
+        border: active ? `1px solid ${c.rowActiveBorder}` : "1px solid transparent",
         borderRadius: 8,
         padding: "12px 14px",
         marginBottom: 4,
         cursor: "pointer",
         transition: "background 0.15s",
-        color: "#e0e0e0",
+        color: c.text,
       }}
       onMouseEnter={(e) => {
         if (!active)
-          (e.currentTarget as HTMLElement).style.background = "#222";
+          (e.currentTarget as HTMLElement).style.background = c.rowHoverBg;
       }}
       onMouseLeave={(e) => {
         if (!active)
@@ -242,7 +284,7 @@ function SessionRow({
           fontSize: 13,
           lineHeight: 1.4,
           marginBottom: 6,
-          color: active ? "#fff" : "#ccc",
+          color: active ? c.rowActiveText : c.rowText,
         }}
       >
         {truncated}
@@ -252,7 +294,7 @@ function SessionRow({
           display: "flex",
           gap: 10,
           fontSize: 11,
-          color: "#777",
+          color: c.textDim,
           alignItems: "center",
         }}
       >
@@ -270,7 +312,7 @@ function SessionRow({
           <Clock size={10} />
           {timeAgo}
         </span>
-        <span style={{ fontFamily: "monospace", fontSize: 10, color: "#555" }}>
+        <span style={{ fontFamily: "monospace", fontSize: 10, color: c.idColor }}>
           {session.session_id.slice(0, 8)}
         </span>
         <ChevronRight
@@ -282,7 +324,8 @@ function SessionRow({
   );
 }
 
-export function SessionPanelToggle({ onClick }: { onClick: () => void }) {
+export function SessionPanelToggle({ onClick, darkMode }: { onClick: () => void; darkMode?: boolean }) {
+  const dark = darkMode ?? true;
   return (
     <button
       onClick={onClick}
@@ -295,14 +338,15 @@ export function SessionPanelToggle({ onClick }: { onClick: () => void }) {
         width: 36,
         height: 36,
         borderRadius: 8,
-        background: "rgba(0,0,0,0.6)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        color: "#ccc",
+        background: dark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.8)",
+        border: dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)",
+        color: dark ? "#ccc" : "#555",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         backdropFilter: "blur(8px)",
+        transition: "background 0.2s, color 0.2s, border-color 0.2s",
       }}
     >
       <History size={16} />

@@ -21,9 +21,8 @@ import {
   ThinkingIndicatorShapeUtil,
 } from "@/lib/shapes";
 
-import { analyzeForSingleLoop, extractPointsFromShape } from "@/lib/gesture-detection";
+import { analyzeForSingleLoop } from "@/lib/gesture-detection";
 import { HoldDetector } from "@/lib/hold-detection";
-import { ScratchOutDetector } from "@/lib/scratch-out-detection";
 import { cancelClaudeCodeRef, retryClaudeCodeRef, dismissCancelledRef } from "@/lib/shapes/thinking-indicator-shape";
 import {
   loadCanvasData,
@@ -108,7 +107,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
   const holdDetectorRef = useRef<HoldDetector | null>(null);
-  const scratchOutDetectorRef = useRef<ScratchOutDetector | null>(null);
   const themeStyleRef = useRef<HTMLStyleElement | null>(null);
   const gestureCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [originalStrokeProps, setOriginalStrokeProps] = useState<{
@@ -864,25 +862,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             }
           });
 
-          // Initialize scratch-out detector for cancelling/dismissing
-          scratchOutDetectorRef.current = new ScratchOutDetector();
-          scratchOutDetectorRef.current.setScratchCallback(() => {
-            const allShapes = editor.getCurrentPageShapes();
-            const thinkingShape = allShapes.find(
-              (s: any) => s.type === "thinking-indicator"
-            );
-            const isCancelled = thinkingShape && (thinkingShape as any).props?.cancelled;
-
-            if (isCancelled) {
-              console.log("Scratch-out dismiss gesture detected!");
-              // Dismiss is handled in the pointer_up handler
-            } else {
-              console.log("Scratch-out cancel gesture detected!");
-              if (cancelClaudeCodeRef.current) {
-                cancelClaudeCodeRef.current();
-              }
-            }
-          });
+          // Scratch-out detector disabled — was triggering woodpecker sessions unintentionally
 
           // Auto-revert to pen after other tools
           editor.on("event", (info) => {
@@ -935,13 +915,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
                 };
                 thinkingBoundsOnDown = shapeBounds;
                 wasCancelledOnDown = !!(thinkingShape as any).props?.cancelled;
-                if (scratchOutDetectorRef.current) {
-                  scratchOutDetectorRef.current.setTargetBounds(shapeBounds);
-                }
               } else {
-                if (scratchOutDetectorRef.current) {
-                  scratchOutDetectorRef.current.setTargetBounds(null);
-                }
               }
             }
 
@@ -951,35 +925,8 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
               // current shape state, which may have changed mid-gesture.
               const isCancelledState = wasCancelledOnDown;
 
-              // 1. Check for scratch-out gesture first (takes priority over tap)
-              let wasScratchOut = false;
-              if (scratchOutDetectorRef.current?.getTargetBounds()) {
-                const allShapesUp = editor.getCurrentPageShapes();
-                const drawShapes = allShapesUp.filter(
-                  (s: any) => s.type === "draw"
-                );
-                const lastStroke = drawShapes[drawShapes.length - 1];
-                if (lastStroke) {
-                  const points = extractPointsFromShape(lastStroke as any);
-                  wasScratchOut = scratchOutDetectorRef.current.checkStroke(points);
-                  if (wasScratchOut) {
-                    // Delete the scratch-out stroke so it doesn't litter the canvas
-                    try { editor.deleteShape(lastStroke.id); } catch {}
-
-                    if (isCancelledState) {
-                      // Scratch on cancelled → dismiss
-                      console.log("Scratch-to-dismiss triggered on cancelled indicator");
-                      if (dismissCancelledRef.current) {
-                        dismissCancelledRef.current();
-                      }
-                    }
-                    // Scratch on active → cancel (already handled by scratchOutDetector callback)
-                  }
-                }
-              }
-
-              // 2. If not a scratch-out, check for tap
-              if (!wasScratchOut && tapStartPagePoint && thinkingBoundsOnDown && info.point) {
+              // Check for tap gesture
+              if (tapStartPagePoint && thinkingBoundsOnDown && info.point) {
                 // Convert screen coords to page coords
                 const camera = editor.getCamera();
                 const pageX = (info.point.x - camera.x) / camera.z;
@@ -1099,9 +1046,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
             if (holdDetectorRef.current) {
               holdDetectorRef.current.cancelHoldDetection();
             }
-            if (scratchOutDetectorRef.current) {
-              scratchOutDetectorRef.current.cleanup();
-            }
             if (gestureCheckTimerRef.current) {
               clearTimeout(gestureCheckTimerRef.current);
               gestureCheckTimerRef.current = null;
@@ -1140,12 +1084,13 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
       />
 
       {!showSessionPanel && (
-        <SessionPanelToggle onClick={() => setShowSessionPanel(true)} />
+        <SessionPanelToggle onClick={() => setShowSessionPanel(true)} darkMode={darkMode} />
       )}
       <SessionPanel
         editorRef={editorRef}
         open={showSessionPanel}
         onClose={() => setShowSessionPanel(false)}
+        darkMode={darkMode}
       />
     </div>
   );

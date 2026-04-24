@@ -6,16 +6,20 @@ interface ThemePickerProps {
   themes: ThemeConfig[];
   selectedId: string;
   isDark: boolean;
+  magicPenActive?: boolean;
   onSelectTheme: (id: string) => void;
   onToggleDark: () => void;
+  onToggleMagicPen?: () => void;
 }
 
 export function ThemePicker({
   themes,
   selectedId,
   isDark,
+  magicPenActive,
   onSelectTheme,
   onToggleDark,
+  onToggleMagicPen,
 }: ThemePickerProps) {
   const btnBase: React.CSSProperties = {
     display: "block",
@@ -124,6 +128,44 @@ export function ThemePicker({
         </button>
       </div>
 
+      {onToggleMagicPen && (
+        <div
+          style={{
+            borderTop: `1px solid ${borderColor}`,
+            margin: "8px 0",
+            padding: "8px 0 0 0",
+          }}
+        >
+          <button
+            onClick={onToggleMagicPen}
+            style={{
+              ...btnBase,
+              background: magicPenActive
+                ? "linear-gradient(135deg, rgba(102,68,204,0.25), rgba(68,136,255,0.2))"
+                : "transparent",
+              color: magicPenActive ? "#aa88ff" : textColor,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              border: magicPenActive ? "1px solid rgba(170,68,255,0.3)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!magicPenActive) {
+                e.currentTarget.style.background = hoverBg;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!magicPenActive) {
+                e.currentTarget.style.background = "transparent";
+              }
+            }}
+          >
+            <MagicPenIcon active={!!magicPenActive} />
+            {magicPenActive ? "Magic Pen On" : "Magic Pen"}
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           borderTop: `1px solid ${borderColor}`,
@@ -152,5 +194,26 @@ export function ThemePicker({
         </button>
       </div>
     </div>
+  );
+}
+
+function MagicPenIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M2 14L6 10M6 10L12.5 3.5C13.3 2.7 14.3 2.7 15 3.5C15.7 4.3 15.7 5.3 14.9 6.1L8.5 12.5L6 10Z"
+        stroke={active ? "#aa88ff" : "currentColor"}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {active && (
+        <>
+          <circle cx="3" cy="3" r="0.8" fill="#aa88ff" opacity={0.8} />
+          <circle cx="5" cy="1.5" r="0.6" fill="#6644cc" opacity={0.6} />
+          <circle cx="1.5" cy="5.5" r="0.5" fill="#4488ff" opacity={0.7} />
+        </>
+      )}
+    </svg>
   );
 }

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Ink Styles — 10 Prototypes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  [data-theme="dark"] {
+    --bg: #0a0a14;
+    --card-bg: #111122;
+    --card-border: rgba(255,255,255,0.08);
+    --text: #e0e0f0;
+    --text-secondary: #888;
+    --toggle-bg: rgba(255,255,255,0.08);
+    --toggle-color: #aaa;
+  }
+
+  [data-theme="light"] {
+    --bg: #f0f0f8;
+    --card-bg: #ffffff;
+    --card-border: rgba(0,0,0,0.1);
+    --text: #1a1a2e;
+    --text-secondary: #666;
+    --toggle-bg: rgba(0,0,0,0.06);
+    --toggle-color: #555;
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    padding: 40px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--text);
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px;
+    width: 40px; height: 40px; border-radius: 8px; border: none;
+    background: var(--toggle-bg); color: var(--toggle-color);
+    font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.3s; z-index: 100;
+  }
+
+  h1 {
+    text-align: center;
+    margin-bottom: 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    font-size: 14px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  .card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .card .tech {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .card svg {
+    width: 100%;
+    height: 240px;
+    display: block;
+  }
+
+  /* ======= STYLE 1: Rainbow Shimmer ======= */
+  @keyframes rainbow-shift {
+    0% { stop-color: #ff0000; }
+    16% { stop-color: #ff8800; }
+    33% { stop-color: #ffff00; }
+    50% { stop-color: #00ff88; }
+    66% { stop-color: #0088ff; }
+    83% { stop-color: #8800ff; }
+    100% { stop-color: #ff0000; }
+  }
+  @keyframes rainbow-shift2 {
+    0% { stop-color: #00ff88; }
+    16% { stop-color: #0088ff; }
+    33% { stop-color: #8800ff; }
+    50% { stop-color: #ff0000; }
+    66% { stop-color: #ff8800; }
+    83% { stop-color: #ffff00; }
+    100% { stop-color: #00ff88; }
+  }
+
+  /* ======= STYLE 4: Neon Pulse ======= */
+  @keyframes neon-pulse {
+    0%, 100% { filter: drop-shadow(0 0 4px #00ffff) drop-shadow(0 0 8px #ff00ff) drop-shadow(0 0 16px #00ffff); opacity: 1; }
+    50% { filter: drop-shadow(0 0 8px #00ffff) drop-shadow(0 0 16px #ff00ff) drop-shadow(0 0 32px #00ffff); opacity: 0.9; }
+  }
+  .neon-stroke {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+
+  /* ======= STYLE 6: Phoenix Fire flicker ======= */
+  @keyframes fire-flicker {
+    0%, 100% { filter: url(#filter-phoenix); opacity: 1; }
+    25% { filter: url(#filter-phoenix); opacity: 0.95; }
+    50% { filter: url(#filter-phoenix); opacity: 1; }
+    75% { filter: url(#filter-phoenix); opacity: 0.92; }
+  }
+
+  /* ======= STYLE 8: Firefly particles ======= */
+  @keyframes firefly1 { 0%,100% { opacity: 0; transform: translate(0,0); } 30%,70% { opacity: 1; } 50% { transform: translate(8px,-12px); } }
+  @keyframes firefly2 { 0%,100% { opacity: 0; transform: translate(0,0); } 40%,60% { opacity: 1; } 50% { transform: translate(-6px,-8px); } }
+  @keyframes firefly3 { 0%,100% { opacity: 0; transform: translate(0,0); } 20%,80% { opacity: 1; } 50% { transform: translate(10px,6px); } }
+
+  /* ======= STYLE 9: Hue rotation ======= */
+  @keyframes hue-rotate {
+    0% { filter: url(#filter-nebula) hue-rotate(0deg); }
+    100% { filter: url(#filter-nebula) hue-rotate(360deg); }
+  }
+  .cosmic-stroke {
+    animation: hue-rotate 6s linear infinite;
+  }
+
+  /* ======= STYLE 10: Golden Rune pulse ======= */
+  @keyframes rune-pulse {
+    0%, 100% { filter: url(#filter-rune) drop-shadow(0 0 6px #ffd700); }
+    50% { filter: url(#filter-rune) drop-shadow(0 0 14px #ffd700) drop-shadow(0 0 28px #ff8c00); }
+  }
+  .rune-stroke {
+    animation: rune-pulse 3s ease-in-out infinite;
+  }
+
+  /* ======= STYLE 3: Stardust dash animation ======= */
+  @keyframes stardust-dash {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -40; }
+  }
+  @keyframes stardust-glow {
+    0%, 100% { filter: url(#filter-stardust); opacity: 0.8; }
+    50% { filter: url(#filter-stardust-bright); opacity: 1; }
+  }
+
+  /* ======= STYLE 2: Aurora undulation ======= */
+  @keyframes aurora-wave {
+    0% { filter: url(#filter-aurora-1); }
+    50% { filter: url(#filter-aurora-2); }
+    100% { filter: url(#filter-aurora-1); }
+  }
+  .aurora-stroke {
+    animation: aurora-wave 4s ease-in-out infinite;
+  }
+
+  /* ======= STYLE 7: Crystal sparkle ======= */
+  @keyframes crystal-sparkle {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">&#9790;</button>
+
+<h1>Magic Ink Styles</h1>
+<p class="subtitle">10 prototype ink styles for the spatial magic pen</p>
+
+<!-- Shared SVG path data: flowing S-curve simulating a pen stroke -->
+<!-- Path used in each card's SVG -->
+
+<div class="grid">
+
+  <!-- ========== 1. Rainbow Shimmer ========== -->
+  <div class="card">
+    <h3>1. Rainbow Shimmer</h3>
+    <p class="tech">Animated linearGradient + soft blur glow</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-rainbow" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"><animate attributeName="stop-color" values="#ff0000;#ff8800;#ffff00;#00ff88;#0088ff;#8800ff;#ff0000" dur="3s" repeatCount="indefinite"/></stop>
+          <stop offset="33%"><animate attributeName="stop-color" values="#ffff00;#00ff88;#0088ff;#8800ff;#ff0000;#ff8800;#ffff00" dur="3s" repeatCount="indefinite"/></stop>
+          <stop offset="66%"><animate attributeName="stop-color" values="#0088ff;#8800ff;#ff0000;#ff8800;#ffff00;#00ff88;#0088ff" dur="3s" repeatCount="indefinite"/></stop>
+          <stop offset="100%"><animate attributeName="stop-color" values="#8800ff;#ff0000;#ff8800;#ffff00;#00ff88;#0088ff;#8800ff" dur="3s" repeatCount="indefinite"/></stop>
+        </linearGradient>
+        <filter id="filter-rainbow">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-rainbow)" stroke-width="5" stroke-linecap="round"
+            filter="url(#filter-rainbow)"/>
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-rainbow)" stroke-width="2" stroke-linecap="round" opacity="0.5"
+            filter="url(#filter-rainbow)"/>
+    </svg>
+  </div>
+
+  <!-- ========== 2. Aurora Borealis ========== -->
+  <div class="card">
+    <h3>2. Aurora Borealis</h3>
+    <p class="tech">Green/cyan/purple gradient + feTurbulence displacement</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-aurora" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00ff88"/>
+          <stop offset="40%" stop-color="#00ddff"/>
+          <stop offset="70%" stop-color="#8844ff"/>
+          <stop offset="100%" stop-color="#ff44ff"/>
+        </linearGradient>
+        <filter id="filter-aurora-1" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="turbulence" baseFrequency="0.015" numOctaves="3" seed="1" result="turb"/>
+          <feDisplacementMap in="SourceGraphic" in2="turb" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+          <feGaussianBlur stdDeviation="2"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="filter-aurora-2" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="3" seed="5" result="turb"/>
+          <feDisplacementMap in="SourceGraphic" in2="turb" scale="12" xChannelSelector="R" yChannelSelector="G"/>
+          <feGaussianBlur stdDeviation="2.5"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Wide glow layer -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-aurora)" stroke-width="12" stroke-linecap="round"
+            opacity="0.3" class="aurora-stroke"/>
+      <!-- Main stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-aurora)" stroke-width="4" stroke-linecap="round"
+            class="aurora-stroke"/>
+    </svg>
+  </div>
+
+  <!-- ========== 3. Stardust Trail ========== -->
+  <div class="card">
+    <h3>3. Stardust Trail</h3>
+    <p class="tech">Gold fill + animated dashed particle overlay + layered blur</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-stardust" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffd700"/>
+          <stop offset="50%" stop-color="#fff8dc"/>
+          <stop offset="100%" stop-color="#ffd700"/>
+        </linearGradient>
+        <filter id="filter-stardust" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="glow"/>
+          <feMerge>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="filter-stardust-bright" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="glow"/>
+          <feMerge>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Outer glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffd700" stroke-width="10" stroke-linecap="round"
+            opacity="0.2" filter="url(#filter-stardust)"/>
+      <!-- Core stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-stardust)" stroke-width="4" stroke-linecap="round"
+            filter="url(#filter-stardust)"/>
+      <!-- Sparkle particles -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"
+            stroke-dasharray="2 18" opacity="0.9"
+            style="animation: stardust-dash 1.5s linear infinite;"/>
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round"
+            stroke-dasharray="1 25" opacity="0.7"
+            style="animation: stardust-dash 2s linear infinite; stroke-dashoffset: 10;"/>
+    </svg>
+  </div>
+
+  <!-- ========== 4. Neon Pulse ========== -->
+  <div class="card">
+    <h3>4. Neon Pulse</h3>
+    <p class="tech">Triple drop-shadow cyan/magenta + pulsing brightness</p>
+    <svg viewBox="0 0 400 240">
+      <!-- Magenta under-glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ff00ff" stroke-width="8" stroke-linecap="round"
+            opacity="0.3" class="neon-stroke"/>
+      <!-- Cyan glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#00ffff" stroke-width="5" stroke-linecap="round"
+            opacity="0.6" class="neon-stroke"/>
+      <!-- Bright core -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"
+            class="neon-stroke"/>
+    </svg>
+  </div>
+
+  <!-- ========== 5. Mystic Smoke ========== -->
+  <div class="card">
+    <h3>5. Mystic Smoke</h3>
+    <p class="tech">Purple/blue haze via feTurbulence + sharp stroke overlay</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-smoke" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#6644cc"/>
+          <stop offset="50%" stop-color="#4488ff"/>
+          <stop offset="100%" stop-color="#aa44ff"/>
+        </linearGradient>
+        <filter id="filter-smoke" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" seed="42" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"/>
+          <feGaussianBlur in="displaced" stdDeviation="6" result="haze"/>
+          <feMerge>
+            <feMergeNode in="haze"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Smoke haze -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-smoke)" stroke-width="16" stroke-linecap="round"
+            opacity="0.4" filter="url(#filter-smoke)"/>
+      <!-- Mid glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-smoke)" stroke-width="8" stroke-linecap="round"
+            opacity="0.5" filter="url(#filter-smoke)"/>
+      <!-- Sharp core -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ccbbff" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <!-- ========== 6. Phoenix Fire ========== -->
+  <div class="card">
+    <h3>6. Phoenix Fire</h3>
+    <p class="tech">Red-to-gold gradient + turbulence displacement for flame flicker</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-phoenix" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ff2200"/>
+          <stop offset="30%" stop-color="#ff6600"/>
+          <stop offset="60%" stop-color="#ffaa00"/>
+          <stop offset="100%" stop-color="#ffd700"/>
+        </linearGradient>
+        <filter id="filter-phoenix" x="-10%" y="-20%" width="120%" height="140%">
+          <feTurbulence type="turbulence" baseFrequency="0.04 0.08" numOctaves="3" result="turb">
+            <animate attributeName="seed" from="1" to="10" dur="0.8s" repeatCount="indefinite"/>
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="turb" scale="10" xChannelSelector="R" yChannelSelector="G" result="displaced"/>
+          <feGaussianBlur in="displaced" stdDeviation="2" result="blurred"/>
+          <feMerge>
+            <feMergeNode in="blurred"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Fire glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ff4400" stroke-width="14" stroke-linecap="round"
+            opacity="0.3" filter="url(#filter-phoenix)"/>
+      <!-- Main fire -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-phoenix)" stroke-width="5" stroke-linecap="round"
+            filter="url(#filter-phoenix)"/>
+      <!-- Bright core -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffffcc" stroke-width="1.5" stroke-linecap="round"
+            opacity="0.8"/>
+    </svg>
+  </div>
+
+  <!-- ========== 7. Crystal Ice ========== -->
+  <div class="card">
+    <h3>7. Crystal Ice</h3>
+    <p class="tech">White-blue fill + feSpecularLighting + frost sparkle</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-ice" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#88ddff"/>
+          <stop offset="50%" stop-color="#ffffff"/>
+          <stop offset="100%" stop-color="#88ccff"/>
+        </linearGradient>
+        <filter id="filter-ice" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+          <feSpecularLighting in="blur" specularExponent="40" lighting-color="#ffffff" result="spec" surfaceScale="5">
+            <fePointLight x="200" y="80" z="200"/>
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="glow"/>
+          <feMerge>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="SourceGraphic"/>
+            <feMergeNode in="specOut"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Ice glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#44aaff" stroke-width="10" stroke-linecap="round"
+            opacity="0.25" filter="url(#filter-ice)"/>
+      <!-- Main ice stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-ice)" stroke-width="4" stroke-linecap="round"
+            filter="url(#filter-ice)"/>
+      <!-- Sparkle dots along path -->
+      <circle cx="80" cy="100" r="2" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out infinite;"/>
+      <circle cx="150" cy="60" r="1.5" fill="#ccffff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out 0.4s infinite;"/>
+      <circle cx="220" cy="130" r="2" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out 0.8s infinite;"/>
+      <circle cx="290" cy="100" r="1.5" fill="#ccffff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out 1.2s infinite;"/>
+      <circle cx="340" cy="75" r="2" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out 1.6s infinite;"/>
+    </svg>
+  </div>
+
+  <!-- ========== 8. Enchanted Forest ========== -->
+  <div class="card">
+    <h3>8. Enchanted Forest</h3>
+    <p class="tech">Emerald bioluminescent glow + firefly particle animations</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-forest" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00cc44"/>
+          <stop offset="50%" stop-color="#44ff88"/>
+          <stop offset="100%" stop-color="#00cc66"/>
+        </linearGradient>
+        <filter id="filter-forest" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="glow"/>
+          <feMerge>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="glow"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Bioluminescent glow -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#00ff66" stroke-width="16" stroke-linecap="round"
+            opacity="0.2" filter="url(#filter-forest)"/>
+      <!-- Main stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-forest)" stroke-width="4" stroke-linecap="round"
+            filter="url(#filter-forest)"/>
+      <!-- Firefly particles -->
+      <circle cx="100" cy="90" r="3" fill="#88ff88" opacity="0"
+              style="animation: firefly1 3s ease-in-out infinite;">
+        <animate attributeName="r" values="2;3;2" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="180" cy="110" r="2.5" fill="#aaff66" opacity="0"
+              style="animation: firefly2 3.5s ease-in-out 0.5s infinite;"/>
+      <circle cx="260" cy="140" r="3" fill="#66ffaa" opacity="0"
+              style="animation: firefly3 2.8s ease-in-out 1s infinite;"/>
+      <circle cx="320" cy="80" r="2" fill="#88ff88" opacity="0"
+              style="animation: firefly1 3.2s ease-in-out 1.5s infinite;"/>
+      <circle cx="140" cy="65" r="2.5" fill="#ccffaa" opacity="0"
+              style="animation: firefly2 4s ease-in-out 2s infinite;"/>
+    </svg>
+  </div>
+
+  <!-- ========== 9. Cosmic Nebula ========== -->
+  <div class="card">
+    <h3>9. Cosmic Nebula</h3>
+    <p class="tech">Purple/pink/blue gradient + diffuse blur + star particles + hue rotation</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-nebula" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#8844ff"/>
+          <stop offset="33%" stop-color="#ff44aa"/>
+          <stop offset="66%" stop-color="#4488ff"/>
+          <stop offset="100%" stop-color="#aa44ff"/>
+        </linearGradient>
+        <filter id="filter-nebula" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="bigblur"/>
+          <feMerge>
+            <feMergeNode in="bigblur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Nebula cloud -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-nebula)" stroke-width="20" stroke-linecap="round"
+            opacity="0.25" class="cosmic-stroke"/>
+      <!-- Mid layer -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-nebula)" stroke-width="6" stroke-linecap="round"
+            class="cosmic-stroke"/>
+      <!-- Bright core -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#eeddff" stroke-width="2" stroke-linecap="round"
+            opacity="0.7"/>
+      <!-- Star particles -->
+      <circle cx="70" cy="140" r="1.2" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 1.8s ease-in-out infinite;"/>
+      <circle cx="130" cy="55" r="1" fill="#ffddff" opacity="0" style="animation: crystal-sparkle 2.2s ease-in-out 0.3s infinite;"/>
+      <circle cx="210" cy="125" r="1.5" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 1.5s ease-in-out 0.7s infinite;"/>
+      <circle cx="280" cy="160" r="1" fill="#ddddff" opacity="0" style="animation: crystal-sparkle 2s ease-in-out 1.1s infinite;"/>
+      <circle cx="350" cy="65" r="1.3" fill="#ffffff" opacity="0" style="animation: crystal-sparkle 1.7s ease-in-out 1.5s infinite;"/>
+      <circle cx="170" cy="85" r="0.8" fill="#ffccff" opacity="0" style="animation: crystal-sparkle 2.5s ease-in-out 0.5s infinite;"/>
+    </svg>
+  </div>
+
+  <!-- ========== 10. Golden Rune ========== -->
+  <div class="card">
+    <h3>10. Golden Rune</h3>
+    <p class="tech">Metallic gold + feSpecularLighting + pulsing glow + double-stroke</p>
+    <svg viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="grad-rune" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#cc8800"/>
+          <stop offset="30%" stop-color="#ffd700"/>
+          <stop offset="50%" stop-color="#ffeeaa"/>
+          <stop offset="70%" stop-color="#ffd700"/>
+          <stop offset="100%" stop-color="#cc8800"/>
+        </linearGradient>
+        <filter id="filter-rune" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+          <feSpecularLighting in="blur" specularExponent="30" lighting-color="#ffd700" result="spec" surfaceScale="4">
+            <fePointLight x="200" y="100" z="150"/>
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut"/>
+          <feMerge>
+            <feMergeNode in="SourceGraphic"/>
+            <feMergeNode in="specOut"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Outer double stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#cc8800" stroke-width="8" stroke-linecap="round"
+            opacity="0.3" class="rune-stroke"/>
+      <!-- Main metallic stroke -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="url(#grad-rune)" stroke-width="4.5" stroke-linecap="round"
+            class="rune-stroke"/>
+      <!-- Inner bright highlight -->
+      <path d="M40,180 C80,40 160,40 200,120 S320,200 360,60"
+            fill="none" stroke="#ffeecc" stroke-width="1.5" stroke-linecap="round"
+            opacity="0.6"/>
+    </svg>
+  </div>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-toggle');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '\u2600';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '\u263E';
+    }
+  }
+</script>
+
+</body>
+</html>

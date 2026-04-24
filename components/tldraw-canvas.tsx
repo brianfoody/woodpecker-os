@@ -7,6 +7,7 @@ import {
   TLComponents,
   DefaultToolbar,
   DefaultToolbarContent,
+  TldrawUiToolbarButton,
   loadSnapshot,
   TLShape,
   createShapeId,
@@ -1065,25 +1066,21 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
 function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
-    <button
-      className="tlui-button"
+    <TldrawUiToolbarButton
+      type="tool"
       data-testid="magic-pen-tool"
-      data-isactive={active}
+      isActive={active}
       onClick={onClick}
       aria-label="Magic pen"
       title="Magic Pen"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
-        {/* Brain — left hemisphere */}
         <path d="M9 2C7.5 2 6.2 2.8 5.6 4C4.4 4.2 3.5 5.2 3.5 6.5C3.5 7 3.6 7.4 3.9 7.8C3.3 8.3 3 9.1 3 9.8C3 10.8 3.6 11.6 4.5 12C4.5 13.2 5.5 14.2 6.8 14.2C7.5 14.2 8.1 13.9 8.5 13.4" />
-        {/* Brain — right hemisphere */}
         <path d="M9 2C10.5 2 11.8 2.8 12.4 4C13.6 4.2 14.5 5.2 14.5 6.5C14.5 7 14.4 7.4 14.1 7.8C14.7 8.3 15 9.1 15 9.8C15 10.8 14.4 11.6 13.5 12C13.5 13.2 12.5 14.2 11.2 14.2C10.5 14.2 9.9 13.9 9.5 13.4" />
-        {/* Center line */}
         <line x1="9" y1="2" x2="9" y2="16" />
-        {/* Brain stem */}
         <path d="M7.5 16C7.5 15.2 8.2 14.5 9 14.5C9.8 14.5 10.5 15.2 10.5 16" />
       </svg>
-    </button>
+    </TldrawUiToolbarButton>
   );
 }
 

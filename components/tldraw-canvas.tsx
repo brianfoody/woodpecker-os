@@ -138,10 +138,55 @@ export default function TldrawCanvas({ theme, storageKey, darkMode, onToggleDark
       themeStyleRef.current.textContent = `.tl-background { background-color: ${theme.canvasBg} !important; }`;
     }
     // Tell tldraw about dark mode so "black" pen renders as white on dark canvas
-    if (editorRef.current) {
-      editorRef.current.user.updateUserPreferences({
+    const editor = editorRef.current;
+    if (editor) {
+      editor.user.updateUserPreferences({
         colorScheme: darkMode ? "dark" : "light",
       });
+
+      // Re-theme existing handwritten-text shapes so cards match the new palette
+      if (theme) {
+        const allShapes = editor.getCurrentPageShapes();
+        const updates: any[] = [];
+
+        for (const shape of allShapes) {
+          if (shape.type !== "handwritten-text") continue;
+          const p = shape.props as any;
+
+          // AI cards have a cardBg + cardLabel
+          if (p.cardBg && p.cardLabel === theme.aiLabelText) {
+            updates.push({
+              id: shape.id,
+              type: "handwritten-text",
+              props: {
+                color: theme.aiTextColor,
+                cardBg: theme.aiCardBg,
+                cardBorder: theme.aiCardBorder,
+                cardBorderWidth: theme.aiCardBorderWidth,
+                cardRadius: theme.aiCardRadius,
+                cardShadow: theme.aiCardShadow,
+                cardLabelColor: theme.aiLabelColor,
+              },
+            });
+          }
+          // User echo cards
+          else if (p.cardBg && p.cardLabel === (theme.userLabelText ?? "YOU")) {
+            updates.push({
+              id: shape.id,
+              type: "handwritten-text",
+              props: {
+                color: theme.userTextColor,
+                cardBg: theme.userCardBg,
+                cardLabelColor: theme.userLabelColor,
+              },
+            });
+          }
+        }
+
+        if (updates.length > 0) {
+          editor.updateShapes(updates);
+        }
+      }
     }
   }, [theme, darkMode]);
 

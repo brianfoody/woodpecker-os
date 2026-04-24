@@ -23,6 +23,7 @@ import {
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
 import { MysticSmokeFilter } from "@/components/explore/mystic-smoke-filter";
+import { MagicDrawTool } from "@/lib/magic-draw-tool";
 import { cancelClaudeCodeRef, retryClaudeCodeRef, dismissCancelledRef } from "@/lib/shapes/thinking-indicator-shape";
 import {
   loadCanvasData,
@@ -58,9 +59,11 @@ const shapeUtils = [
   ThinkingIndicatorShapeUtil,
 ];
 
+// Custom tools registered with tldraw (HMR-stable)
+const customTools = [MagicDrawTool];
+
 // Shared refs for cross-component communication (survives HMR)
 const magicWandCallbackRef: { current: ((stroke: any, editor: any) => Promise<void>) | null } = { current: null };
-const magicPenActiveRef: { current: boolean } = { current: false };
 const onboardingCallbackRef: { current: ((actionType: string, additionalData?: any) => void) | null } = { current: null };
 
 // ── Error boundary ──────────────────────────────────────────────────
@@ -111,7 +114,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
     size: string;
   } | null>(null);
 
-  // Magic pen state
+  // Magic pen — tracked via tldraw's current tool ("magic-draw")
   const [magicPenActive, setMagicPenActive] = useState(false);
   const magicShapeIdsRef = useRef<Set<string>>(new Set());
   const [magicShapeIds, setMagicShapeIds] = useState<string[]>([]);
@@ -619,49 +622,15 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
     };
   }, [handleMagicWandGesture]);
 
-  // Keep magic pen ref in sync for use inside event handlers
-  useEffect(() => {
-    magicPenActiveRef.current = magicPenActive;
-  }, [magicPenActive]);
-
   const handleToggleMagicPen = useCallback(() => {
-    setMagicPenActive((prev) => {
-      const next = !prev;
-      if (editorRef.current) {
-        // Always stay on draw tool, magic pen just changes the ink style
-        editorRef.current.setCurrentTool("draw");
-      }
-      return next;
-    });
-  }, []);
-
-  // Track magic pen strokes
-  useEffect(() => {
+    if (!editorRef.current) return;
     const editor = editorRef.current;
-    if (!editor) return;
-
-    const unsub = editor.store.listen((event: any) => {
-      if (!magicPenActiveRef.current) return;
-
-      const added = Object.values(event.changes.added) as any[];
-      let changed = false;
-
-      for (const record of added) {
-        if (record.typeName === "shape" && record.type === "draw") {
-          if (!magicShapeIdsRef.current.has(record.id)) {
-            magicShapeIdsRef.current.add(record.id);
-            changed = true;
-          }
-        }
-      }
-
-      if (changed) {
-        setMagicShapeIds(Array.from(magicShapeIdsRef.current));
-      }
-    });
-
-    return unsub;
-  }, [magicPenActive]);
+    if (editor.getCurrentToolId() === "magic-draw") {
+      editor.setCurrentTool("draw");
+    } else {
+      editor.setCurrentTool("magic-draw");
+    }
+  }, []);
 
   // Expose cancel/retry/dismiss to the thinking-indicator shape
   useEffect(() => {
@@ -724,6 +693,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
       <TldrawErrorBoundary>
       <Tldraw
         shapeUtils={shapeUtils}
+        tools={customTools}
         overrides={uiOverrides}
         components={uiComponents}
         onMount={(editor) => {
@@ -905,7 +875,32 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           setTimeout(() => editor.setCurrentTool("draw"), 100);
           setTimeout(() => editor.setCurrentTool("draw"), 200);
 
-          // Auto-revert to pen after other tools
+          // Sync magicPenActive state when tool changes
+          const syncMagicState = () => {
+            const isMagic = editor.getCurrentToolId() === "magic-draw";
+            setMagicPenActive(isMagic);
+          };
+          editor.on("change", syncMagicState);
+
+          // Track shapes created while magic-draw tool is active
+          const trackMagicShapes = editor.store.listen((event: any) => {
+            if (editor.getCurrentToolId() !== "magic-draw") return;
+            const added = Object.values(event.changes.added) as any[];
+            let changed = false;
+            for (const record of added) {
+              if (record.typeName === "shape" && record.type === "draw") {
+                if (!magicShapeIdsRef.current.has(record.id)) {
+                  magicShapeIdsRef.current.add(record.id);
+                  changed = true;
+                }
+              }
+            }
+            if (changed) {
+              setMagicShapeIds(Array.from(magicShapeIdsRef.current));
+            }
+          });
+
+          // Auto-revert to pen after other tools (not magic-draw)
           editor.on("event", (info) => {
             if (info.type === "pointer" && info.name === "pointer_up") {
               const currentTool = editor.getCurrentToolId();
@@ -987,7 +982,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
               thinkingBoundsOnDown = null;
 
               // Magic pen: check if the latest stroke forms a closed loop
-              if (magicPenActiveRef.current) {
+              if (editor.getCurrentToolId() === "magic-draw") {
                 // Skip if a thinking indicator is already active
                 const hasThinking = editor.getCurrentPageShapes().some(
                   (s: any) => s.type === "thinking-indicator"
@@ -1021,6 +1016,8 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
               responseRendererRef.current.clearResponses();
             }
             unsubscribe();
+            trackMagicShapes();
+            editor.off("change", syncMagicState);
             if (autoSaverRef.current) {
               autoSaverRef.current.cleanup();
             }

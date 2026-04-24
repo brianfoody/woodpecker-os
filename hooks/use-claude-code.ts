@@ -489,7 +489,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           props: {
             w: 665,
             h: 90,
-            label: "reading...",
+            label: "analysing your request...",
             cardBg: theme.userCardBg,
             cardBorder: theme.userCardBorder ?? theme.aiCardBorder,
             cardBorderWidth: theme.userCardBorderWidth || 1,

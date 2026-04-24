@@ -25,6 +25,8 @@ export interface WoodpeckerCanvasTheme {
   googleFontsUrl: string;
   // User echo card tokens
   userCardBg: string;
+  userCardBorder: string | null;
+  userCardBorderWidth: number;
   userCardRadius: number;
   userTextColor: string;
   userTextOpacity: number;
@@ -70,6 +72,8 @@ export function createMossBarkTheme(): WoodpeckerCanvasTheme {
     googleFontsUrl: t.googleFontsUrl,
     // User echo card tokens
     userCardBg: `${l.accentUser}08`,
+    userCardBorder: null,
+    userCardBorderWidth: 0,
     userCardRadius: t.cardRadius ?? 16,
     userTextColor: l.accentUser,
     userTextOpacity: 0.75,
@@ -105,16 +109,18 @@ export function createNeonGridTheme(mode: "light" | "dark" = "light"): Woodpecke
     errorColor: "#ff4444",
     googleFontsUrl: t.googleFontsUrl,
     // User echo card tokens
-    userCardBg: `${tokens.accentUser}08`,
+    userCardBg: tokens.cardUserBg ?? (isDark ? "#0a1a12" : "rgba(0,255,170,0.06)"),
+    userCardBorder: tokens.cardUserBorder ?? tokens.accentUser,
+    userCardBorderWidth: 1,
     userCardRadius: t.cardRadius ?? 2,
     userTextColor: tokens.textPrimary,
     userTextOpacity: 1,
     userLabelText: "YOU",
     userLabelColor: tokens.labelUser ?? tokens.accentUser,
     userLabelOpacity: 0.6,
-    userFont: "'Caveat', cursive",
-    userLabelMarginBottom: 4,
-    userLineHeight: 1.4,
+    userFont: t.fonts.primary,
+    userLabelMarginBottom: 8,
+    userLineHeight: 1.6,
     // Label styling
     labelFontSize: t.labelFontSize,
     labelFontWeight: t.labelFontWeight,

@@ -1069,7 +1069,8 @@ function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () 
     <TldrawUiToolbarButton
       type="tool"
       data-testid="magic-pen-tool"
-      isActive={active}
+      data-value="magic-draw"
+      aria-pressed={active ? "true" : "false"}
       onClick={onClick}
       aria-label="Magic pen"
       title="Magic Pen"

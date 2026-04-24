@@ -205,7 +205,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           x: position.x,
           y: nextY,
           props: {
-            w: 500,
+            w: 665,
             h: 90,
             label,
             cardBg: theme.aiCardBg,
@@ -427,7 +427,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           size: "m",
           color: theme ? theme.aiTextColor : "black",
           autoSize: true,
-          w: 500,
+          w: 665,
           h: 40,
         };
 
@@ -491,7 +491,7 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
             size: "m",
             color: theme.userTextColor,
             autoSize: true,
-            w: 500,
+            w: 665,
             h: 40,
             cardBg: theme.userCardBg,
             cardBorder: null,

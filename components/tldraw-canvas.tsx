@@ -494,7 +494,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           const sourceBottom = aiCardForLayout.y + sourceH;
 
           const BRANCH_GAP = 20;
-          const RESPONSE_CARD_WIDTH = 500;
+          const RESPONSE_CARD_WIDTH = 665;
 
           // Calculate where the user wrote relative to the source AI card
           const userShapes = shapesInLoop.filter(
@@ -1084,18 +1084,17 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
     <button
-      className="tlui-toolbar__button"
+      className="tlui-button"
       data-testid="magic-pen-tool"
+      data-isactive={active}
       onClick={onClick}
       aria-label="Magic pen"
       title="Magic Pen"
       style={{
-        position: "relative",
-        color: active ? "#aa88ff" : "var(--color-text-1)",
+        color: active ? "#aa88ff" : undefined,
       }}
     >
       <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-        {/* Pen body — angled marker */}
         <path
           d="M10.5 2.5L13.5 5.5L6 13H3V10L10.5 2.5Z"
           stroke="currentColor"
@@ -1103,29 +1102,12 @@ function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () 
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Pen tip */}
         <path d="M3 13L5 11" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" />
-        {/* Sparkles */}
         <line x1="12" y1="0.5" x2="12" y2="3" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
         <line x1="10.5" y1="1.5" x2="13.5" y2="1.5" stroke={active ? "#aa88ff" : "currentColor"} strokeWidth={1} opacity={active ? 0.9 : 0.25} strokeLinecap="round" />
         <line x1="14.5" y1="4" x2="14.5" y2="6" stroke={active ? "#4488ff" : "currentColor"} strokeWidth={0.8} opacity={active ? 0.8 : 0.2} strokeLinecap="round" />
         <line x1="13.5" y1="5" x2="15.5" y2="5" stroke={active ? "#4488ff" : "currentColor"} strokeWidth={0.8} opacity={active ? 0.8 : 0.2} strokeLinecap="round" />
       </svg>
-      {/* Active indicator dot — matches tldraw's selected-tool pattern */}
-      {active && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 4,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 4,
-            height: 4,
-            borderRadius: "50%",
-            background: "#aa88ff",
-          }}
-        />
-      )}
     </button>
   );
 }

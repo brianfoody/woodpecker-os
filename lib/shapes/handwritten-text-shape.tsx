@@ -480,7 +480,7 @@ function HandwrittenTextComponent({
           ref={containerRef}
           style={{
             width: shape.props.w,
-            minWidth: 500,
+            minWidth: 665,
             fontFamily,
             fontSize,
             color: effectiveColor,

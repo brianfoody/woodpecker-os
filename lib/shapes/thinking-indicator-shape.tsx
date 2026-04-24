@@ -252,7 +252,7 @@ export class ThinkingIndicatorShapeUtil extends ShapeUtil<ThinkingIndicatorShape
         <div
           style={{
             width: w,
-            minWidth: 500,
+            minWidth: 665,
             fontFamily: cardFont,
             padding: '20px 24px',
             background: cancelled ? PEACH.cardBg : cardBg,

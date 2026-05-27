@@ -79,6 +79,14 @@ export async function* runClaudeCode(opts: {
     "mcp__claude_ai_Google_Calendar__get_event",
     "mcp__claude_ai_Google_Calendar__create_event",
     "mcp__claude_ai_Google_Calendar__suggest_time",
+    "mcp__mirroir__status",
+    "mcp__mirroir__launch_app",
+    "mcp__mirroir__screenshot",
+    "mcp__mirroir__describe_screen",
+    "mcp__mirroir__tap",
+    "mcp__mirroir__swipe",
+    "mcp__mirroir__type_text",
+    "mcp__mirroir__press_key",
   ];
 
   console.log(`[sdk] Starting query: cwd=${cwd} tools=[${allowedTools.join(",")}] session=${opts.resumeSessionId || "new"} hasImage=${!!opts.image}`);
@@ -88,6 +96,13 @@ export async function* runClaudeCode(opts: {
     allowedTools,
     permissionMode: "default",
     maxTurns: 30,
+    mcpServers: {
+      mirroir: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "mirroir-mcp"],
+      },
+    },
   };
 
   if (opts.resumeSessionId) {

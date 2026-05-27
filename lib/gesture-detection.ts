@@ -34,7 +34,7 @@ export function extractPointsFromShape(drawShape: DrawShape): Point[] {
 }
 
 export function checkEnclosingIntent(points: Point[]): boolean {
-  if (points.length < 10) return false;
+  if (points.length < 6) return false;
 
   // For enclosing intent, we just care that it's not a straight line
   // Calculate the bounding box
@@ -42,28 +42,29 @@ export function checkEnclosingIntent(points: Point[]): boolean {
   const maxX = Math.max(...points.map(p => p.x));
   const minY = Math.min(...points.map(p => p.y));
   const maxY = Math.max(...points.map(p => p.y));
-  
+
   const width = maxX - minX;
   const height = maxY - minY;
   const area = width * height;
-  
+
   // Reject if it's too narrow (likely a line)
-  const aspectRatio = Math.max(width, height) / Math.min(width, height);
+  const aspectRatio = Math.max(width, height) / (Math.min(width, height) || 1);
   if (aspectRatio > 10) {
     return false; // Too linear
   }
-  
+
   // Reject if area is too small (likely a dot or very short line)
   if (area < 100) {
     return false;
   }
-  
+
   // If it has reasonable dimensions and isn't too linear, consider it enclosing intent
   return true;
 }
 
 export function detectEnclosingGesture(points: Point[]): boolean {
-  if (points.length < 20) return false;
+  // iPad touch input produces fewer points than desktop — lower minimum
+  if (points.length < 8) return false;
 
   // Check if the start and end points are reasonably close (suggesting enclosing intent)
   const startPoint = points[0];
@@ -82,19 +83,15 @@ export function detectEnclosingGesture(points: Point[]): boolean {
     );
     perimeter += dist;
   }
-  
-  // Be generous with closure - up to 15% of perimeter
-  const closureThreshold = perimeter * 0.15;
+
+  // Be generous with closure — up to 25% of perimeter (touch is less precise)
+  const closureThreshold = perimeter * 0.25;
 
   // Check if the shape shows enclosing intent (not a straight line)
   const hasEnclosingIntent = checkEnclosingIntent(points);
 
-  // A valid enclosing gesture should:
-  // 1. Have start and end points reasonably close
-  // 2. Show enclosing intent (not just a line)
-  // 3. Have sufficient length
-  const isValidGesture = closureDistance < closureThreshold && hasEnclosingIntent && points.length >= 20;
-  
+  const isValidGesture = closureDistance < closureThreshold && hasEnclosingIntent;
+
   return isValidGesture;
 }
 
@@ -103,7 +100,7 @@ export function analyzeForEnclosingGesture(drawShape: DrawShape): boolean {
     // Extract points from the draw shape segments
     const allPoints = extractPointsFromShape(drawShape);
 
-    if (allPoints.length < 20) return false; // Need enough points for analysis
+    if (allPoints.length < 8) return false; // Need enough points for analysis
 
     // Check if the stroke shows enclosing intent
     const hasEnclosingIntent = detectEnclosingGesture(allPoints);

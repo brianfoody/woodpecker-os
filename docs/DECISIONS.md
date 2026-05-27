@@ -2,363 +2,242 @@
 
 This document records important technical decisions made during the development of the Woodpecker project.
 
-## 1. Handwriting Recognition Architecture
+_Last reviewed: 2026-05-27. Decisions tied to the original handwriting-recognition architecture have been moved to [Superseded decisions](#superseded-decisions) below._
 
-**Decision**: Use MyScript iink-ts with WebSocket-based cloud recognition for web, native SDKs for mobile
+---
+
+## 1. Framework Choices
+
+**Decision**: Next.js 15 with App Router, tldraw for the canvas, Tailwind CSS v4, TypeScript
 
 **Date**: January 2025
 
 **Context**:
 
-- Needed robust handwriting recognition for the e-ink notepad interface
-- Evaluated both offline and online approaches
+- Building a modern web app with a flexible drawing/sketching surface
 
 **Decision Details**:
 
-- **Web App**: Use iink-ts with WebSocket connection to MyScript cloud
-  - Provides best accuracy and real-time recognition
-  - Requires internet connection
-  - Follows official MyScript/TLDraw integration pattern
-- **Mobile Apps**: Will use MyScript's native offline SDKs
-  - iOS SDK provides full offline handwriting recognition
-  - Android SDK available for future Android version
-  - No internet connection required
+- **Next.js 15**: App Router, React 19 support
+- **tldraw 3**: powerful, extensible canvas with built-in tools
+- **Tailwind CSS v4** + shadcn/ui ("new-york") for styling
+- **TypeScript** throughout
+
+**Implications**:
+
+- Modern development experience and extensive customization
+- The canvas (`components/tldraw-canvas.tsx`) is the heart of the app
+
+---
+
+## 2. Text Extraction via Claude Vision
+
+**Decision**: Extract handwritten text by sending the captured canvas region to Claude as an image (vision OCR), via the Claude Agent SDK
+
+**Date**: April 2026 (supersedes the original MyScript handwriting-recognition architecture)
+
+**Context**:
+
+- The original real-time stroke recognition (MyScript / `iink-ts`) was dropped — it required a paid, account-bound cloud service, incompatible with the self-hosted goal
+- We still need to turn handwriting into text for the AI, but only at the moment of an explicit magic-pen action, not continuously
+
+**Decision Details**:
+
+- The magic pen captures the circled region of the canvas as a PNG
+- `app/api/extract-text` sends that image to Claude via the Claude Agent SDK with a single instruction: "Extract only the handwritten text visible in this image."
+- Recognition therefore happens on-demand (one shot per action), not as a live stream
 
 **Alternatives Considered**:
 
-- TensorFlow.js for browser-based offline recognition (rejected: accuracy concerns)
-- Hybrid online/offline web approach (rejected: complexity vs benefit)
-- Other OCR libraries (rejected: not optimized for handwriting)
+- MyScript `iink-ts` WebSocket recognition (dropped — paid/account-required, see [Superseded](#superseded-decisions))
+- Browser-based OCR / TensorFlow.js (rejected: accuracy)
 
 **Implications**:
 
-- Web app requires internet connection for handwriting features
-- Mobile apps will have full offline capability
-- Consistent recognition quality across platforms when online
+- No separate handwriting-recognition service to run or pay for
+- Image-based OCR is good enough because it only runs on a deliberately-circled region
+- Requires an internet connection (Claude) at action time
 
 ---
 
-## 2. AI Response Rendering
+## 3. Magic Pen as the Explicit AI Trigger
 
-**Decision**: Render AI responses using custom handwriting fonts in TLDraw shapes
+**Decision**: AI interactions are triggered solely by the magic pen tool — circle a region to send it to the AI. No automatic/continuous intent detection.
 
-**Date**: January 2025
+**Date**: April 2026 (supersedes the earlier "magic wand + automatic detection" model)
 
 **Context**:
 
-- Wanted AI responses to feel natural on the e-ink notepad
-- Needed to maintain the handwritten aesthetic
+- The original design layered automatic intent detection on top of continuous handwriting recognition; with that recognition removed, automatic triggering no longer applies
+- An explicit, deliberate gesture also fits the Woodpecker philosophy: technology is *summoned*, not always listening
 
 **Decision Details**:
 
-- Created custom `handwritten-text` TLDraw shape
-- Use Kalam and Caveat fonts for handwritten appearance
-- Implement typewriter animation for natural feel
-- Position responses spatially near questions
+- The magic pen is a proper, independent tldraw tool (brain icon, native blue highlight when active)
+- Circling a region (see `lib/gesture-detection.ts`) captures all enclosed shapes
+- The captured image flows through text extraction (Decision 2) and then the AI (Decision 4), returning an action card on the canvas
+- The magic-pen stroke is deleted immediately on trigger (it's a gesture, not content)
 
 **Implications**:
 
-- Natural integration with handwritten notes
-- Maintains sketching metaphor throughout
+- A single, predictable path to invoke the AI — no false triggers
+- Works with non-text content (diagrams, sketches) since it's image-based
 
 ---
 
-## 3. Intent Detection Pattern
+## 4. AI Integration via the Claude Agent SDK
 
-**Decision**: Use debounced recognition with contextual intent detection
+**Decision**: Use the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) for both text extraction and the action/decision step
 
-**Date**: January 2025
-
-**Context**:
-
-- Need to detect when users expect AI responses without explicit commands
-- Balance between responsiveness and avoiding false triggers
-
-**Decision Details**:
-
-- 1000ms (1 second) debounce for WebSocket sync
-- Context-aware intent detection using:
-  - Temporal context (last 30 seconds)
-  - Spatial context (nearby text)
-  - Conversation history
-- 70% confidence threshold for triggering responses
-
-**Implications**:
-
-- Natural interaction without manual triggers
-- Reduced false positives
-- Maintains conversation context
-
----
-
-## 4. Magic Wand Gesture
-
-**Decision**: Keep magic wand tool for explicit AI interactions alongside automatic detection
-
-**Date**: January 2025
+**Date**: April 2026 (supersedes the earlier Groq/Llama integration)
 
 **Context**:
 
-- Originally only had magic wand for AI interactions
-- Added automatic handwriting detection
-- Decided to keep both methods
+- Need a single, capable provider for vision OCR and for reasoning/acting on the captured request
+- With Claude Max, auth comes from the local CLI — no API key to manage; otherwise `ANTHROPIC_API_KEY`
 
 **Decision Details**:
 
-- Magic wand remains for:
-  - Selecting specific areas for AI analysis
-  - Forcing AI interaction when automatic detection fails
-  - Working with non-text content (diagrams, sketches)
-- Automatic detection handles:
-  - Natural question writing
-  - Conversational flow
+- `app/api/extract-text` — image → text (vision)
+- `app/api/claude-code` — runs the agent against `CLAUDE_CODE_WORKING_DIR` to act on the request
+- Responses render back onto the canvas as cards
+
+**Alternatives Considered**:
+
+- Groq + Llama models (the original choice; replaced by Claude for unified vision + agentic capability)
 
 **Implications**:
 
-- Users have multiple ways to interact with AI
-- Fallback method always available
-- Supports different interaction preferences
+- One provider, one auth story
+- The agent can operate on a working directory, so guard the auth token (see README security note)
 
 ---
 
 ## 5. State Persistence
 
-**Decision**: Use localStorage for canvas auto-save, no cloud storage initially
+**Decision**: localStorage for canvas auto-save; SQLite (`better-sqlite3`) for session history
 
-**Date**: January 2025
-
-**Context**:
-
-- Need to preserve user's work between sessions
-- Privacy and simplicity considerations
+**Date**: January 2025 (updated April 2026)
 
 **Decision Details**:
 
-- Auto-save to localStorage every 3 seconds
-- Immediate save for draw operations
-- Store complete TLDraw document state
-- No user accounts or cloud sync initially
+- Canvas document state auto-saves to localStorage (immediate on draw, debounced otherwise)
+- Each route uses an independent `storageKey` so `/` and `/v2` canvases don't collide
+- Session/conversation history is stored in a local SQLite database (`.woodpecker-sessions.db`), see `lib/session-db.ts`
+- No user accounts or cloud sync
 
 **Implications**:
 
-- Work persists locally only
-- No cross-device sync
-- Simple implementation
-- Future: Can add cloud sync as optional feature
+- Work persists locally only; no cross-device sync (yet)
+- Simple, private, single-user
 
 ---
 
-## 6. Framework Choices
+## 6. Themed Canvas Variant (`/v2`)
 
-**Decision**: Next.js 15 with App Router, TLDraw for canvas, Tailwind CSS v4
-
-**Date**: January 2025
-
-**Context**:
-
-- Building modern web application
-- Need flexible canvas/drawing capabilities
-
-**Decision Details**:
-
-- **Next.js 15**: Latest features, App Router, React 19 support
-- **TLDraw**: Powerful canvas with built-in tools, extensible
-- **Tailwind CSS v4**: Modern styling approach
-- **TypeScript**: Type safety throughout
-
-**Implications**:
-
-- Modern development experience
-- Good performance and SEO capabilities
-- Extensive customization options
-
----
-
-## 7. AI Integration
-
-**Decision**: Use Groq for LLM capabilities
-
-**Date**: January 2025
-
-**Context**:
-
-- Need fast, capable AI for various features
-- Cost and performance considerations
-
-**Decision Details**:
-
-- Groq API for text generation
-- Llama models for different tasks:
-  - `llama-3.3-70b-versatile` for general queries
-  - `llama-4-scout-17b-16e-instruct` for vision tasks
-- Custom prompts for intent detection
-
-**Implications**:
-
-- Fast response times
-- Good accuracy for intended use cases
-- Reasonable API costs
-
----
-
-## 8. WebSocket SSR Stroke Accumulation Handling
-
-**Decision**: Implement client-side text extraction to handle server-side stroke accumulation
-
-**Date**: January 2025
-
-**Context**:
-
-- MyScript WebSocket SSR maintains a persistent session with all strokes
-- Server accumulation is **session-only** - lost on page reload/reconnection
-- When adding new strokes, the server returns recognition for ALL accumulated strokes
-- Writing "Boop!" would return "Hello\n\nBoop!" if "Hello" was written earlier in the same session
-
-**Decision Details**:
-
-- **Why filter**: The e-ink notepad metaphor expects discrete writing actions, especially for AI interactions
-- **How it works**:
-  - Track the last recognized text in the InkRecognizer class
-  - Extract only new text by comparing full results with previous recognition
-  - Reset tracking when canvas is cleared
-- **Key insight**: We're not fighting iink's design - we're adapting it for our use case where users expect each writing gesture to be processed independently
-
-**Implementation**:
-
-- `extractNewText()`: Compares full text with last recognized text
-- `updateLastRecognizedText()`: Updates tracking after each recognition
-- `resetTextTracking()`: Clears tracking on canvas clear
-
-**Alternatives Considered**:
-
-- Using full accumulated context (rejected: would confuse AI intent detection with old text)
-- Creating new content parts on server (rejected: not supported by WebSocket SSR API)
-- Clearing and re-sending all strokes (rejected: inefficient and poor UX)
-- Using REST API instead of WebSocket (rejected: loses real-time recognition)
-
-**Implications**:
-
-- Clean separation of new text from accumulated history
-- Better AI intent detection accuracy (processes only what user just wrote)
-- Maintains handwriting recognition benefits (server still has full context)
-- Works within MyScript WebSocket SSR limitations
-
-**Future Considerations**:
-
-- Could add toggle for "continuous mode" (show all accumulated text) vs "discrete mode" (current behavior)
-- May need adjustment if MyScript adds content part management to WebSocket API
-
-## 7. Email, Teams & Interactive Chat Integration
-
-**Decision**: OAuth-based Gmail/Outlook/Teams integration with read-only + reply-only permissions, encrypted token storage, and interactive chat mode
-
-**Date**: March 2026
-
-**Context**:
-
-- Users want to check important emails and Teams messages from the canvas without picking up a phone
-- Must be safe: no accidental deletions, no composing new messages, reply-only
-- Single-user personal tool, so minimal auth infrastructure needed
-
-**Decision Details**:
-
-- **OAuth Scopes**: Intentionally restricted
-  - Google: `gmail.readonly` + `gmail.send` (no `gmail.modify` which would allow deletion)
-  - Microsoft: `Mail.Read` + `Mail.Send` + `Chat.Read` + `ChatMessage.Send` (no `Mail.ReadWrite`)
-- **Token Storage**: Local encrypted JSON file using AES-256-GCM, no cloud database
-  - Path configurable via `WOODPECKER_TOKEN_PATH` env var
-  - Encryption key via `WOODPECKER_ENCRYPTION_KEY` (32-byte hex)
-  - Tokens auto-refresh, so one-time OAuth consent only
-- **API Clients**: Direct fetch to Gmail API and Microsoft Graph (no heavy SDK wrappers)
-  - Matches existing pattern of lightweight API calls
-- **AI Summarization**: Emails/Teams messages summarized by Groq with importance classification (high/medium/low)
-  - Calm, distraction-free tone matching the Woodpecker philosophy
-- **Reply Flow**: Two-step confirmation — AI generates draft, user circles draft to send
-- **Chat Mode**: Toggle that lowers intent detection thresholds for rapid back-and-forth
-  - Debounce: 1000ms -> 500ms, confidence threshold: 0.7 -> 0.3, history window: 3 -> 10
-- **New SmartActions**: `check_emails`, `check_teams`, `reply_email`, `reply_teams`
-  - Integrated into existing magic wand gesture pipeline
-  - Responses rendered as handwritten text (consistent with existing AI responses)
-
-**Alternatives Considered**:
-
-- IMAP/SMTP directly: More complex, no Teams support, harder auth
-- Full email client: Over-engineered for a distraction-free tool
-- API keys only: Not possible for Gmail/Outlook/Teams
-
-**Implications**:
-
-- Requires Google Cloud Console and Azure AD app registration for OAuth credentials
-- Settings page (`/settings`) provides one-time account connection flow
-- Safety guardrails at both OAuth scope level (can't delete even if code has bugs) and application level (no delete/compose functions exist)
-
----
-
-## 9. Moss & Bark Themed Canvas (`/v2`)
-
-**Decision**: Create a themed variant of the interactive canvas at `/v2` using the Moss & Bark design tokens, leaving the original `/` untouched
+**Decision**: Offer a themed variant of the interactive canvas at `/v2` (currently the **Neon Grid** dark theme) by threading a `WoodpeckerCanvasTheme` through the component tree, leaving `/` untouched
 
 **Date**: April 2026
 
 **Context**:
 
-- The `/explore` page has a polished Moss & Bark visual theme but is purely decorative
-- The main canvas at `/` has full interactivity but no visual theme
-- Wanted to merge both: full interactive canvas with Moss & Bark styling
+- Wanted a polished, distraction-free dark look (good for e-ink / iPad) without forking the canvas
 
 **Decision Details**:
 
-- **Theme prop approach**: Thread a `WoodpeckerCanvasTheme` through the existing component tree via optional props
-- When theme is absent, all components render identically to today (backward-compatible)
-- When present, AI response shapes render as styled cards (cream bg, bark accent border, "WOODPECKER" label, DM Sans font)
-- Canvas background uses warm off-white (`#f8f7f4`)
-- Gesture frame uses tldraw `"green"` color (closest to moss) instead of `"light-blue"`
-- Independent `storageKey` param on persistence functions so `/v2` canvas state is separate from `/`
-- Card styling props added to `HandwrittenTextShape` with null/0 defaults (backward-compatible with existing serialized shapes)
+- A `WoodpeckerCanvasTheme` is passed as an optional prop; absent = original `/` rendering (backward compatible)
+- `/v2` uses `createNeonGridTheme("dark")` (`lib/woodpecker-theme.ts`): dark background (`#0a0a14`), Orbitron / Share Tech Mono fonts, styled response cards
+- Independent `storageKey` keeps `/v2` canvas state separate from `/`
+- `createMossBarkTheme()` (an earlier exploration) remains in `lib/woodpecker-theme.ts` but is not the active `/v2` theme
 
 **Alternatives Considered**:
 
-- Fork `TldrawCanvas` into a separate component (rejected: massive duplication, maintenance burden)
-- CSS-only theming with global variables (rejected: card styling on shapes requires per-shape props)
-- Replace `/` with themed version (rejected: preserve existing experience, allow A/B comparison)
+- Forking `TldrawCanvas` (rejected: duplication)
+- Replacing `/` (rejected: keep the original for comparison)
 
 **Implications**:
 
-- Both `/` and `/v2` are fully functional interactive canvases
-- Theme tokens sourced from existing `earthMossBark` design exploration
-- Future themes can be created by implementing `WoodpeckerCanvasTheme`
-- No changes to existing serialized canvas data format
+- Both `/` and `/v2` are fully functional; new themes = new `WoodpeckerCanvasTheme` implementations
+- No change to the serialized canvas data format
 
-## 10. Session Forking via Fork-Per-Bubble
+---
 
-**Decision**: Use the SDK's `forkSession()` to create immutable fork points on every AI response, enabling spatial branching from any historical bubble.
+## 7. Session Forking via Fork-Per-Bubble
+
+**Decision**: Use the SDK's `forkSession()` to create immutable fork points on every AI response, enabling spatial branching from any historical bubble
 
 **Date**: April 2026
 
 **Context**:
 
 - The canvas is spatial — users expect to circle any past response and fork a new conversation from that point
-- Previously, `claudeSessionId` stored the live session on the last shape only; circling an old response would resume with ALL subsequent context
-- The SDK exports `forkSession()` at `sdk.d.ts:547` which performs a pure JSONL file copy — no API call, no tokens
+- Previously `claudeSessionId` lived on the last shape only; circling an old response resumed with ALL subsequent context
 
 **Decision Details**:
 
-- After each query completes, call `forkSession(sessionId, { dir: cwd })` to create an immutable snapshot
-- Store `forkSessionId` on ALL response shapes (every shape is a fork point)
-- Store `claudeSessionId` on the LAST shape only (for session replay)
+- After each query completes, call `forkSession(sessionId, { dir: cwd })` to snapshot (pure JSONL copy — no API call, no tokens)
+- Store `forkSessionId` on ALL response shapes; store `claudeSessionId` on the LAST shape only (for replay)
 - When resuming, use `options.resume = forkSessionId` + `options.forkSession = true` so the fork stays immutable
-- Session resolution moved from server-side (`claude-code-session.ts`) to shape props — the API route is now a pass-through
-- Deleted `lib/claude-code-session.ts`; `lib/session-db.ts` retained for history API
+- Session resolution lives in shape props (source of truth); the API route is a pass-through
 
 **Alternatives Considered**:
 
-- `query()` with `maxTurns: 0` to clone session (rejected: wasteful API call, `forkSession()` is simpler)
-- Store fork IDs only on last shape (rejected: can't fork from intermediate response bubbles)
-- Keep server-side session resolution (rejected: adds indirection, shape props are the source of truth)
+- `query()` with `maxTurns: 0` to clone (rejected: wasteful API call)
+- Fork IDs on last shape only (rejected: can't fork from intermediate bubbles)
 
 **Implications**:
 
-- Existing shapes without `forkSessionId` fall back to `claudeSessionId` (backward compatible, degraded)
-- Fork failure falls back to storing the live `sessionId` as `forkSessionId`
-- Multiple bubbles circled: highest y-position (most recent) is used
-- `lib/session-replay.ts` unchanged — uses `claudeSessionId` on last shape
+- Shapes without `forkSessionId` fall back to `claudeSessionId` (backward compatible, degraded)
+- When multiple bubbles are circled, the most recent (highest y) is used
+
+---
+
+## 8. Email, Teams & Chat Integration (OAuth)
+
+**Decision**: OAuth-based Gmail/Outlook/Teams integration with read-only + reply-only scopes and encrypted local token storage
+
+**Date**: March 2026
+
+**Status**: Auth scaffolding present (`app/api/auth/{google,microsoft,status}`, `/settings`); the original SmartAction handlers were folded into the agent flow.
+
+**Decision Details**:
+
+- **Scopes intentionally restricted**: Google `gmail.readonly` + `gmail.send` (no `gmail.modify`); Microsoft `Mail.Read` + `Mail.Send` + `Chat.Read` + `ChatMessage.Send` (no `Mail.ReadWrite`) — can't delete even if code has bugs
+- **Token storage**: local AES-256-GCM-encrypted JSON, no cloud DB (`WOODPECKER_TOKEN_PATH`, `WOODPECKER_ENCRYPTION_KEY`); tokens auto-refresh
+- **Connection flow**: one-time consent via the `/settings` page
+
+**Alternatives Considered**:
+
+- IMAP/SMTP directly (rejected: no Teams, harder auth)
+- Full email client (rejected: over-engineered for a distraction-free tool)
+
+**Implications**:
+
+- Requires Google Cloud Console and Azure AD app registrations for credentials (not part of the minimal `.env.example`)
+- Safety guardrails enforced at the OAuth-scope level
+
+---
+
+## Superseded decisions
+
+These reflect earlier choices that are no longer active. They're kept for historical context.
+
+### Handwriting recognition via MyScript / `iink-ts` _(superseded April 2026)_
+
+The web app originally used MyScript `iink-ts` over a WebSocket for real-time, stroke-based cloud recognition, with native MyScript SDKs planned for offline mobile. **Dropped** because it required a paid, account-bound service, incompatible with the self-hosted goal. Replaced by on-demand Claude vision OCR (Decision 2). The `lib/iink-*.ts` and `lib/handwriting-context-manager-v2.ts` files remain in the tree but are dormant and not imported by `app`/`components`; the `NEXT_PUBLIC_MYSCRIPT_*` env vars are unused.
+
+### Debounced contextual intent detection _(superseded April 2026)_
+
+Because recognition was continuous, the app tried to *automatically* detect when a user expected an AI response — 1000ms debounce, temporal/spatial context, ~70% confidence threshold, with a lowered-threshold "chat mode". This is gone: the magic pen is now the single explicit trigger (Decision 3).
+
+### WebSocket SSR stroke-accumulation handling _(moot)_
+
+MyScript's WebSocket SSR accumulated all strokes per session and re-returned recognition for everything, so we tracked/diffed "last recognized text" to extract only new writing (`extractNewText()` etc.). Moot now that recognition is a single-shot image OCR per action rather than a persistent stroke session.
+
+### AI provider: Groq / Llama _(superseded April 2026)_
+
+The original LLM provider was Groq (`llama-3.3-70b-versatile` for text, `llama-4-scout-17b-16e-instruct` for vision). Replaced by the Claude Agent SDK (Decision 4) for unified vision + agentic capability. No Groq dependency remains.
+
+### Handwritten-font AI responses (Kalam/Caveat, typewriter) _(partially superseded)_
+
+AI responses were originally rendered in handwriting fonts (Kalam/Caveat) with a typewriter animation to match the notepad aesthetic. The `handwritten-text` tldraw shape still exists, but themed variants (e.g. `/v2`'s Neon Grid) now render responses as styled cards with theme fonts (Orbitron / Share Tech Mono) rather than the handwriting look.

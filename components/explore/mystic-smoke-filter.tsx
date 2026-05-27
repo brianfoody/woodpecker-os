@@ -18,17 +18,41 @@ interface ReviewingShape {
 interface MysticSmokeFilterProps {
   shapeIds: string[];
   reviewingShapes?: ReviewingShape[];
+  neonColor?: string;
 }
 
 export function MysticSmokeFilter({
   shapeIds,
   reviewingShapes = [],
+  neonColor,
 }: MysticSmokeFilterProps) {
   const reviewingIds = new Set(reviewingShapes.map((s) => s.id));
   const drawingOnly = shapeIds.filter((id) => !reviewingIds.has(id));
 
   const hasAny = shapeIds.length > 0 || reviewingShapes.length > 0;
   if (!hasAny) return null;
+
+  // Lightweight mode: just tint strokes with a neon color + subtle glow
+  if (neonColor) {
+    const allSelectors = [...drawingOnly, ...reviewingShapes.map((s) => s.id)]
+      .map((id) => `[data-shape-id="${id}"] .tl-svg-container`)
+      .join(",\n");
+
+    if (!allSelectors) return null;
+
+    return (
+      <style>{`
+        ${allSelectors} {
+          filter: drop-shadow(0 0 4px ${neonColor});
+        }
+        ${allSelectors} path,
+        ${allSelectors} line,
+        ${allSelectors} polyline {
+          stroke: ${neonColor} !important;
+        }
+      `}</style>
+    );
+  }
 
   const baseFilter = `url(#mystic-smoke-haze)
             drop-shadow(0 0 6px rgba(102, 68, 204, 0.6))

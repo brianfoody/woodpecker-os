@@ -707,6 +707,13 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
           editorRef.current = editor;
 
+          // Set color scheme immediately so pen color matches canvas bg from the start
+          if (darkMode !== undefined) {
+            editor.user.updateUserPreferences({
+              colorScheme: darkMode ? "dark" : "light",
+            });
+          }
+
           // Expose for Playwright / dev-console testing
           if (typeof window !== "undefined") {
             (window as any).__woodpecker_editor = editor;
@@ -772,6 +779,44 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
               console.log(`Cleaned up ${orphanedThinking.length} orphaned thinking indicator(s)`);
             }
           } catch {}
+
+          // Re-theme existing handwritten-text shapes so cards match the dark palette
+          if (theme) {
+            const shapesToRetheme = editor.getCurrentPageShapes();
+            const themeUpdates: any[] = [];
+            for (const shape of shapesToRetheme) {
+              if (shape.type !== "handwritten-text") continue;
+              const p = shape.props as any;
+              if (p.cardBg && p.cardLabel === theme.aiLabelText) {
+                themeUpdates.push({
+                  id: shape.id,
+                  type: "handwritten-text",
+                  props: {
+                    color: theme.aiTextColor,
+                    cardBg: theme.aiCardBg,
+                    cardBorder: theme.aiCardBorder,
+                    cardBorderWidth: theme.aiCardBorderWidth,
+                    cardRadius: theme.aiCardRadius,
+                    cardShadow: theme.aiCardShadow,
+                    cardLabelColor: theme.aiLabelColor,
+                  },
+                });
+              } else if (p.cardBg && p.cardLabel === (theme.userLabelText ?? "YOU")) {
+                themeUpdates.push({
+                  id: shape.id,
+                  type: "handwritten-text",
+                  props: {
+                    color: theme.userTextColor,
+                    cardBg: theme.userCardBg,
+                    cardLabelColor: theme.userLabelColor,
+                  },
+                });
+              }
+            }
+            if (themeUpdates.length > 0) {
+              editor.updateShapes(themeUpdates);
+            }
+          }
 
           // Replay any missed Claude Code session content after reload
           setTimeout(() => replayMissedSessionContent(editor), 500);
@@ -883,23 +928,87 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           };
           editor.on("change", syncMagicState);
 
-          // Track shapes created while magic-draw tool is active
+          // Track shapes created while magic-draw tool is active.
+          // Tint magic-draw strokes neon green so they're visually distinct.
+          const MAGIC_INK_COLOR = "light-green";
+          let lastMagicDrawId: string | null = null;
           const trackMagicShapes = editor.store.listen((event: any) => {
             if (editor.getCurrentToolId() !== "magic-draw") return;
+
             const added = Object.values(event.changes.added) as any[];
-            let changed = false;
             for (const record of added) {
               if (record.typeName === "shape" && record.type === "draw") {
-                if (!magicShapeIdsRef.current.has(record.id)) {
-                  magicShapeIdsRef.current.add(record.id);
-                  changed = true;
-                }
+                magicShapeIdsRef.current.add(record.id);
+                lastMagicDrawId = record.id;
+                // Tint stroke neon green
+                try {
+                  editor.updateShape({
+                    id: record.id,
+                    type: "draw",
+                    props: { color: MAGIC_INK_COLOR },
+                  });
+                } catch {}
               }
             }
-            if (changed) {
-              setMagicShapeIds(Array.from(magicShapeIdsRef.current));
+
+            // Track latest updated draw shape
+            const updated = Object.values(event.changes.updated) as any[];
+            for (const pair of updated) {
+              const after = Array.isArray(pair) ? pair[1] : pair;
+              if (after?.typeName === "shape" && after.type === "draw") {
+                lastMagicDrawId = after.id;
+              }
             }
           });
+
+          // Magic pen loop detection via native DOM event.
+          // tldraw's pointer events can be unreliable on iPad Safari,
+          // but native pointerup/touchend always fire on document.
+          // We don't re-check getCurrentToolId() here because by the
+          // time the event fires, tldraw may have already transitioned
+          // the tool state. lastMagicDrawId is only set inside the
+          // store listener which already gates on magic-draw.
+          let loopCheckInFlight = false;
+          const checkMagicLoop = () => {
+            if (!lastMagicDrawId || loopCheckInFlight) return;
+
+            const hasThinking = editor.getCurrentPageShapes().some(
+              (s: any) => s.type === "thinking-indicator"
+            );
+            if (hasThinking) return;
+
+            const idToCheck = lastMagicDrawId;
+            loopCheckInFlight = true;
+
+            // Try at increasing delays — iPad shape finalization timing varies
+            const tryCheck = (delay: number) => {
+              setTimeout(async () => {
+                const shape = editor.getShape(idToCheck as any);
+                if (shape && analyzeForSingleLoop(shape as any)) {
+                  loopCheckInFlight = false;
+                  lastMagicDrawId = null;
+                  console.log("Magic pen loop detected — triggering session");
+                  if (magicWandCallbackRef.current) {
+                    try {
+                      await magicWandCallbackRef.current(shape, editor);
+                    } catch (error) {
+                      console.error("Error in magic pen callback:", error);
+                    }
+                  }
+                } else if (delay < 500) {
+                  // Shape may not be finalized yet — retry
+                  tryCheck(delay * 2);
+                } else {
+                  loopCheckInFlight = false;
+                }
+              }, delay);
+            };
+
+            tryCheck(50);
+          };
+
+          document.addEventListener("pointerup", checkMagicLoop);
+          document.addEventListener("touchend", checkMagicLoop);
 
           // Auto-revert to pen after other tools (not magic-draw)
           editor.on("event", (info) => {
@@ -982,29 +1091,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
               tapStartPagePoint = null;
               thinkingBoundsOnDown = null;
 
-              // Magic pen: check if the latest stroke forms a closed loop
-              if (editor.getCurrentToolId() === "magic-draw") {
-                // Skip if a thinking indicator is already active
-                const hasThinking = editor.getCurrentPageShapes().some(
-                  (s: any) => s.type === "thinking-indicator"
-                );
-                if (hasThinking) return;
-
-                const drawShapes = editor.getCurrentPageShapes().filter(
-                  (s: any) => s.type === "draw"
-                );
-                const latestStroke = drawShapes[drawShapes.length - 1];
-                if (latestStroke && analyzeForSingleLoop(latestStroke as any)) {
-                  console.log("Magic pen loop detected — triggering session");
-                  if (magicWandCallbackRef.current) {
-                    try {
-                      await magicWandCallbackRef.current(latestStroke, editor);
-                    } catch (error) {
-                      console.error("Error in magic pen callback:", error);
-                    }
-                  }
-                }
-              }
+              // Magic pen loop detection handled by native DOM pointerup/touchend.
             }
           });
 
@@ -1018,6 +1105,8 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
             }
             unsubscribe();
             trackMagicShapes();
+            document.removeEventListener("pointerup", checkMagicLoop);
+            document.removeEventListener("touchend", checkMagicLoop);
             editor.off("change", syncMagicState);
             if (autoSaverRef.current) {
               autoSaverRef.current.cleanup();
@@ -1035,7 +1124,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
       </TldrawErrorBoundary>
 
       {/* Mystic Smoke filter for magic pen strokes */}
-      <MysticSmokeFilter shapeIds={magicShapeIds} />
+      {!theme && <MysticSmokeFilter shapeIds={magicShapeIds} />}
 
       {thinking.visible && !theme && (
         <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />

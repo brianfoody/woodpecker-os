@@ -1,6 +1,6 @@
 "use client";
 
-import type { ThemeConfig, ThemeTokens } from "./themes/types";
+import type { ThemeConfig } from "./themes/types";
 
 interface MagicInkShowcaseProps {
   theme: ThemeConfig;

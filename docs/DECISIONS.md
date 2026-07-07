@@ -218,6 +218,39 @@ _Last reviewed: 2026-05-27. Decisions tied to the original handwriting-recogniti
 
 ---
 
+## 9. Writing-Anchored Reply Layout for the Magic Pen
+
+**Decision**: Anchor the magic pen reply chain (YOU card + AI response) to the user's circled **writing**, and decide loop membership by polygon containment — replacing the card-relative 5-slot positioning table and the bbox-graze capture test
+
+**Date**: July 2026
+
+**Context**:
+
+- Users often write at the edge of an AI card and circle their writing; the reply then appeared far from the handwriting (up to card-width + 685px away)
+- Three compounding causes: (1) any shape whose bbox merely grazed the circle's bbox was "captured", so the neighbouring card hijacked the layout anchor; (2) placement then snapped to one of 5 hardcoded slots relative to the whole card (`card.x ± (665 + 20)`); (3) `estimateTextHeight` assumed 500px-wide cards while cards are 665px, inflating every stacking gap ~35%
+
+**Decision Details**:
+
+- Layout math extracted to a pure, unit-tested module: `lib/magic-loop-layout.ts` (`isShapeInLoop`, `rectsIntersect`, `computeReplyLayout`)
+- **Capture is split by shape kind**: *ink* (strokes, text, bubbles) is circled only when its center is inside the loop polygon (ray-casting), the loop was drawn ON it, or ≥50% of its area lies in the loop bounds — grazing strokes no longer pollute the anchor bounds. *AI cards* keep generous bbox-overlap capture: circling writing at the edge of a card must still capture the card so its **session resumes** (strict containment here would trade the layout bug for a lost-context bug). Connector arrows and thinking indicators are never captured
+- **Placement**: reply is left-aligned with the circled ink (fallback: loop bounds). If the 665px reply column horizontally overlaps the source card it drops below `max(content bottom, card bottom) + 20px` so it can't land on the card; writing *beside* a (possibly tall) card keeps the reply level with the writing instead of pushing it below the card. Branch direction (`under`/`left`/`right`) is *derived* from where the reply lands and only controls connector anchors; the 5-slot table and the `isBodyLevel` knife-edge are gone
+- **Collision + visibility**: reply nudges downward past existing cards/bubbles, and the camera pans (`centerOnPoint`) if the final spot is off-viewport
+- Layout anchor and session-resume anchor now use the same bottom-most-first card ordering so the connector and the resumed session always agree
+- `estimateTextHeight` default width corrected to 665
+
+**Alternatives Considered**:
+
+- Keeping the 5-slot table with better direction detection (rejected: any card-relative slot can still land far from the handwriting)
+- Point-in-polygon for every point of every shape (rejected: center + majority-area is enough and cheap)
+
+**Implications**:
+
+- Replies now appear directly under the handwriting; side-branch layouts still emerge naturally when the user writes beside a card
+- Circling empty space *near* a card no longer resumes that card's session — the circle must be on the card or around its center
+- `lib/__tests__/magic-loop-layout.test.ts` covers capture and placement scenarios
+
+---
+
 ## Superseded decisions
 
 These reflect earlier choices that are no longer active. They're kept for historical context.

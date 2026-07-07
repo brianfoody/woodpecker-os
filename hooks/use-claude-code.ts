@@ -311,8 +311,10 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         }
       };
 
-      /** Estimate rendered height from text content (autoSize is async, so geometry may be stale) */
-      const estimateTextHeight = (text: string, shapeWidth = 500): number => {
+      /** Estimate rendered height from text content (autoSize is async, so geometry may be stale).
+       *  Default width must match the width cards are created with (w: 665) —
+       *  a smaller width overestimates line count and inflates stacking gaps. */
+      const estimateTextHeight = (text: string, shapeWidth = 665): number => {
         if (!text) return theme ? 80 : 40;
         const charWidth = 10; // approx char width at size "m" (20px font)
         const lineHeight = theme ? 33 : 28; // card uses lineHeight 1.65 vs 1.5
@@ -582,9 +584,11 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           const userCardHeight = estimateTextHeight(userDisplayText);
           nextY += userCardHeight + SHAPE_GAP;
         } else {
-          // No text extracted — remove the placeholder card
-          editor.deleteShapes([userCardId]);
-          userCardId = undefined as any;
+          // No text extracted — the placeholder (userThinkingId) is already
+          // deleted above and no user card was created, so nothing to remove.
+          // Deleting here would pass undefined to deleteShapes and throw,
+          // killing the session before it starts.
+          userCardId = undefined;
         }
       } else if (!isRetry) {
         // Non-themed: clean up stroke immediately

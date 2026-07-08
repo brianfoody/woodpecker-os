@@ -1,4 +1,5 @@
-import { Feather, Github } from "lucide-react";
+import { Feather } from "lucide-react";
+import { GitHubStarButton } from "@/components/landing/github-star";
 
 export function LandingNav() {
   return (
@@ -11,16 +12,7 @@ export function LandingNav() {
         <div className="lp-nav-links">
           <a href="#gesture">Why a pen</a>
           <a href="#security">How it works</a>
-          <a
-            href="https://github.com/brianfoody/woodpecker-os"
-            className="lp-nav-gh"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="View source on GitHub"
-            title="GitHub"
-          >
-            <Github size={16} strokeWidth={1.8} />
-          </a>
+          <GitHubStarButton />
           <a href="#start" className="lp-nav-cta">
             <span className="lp-nav-cta-full">npx @woodpeckeros/connect</span>
             <span className="lp-nav-cta-short">get started</span>

@@ -101,7 +101,7 @@ export default function Landing() {
             target="_blank"
             rel="noreferrer"
           >
-            GITHUB
+            ★ STAR US ON GITHUB
           </a>
           <span>YOUR MACHINE · YOUR KEYS · YOUR INK</span>
         </div>

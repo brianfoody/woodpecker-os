@@ -108,7 +108,7 @@ function pushToConnector(
     if (!pushRetryTimer) {
       pushRetryTimer = setTimeout(() => {
         pushRetryTimer = null;
-        if (activeAutoSaver) saveCanvasData(activeAutoSaver.getStore(), storageKey);
+        retrySave?.();
       }, wait);
     }
     return;
@@ -121,7 +121,7 @@ function pushToConnector(
   peekConnectorClient()?.saveCanvas(storageKey, rev, snapshot);
 }
 
-let activeAutoSaver: CanvasAutoSaver | null = null;
+let retrySave: (() => void) | null = null;
 
 /**
  * Loads canvas data from localStorage
@@ -218,11 +218,7 @@ export class CanvasAutoSaver {
   constructor(store: TLStore, storageKey = DEFAULT_STORAGE_KEY) {
     this.store = store;
     this.storageKey = storageKey;
-    activeAutoSaver = this;
-  }
-
-  getStore(): TLStore {
-    return this.store;
+    retrySave = () => saveCanvasData(this.store, this.storageKey);
   }
 
   /**

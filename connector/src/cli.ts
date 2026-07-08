@@ -21,7 +21,7 @@ import { loadOrCreatePairing, printPairing } from "./pairing";
 import { startLocalServer, startRelayTransport } from "./transports";
 import { loadConfig, saveConfig, WOODPECKER_HOME } from "./storage";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 type Flags = {
   dir?: string;

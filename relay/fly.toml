@@ -6,6 +6,12 @@
 app = 'woodpecker-relay'
 primary_region = 'syd'
 
+# IMPORTANT: this app must run on EXACTLY ONE machine. Channels live in
+# process memory, so with 2+ machines Fly load-balances the connector and
+# the canvas onto different instances and they never see each other.
+# (`fly deploy --ha=false`; check with `fly scale show`.) If HA is ever
+# needed, channel state must move to shared storage first.
+
 [build]
 [http_service]
   internal_port = 9000

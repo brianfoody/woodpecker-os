@@ -15,6 +15,7 @@
 
 import {
   DEFAULT_LOCAL_PORT,
+  DEFAULT_RELAY_URL,
   PROTOCOL_VERSION,
   EnvelopeBuilder,
   ReplayGuard,
@@ -143,8 +144,8 @@ export class ConnectorClient {
           this.relayUrl =
             localStorage.getItem(RELAY_URL_KEY) ||
             process.env.NEXT_PUBLIC_RELAY_URL ||
-            "";
-          if (this.relayUrl) return;
+            DEFAULT_RELAY_URL;
+          return;
         }
       } catch {
         // fall through

@@ -10,11 +10,7 @@ import {
   pairingUrl,
   type Pairing,
 } from "@woodpeckeros/protocol";
-import {
-  loadPairingFile,
-  savePairingFile,
-  deletePairingFile,
-} from "./storage";
+import { loadPairingFile, savePairingFile, deletePairingFile } from "./storage";
 
 export function loadOrCreatePairing(reset = false): Pairing {
   if (reset) deletePairingFile();
@@ -31,9 +27,9 @@ export function printPairing(appUrl: string, pairing: Pairing): void {
   qrcode.generate(url, { small: true }, (qr: string) => console.log(qr));
   console.log(`Or open this link on the device:\n\n  ${url}\n`);
   console.log(
-    "Anyone with this link can drive Claude Code on this machine — treat it like a password."
+    "Anyone with this link can drive Claude Code on this machine — treat it like a password.",
   );
   console.log(
-    "Re-pair (and revoke all devices) anytime with: woodpecker connect --reset-pairing\n"
+    "Re-pair (and revoke all devices) anytime with: npx woodpecker connect --reset-pairing\n",
   );
 }

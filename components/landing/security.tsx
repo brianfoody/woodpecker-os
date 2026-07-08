@@ -1,29 +1,18 @@
-import {
-  CloudOff,
-  Globe,
-  KeyRound,
-  Laptop,
-  Lock,
-  PenLine,
-  Radio,
-  RotateCcw,
-  ShieldCheck,
-} from "lucide-react";
+import { CloudOff, KeyRound, Lock, Radio } from "lucide-react";
 
 const cards = [
   {
     icon: Lock,
     label: "END-TO-END ENCRYPTED",
-    body: "Every message between canvas and machine is AES-256-GCM encrypted in your browser and only decrypted on your computer. The relay in between forwards bytes it cannot read.",
+    body: "AES-256-GCM, encrypted in your browser, decrypted only on your computer. The relay forwards bytes it cannot read.",
   },
   {
     icon: KeyRound,
     label: "KEYS NEVER TOUCH A SERVER",
     body: (
       <>
-        Your machine generates the key and shares it via the QR code&apos;s URL
-        fragment, the part after <code>#</code>, which browsers never send
-        over the network. It exists only on your devices.
+        The key travels inside the QR link&apos;s <code>#fragment</code>,
+        device to device. Browsers never send it over the network.
       </>
     ),
   },
@@ -32,26 +21,10 @@ const cards = [
     label: "NO ACCOUNTS, NO CLOUD",
     body: (
       <>
-        Nothing to sign up for, nothing stored remotely. Pairing, canvas
-        snapshots and config live in <code>~/.woodpecker/</code> on your own
-        computer.
+        Nothing to sign up for, nothing stored remotely. Everything lives in{" "}
+        <code>~/.woodpecker/</code> on your own computer.
       </>
     ),
-  },
-  {
-    icon: Globe,
-    label: "A STATIC SITE, ON PURPOSE",
-    body: "woodpeckeros.com is a static page with zero API routes and no database. There is no server holding your notes, files or keys to attack.",
-  },
-  {
-    icon: ShieldCheck,
-    label: "GUARDRAILS BY DEFAULT",
-    body: "The agent only edits inside the folder you choose, and destructive shell commands are blocked before they run. Every denial is shown right on the canvas.",
-  },
-  {
-    icon: RotateCcw,
-    label: "REPLAY PROTECTION",
-    body: "Messages carry per-device epoch and sequence numbers, so captured ciphertext can't be replayed later to trigger an action twice.",
   },
 ];
 
@@ -71,9 +44,9 @@ export function SecuritySection() {
         <span className="lp-grad">Nothing else can read it.</span>
       </h2>
       <p className="lp-sub">
-        This site is just the canvas. The intelligence runs on your computer:
-        your Claude login, your files, your tools. Between them sits a relay
-        that only ever sees ciphertext:
+        You circle a note, it&apos;s encrypted on the canvas, and only your
+        machine can decrypt it. Claude Code does the work there and the reply
+        comes back the same way:
       </p>
 
       <div
@@ -82,7 +55,18 @@ export function SecuritySection() {
       >
         <div className="lp-pipe-nodes">
           <div className="lp-pipe-node">
-            <div className="lp-pipe-icon"><PenLine size={20} strokeWidth={1.7} /></div>
+            <div className="lp-pipe-mini" aria-hidden>
+              <span className="lp-pipe-mini-gesture">
+                <span className="lp-pipe-mini-note">hook up the payments</span>
+                <svg className="lp-pipe-mini-circle" viewBox="0 0 340 92" preserveAspectRatio="none">
+                  <path
+                    pathLength={1}
+                    d="M38,50 C30,18 128,6 202,9 C280,12 330,28 326,52 C322,79 218,90 128,86 C52,83 18,66 30,42 C36,30 52,22 68,19"
+                  />
+                </svg>
+              </span>
+              <span className="lp-pipe-mini-reply">✓ PR up · feat/payments</span>
+            </div>
             <div className="lp-pipe-title">Your canvas</div>
             <div className="lp-pipe-sub">iPad / e-ink, any browser</div>
             <span className="lp-pipe-badge">🔑 holds the key</span>
@@ -94,7 +78,22 @@ export function SecuritySection() {
             <span className="lp-pipe-badge lp-pipe-badge--nokey">no key · ciphertext only</span>
           </div>
           <div className="lp-pipe-node">
-            <div className="lp-pipe-icon"><Laptop size={20} strokeWidth={1.7} /></div>
+            <div className="lp-pipe-term" aria-hidden>
+              <div className="lp-pipe-term-bar">
+                <em>claude code</em>
+                <span className="lp-pipe-term-status">
+                  <span className="lp-pipe-term-run">● processing</span>
+                  <span className="lp-pipe-term-ok">✓ done</span>
+                </span>
+              </div>
+              <pre>
+                <span className="lp-tl lp-tl-1"><b>&gt;</b> query(&quot;hook up the payments&quot;)</span>
+                <span className="lp-tl lp-tl-2">● Thinking…</span>
+                <span className="lp-tl lp-tl-3">● Editing api/payments/route.ts</span>
+                <span className="lp-tl lp-tl-4">● Running tests · 14 passed</span>
+                <span className="lp-tl lp-tl-5">✓ PR up → feat/payments</span>
+              </pre>
+            </div>
             <div className="lp-pipe-title">Your machine</div>
             <div className="lp-pipe-sub">connector + Claude Code</div>
             <span className="lp-pipe-badge">🔑 holds the key</span>
@@ -104,11 +103,11 @@ export function SecuritySection() {
         <div className="lp-pipe-lane" aria-hidden>
           <div className="lp-pipe-line" />
           <div className="lp-pipe-packet lp-pipe-out">
-            <span className="lp-pipe-plain">✍️ &ldquo;fix the login bug&rdquo;</span>
+            <span className="lp-pipe-plain">✍️ &ldquo;hook up the payments&rdquo;</span>
             <span className="lp-pipe-cipher">🔒 9f2a·c41b·e07d</span>
           </div>
           <div className="lp-pipe-packet lp-pipe-back">
-            <span className="lp-pipe-plain">🖋 reply, in ink</span>
+            <span className="lp-pipe-plain">🖋 &ldquo;PR up · feat/payments&rdquo;</span>
             <span className="lp-pipe-cipher">🔒 7e0d·91af·b3c2</span>
           </div>
         </div>

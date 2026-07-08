@@ -16,7 +16,7 @@ export function HeroDemo() {
           </div>
           <div className="lp-demo-paper">
             <span className="lp-demo-gesture">
-              <p className="lp-demo-note">describe the tongue of a woodpecker</p>
+              <p className="lp-demo-note">okay let&apos;s hook up the payments to our app</p>
               <svg className="lp-demo-circle" viewBox="0 0 340 92" preserveAspectRatio="none" aria-hidden>
                 <path
                   pathLength={1}
@@ -26,11 +26,11 @@ export function HeroDemo() {
             </span>
             <div className="lp-demo-reply">
               <p className="lp-demo-reply-hand">
-                It wraps all the way around the skull, a built-in shock absorber
-                for 20 strikes a second. Da Vinci asked the same thing in 1508.
+                Wired Stripe into /api/payments: checkout session, webhook
+                handler, and 14 passing tests. Branch pushed, PR is up.
               </p>
               <p className="lp-demo-reply-meta">
-                <b>✓</b> answered on your machine &nbsp;·&nbsp; saved → notes/woodpecker.md
+                <b>✓</b> ran on your machine &nbsp;·&nbsp; branch → feat/payments
               </p>
             </div>
           </div>

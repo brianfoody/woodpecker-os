@@ -9,9 +9,8 @@ export function LandingNav() {
           WOODPECKER_OS
         </a>
         <div className="lp-nav-links">
-          <a href="#gesture">The gesture</a>
-          <a href="#security">Security</a>
-          <a href="#faq">FAQ</a>
+          <a href="#gesture">Why a pen</a>
+          <a href="#security">How it works</a>
           <a href="#start" className="lp-nav-cta">
             <span className="lp-nav-cta-full">npx @woodpeckeros/connect</span>
             <span className="lp-nav-cta-short">get started</span>

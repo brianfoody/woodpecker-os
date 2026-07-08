@@ -77,17 +77,28 @@ function parseArgs(argv: string[]): { command: string; flags: Flags } {
   return { command, flags };
 }
 
+/**
+ * The working dir is confirmed on every start: a previously saved dir is only
+ * a prompt default, never silently reused. `--dir` skips the prompt (explicit
+ * choice), and non-interactive runs fall back to saved dir / cwd rather than
+ * hanging on a prompt that can never be answered.
+ */
 async function resolveWorkingDir(flagDir: string | undefined): Promise<string> {
   const config = loadConfig();
-  let dir = flagDir ?? config.workingDir;
+  let dir = flagDir;
 
   if (!dir) {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question(
-      `Which folder should Claude Code work in? [${process.cwd()}] `
-    );
-    rl.close();
-    dir = answer.trim() || process.cwd();
+    const fallback = config.workingDir ?? process.cwd();
+    if (process.stdin.isTTY) {
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await rl.question(
+        `Which folder should Claude Code work in? [${fallback}] `
+      );
+      rl.close();
+      dir = answer.trim() || fallback;
+    } else {
+      dir = fallback;
+    }
   }
 
   const resolved = resolve(dir);

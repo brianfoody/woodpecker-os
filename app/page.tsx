@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { CircleDashed, GitBranch, MessageCircleQuestion, Wrench } from "lucide-react";
+import {
+  CircleDashed,
+  GitBranch,
+  History,
+  InfinityIcon,
+  MessageCircleQuestion,
+  Wrench,
+} from "lucide-react";
 import "./landing.css";
 import { HeroCta } from "@/components/hero-cta";
 import { LandingNav } from "@/components/landing/nav";
@@ -12,7 +19,7 @@ import { Faq } from "@/components/landing/faq";
 export const metadata: Metadata = {
   title: "Woodpecker OS: drive Claude Code with a pen",
   description:
-    "Turn an iPad or e-ink display into a handwriting interface for the Claude Code on your machine. Write, circle, and your agent does the work. End-to-end encrypted, no accounts, no cloud execution.",
+    "Turn an iPad or e-ink display into mission control for the Claude Code on your machine. Run agentic tasks in parallel on an infinite canvas, no terminal juggling, sessions that resume with a circle. End-to-end encrypted, no accounts, no cloud execution.",
 };
 
 const gestures = [
@@ -24,18 +31,30 @@ const gestures = [
   },
   {
     n: "02",
+    icon: InfinityIcon,
+    title: "Every agent on one infinite canvas.",
+    body: "Kick off five tasks in five corners of the canvas. Each agent streams progress beside the note that launched it, and you pan to check in. No terminal tabs, no window juggling, no lost output.",
+  },
+  {
+    n: "03",
+    icon: History,
+    title: "Sessions resume themselves.",
+    body: "Circle any reply and that session picks up exactly where it left off, hours or days later. No scrollback archaeology, no /resume incantations. Threads live on the canvas, right where you left them.",
+  },
+  {
+    n: "04",
+    icon: GitBranch,
+    title: "Circle a reply. The thread forks.",
+    body: "Every response is a fork point. Branch the session from that exact moment and explore three directions in parallel without them contaminating each other.",
+  },
+  {
+    n: "05",
     icon: MessageCircleQuestion,
     title: "Circle a question. It gets answered.",
     body: "Sketch an idea, circle it, and get a researched reply written back in handwriting beside your notes. Everything Claude sees is exactly what's inside your circle.",
   },
   {
-    n: "03",
-    icon: GitBranch,
-    title: "Circle a reply. The thread continues.",
-    body: "Every response is a fork point. Circle any reply to branch the session from that exact moment and explore three directions without them contaminating each other.",
-  },
-  {
-    n: "04",
+    n: "06",
     icon: Wrench,
     title: "Your tools come with it.",
     body: "The agent inherits your Claude Code setup: your login, your working directory, your MCP servers. If your terminal Claude can do it, your pen can too.",
@@ -54,16 +73,14 @@ export default function Landing() {
           <div>
             <p className="lp-kicker">WOODPECKER OS</p>
             <h1 className="lp-h1">
-              Drive Claude Code
+              Drive Claude
               <br />
               <span className="lp-grad">with a pen.</span>
             </h1>
             <p className="lp-lede">
-              Woodpecker turns an iPad or e-ink display into a handwriting
-              interface for the Claude Code running on <em>your</em> machine.
-              Write a thought and circle it with the magic pen. Your agent
-              reads it, does the work with your files and your tools, and
-              writes back in ink.
+              Woodpecker turns an iPad or e-ink display into mission control for
+              the Claude Code running on <em>your</em> machine. Run agentic
+              tasks side by side on an infinite canvas.
             </p>
             <HeroCta />
             <p className="lp-trust">
@@ -77,14 +94,20 @@ export default function Landing() {
           </Reveal>
         </header>
 
+        {/* Quick start */}
+        <Reveal>
+          <QuickStart />
+        </Reveal>
+
         {/* The gesture */}
         <Reveal>
           <section id="gesture" className="lp-section">
-            <p className="lp-kicker">ONE GESTURE</p>
+            <p className="lp-kicker">BUILT FOR REAL WORK</p>
             <h2 className="lp-h2">Circle it. That&apos;s the interface.</h2>
             <p className="lp-sub">
-              No prompt box, no chat window, no app switcher. Everything the
-              agent sees is exactly what you put inside the circle.
+              No prompt box, no chat window, no app switcher. Underneath the ink
+              it&apos;s mission control for every Claude Code session on your
+              machine: parallel agents, persistent threads, one infinite canvas.
             </p>
             <div className="lp-cards">
               {gestures.map((item) => (
@@ -107,14 +130,16 @@ export default function Landing() {
             <p className="lp-kicker">WHY A PEN</p>
             <p className="lp-manifesto-big">
               The best thinking happens away from the feed. This isn&apos;t a
-              notepad app. <span className="lp-grad">It&apos;s a command line made of ink.</span>
+              notepad app.{" "}
+              <span className="lp-grad">
+                It&apos;s a command line made of ink.
+              </span>
             </p>
             <p>
               The moment you reach for the phone to &ldquo;just check one
               thing,&rdquo; the morning is gone. Woodpecker gives you the
-              leverage of your agent without opening the machine of
-              distraction: paper-like calm on one side, full Claude Code on the
-              other.
+              leverage of your agent without opening the machine of distraction:
+              paper-like calm on one side, full Claude Code on the other.
             </p>
           </section>
         </Reveal>
@@ -122,11 +147,6 @@ export default function Landing() {
         {/* How it works + security */}
         <Reveal>
           <SecuritySection />
-        </Reveal>
-
-        {/* Quick start */}
-        <Reveal>
-          <QuickStart />
         </Reveal>
 
         {/* FAQ */}
@@ -138,13 +158,16 @@ export default function Landing() {
       {/* Footer */}
       <footer className="lp-footer">
         <div className="lp-footer-inner">
-          <p className="lp-footer-quote">&ldquo;describe the tongue of a woodpecker&rdquo;</p>
-          <p className="lp-footer-attr">LEONARDO DA VINCI, NOTEBOOK ENTRY, C. 1508</p>
+          <p className="lp-footer-quote">
+            &ldquo;describe the tongue of a woodpecker&rdquo;
+          </p>
+          <p className="lp-footer-attr">
+            LEONARDO DA VINCI, NOTEBOOK ENTRY, C. 1508
+          </p>
           <p className="lp-footer-story">
             Five hundred years ago, the most curious mind alive left himself a
             note about the smallest of life&apos;s mysteries. A mind with room
-            to wonder, and the tools to chase it. That&apos;s the whole
-            product.
+            to wonder, and the tools to chase it. That&apos;s the whole product.
           </p>
         </div>
         <div className="lp-footer-bar">

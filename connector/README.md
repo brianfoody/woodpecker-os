@@ -16,8 +16,8 @@ Commands:
 
 | Command | |
 |---|---|
-| `woodpecker connect` | start (prints pairing QR) |
-| `woodpecker connect --dir <path>` | choose the working directory |
+| `woodpecker connect` | start (confirms working dir, prints pairing QR) |
+| `woodpecker connect --dir <path>` | set the working directory, skipping the prompt |
 | `woodpecker connect --reset-pairing` | rotate keys, revoke all devices |
 | `woodpecker connect --yolo` | disable tool guardrails |
 | `woodpecker connect --local` | local dev: plain WS on localhost:8787 |

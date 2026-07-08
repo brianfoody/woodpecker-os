@@ -40,11 +40,24 @@ const steps = [
   },
   {
     n: "2",
+    title: "Confirm the working folder",
+    body: (
+      <>
+        It asks which folder Claude Code should work in, every time it starts.
+        That folder is the agent&apos;s whole world: edits and writes are
+        confined to it by the guardrails. Point it at a repo, a notes folder,
+        whatever you&apos;re working on (or skip the prompt with{" "}
+        <code>--dir</code>).
+      </>
+    ),
+  },
+  {
+    n: "3",
     title: "Scan the QR from your tablet",
     body: "Point your iPad or e-ink browser at the code it prints. That's the pairing: the key travels inside the link fragment, device to device.",
   },
   {
-    n: "3",
+    n: "4",
     title: "Write, pick the magic pen, circle",
     body: "That's the whole interface. Your agent reads what's inside the circle, does the work, and writes back in ink.",
   },
@@ -84,8 +97,10 @@ export function QuickStart() {
           <pre>
 <span className="prompt">$</span> npx @woodpeckeros/connect{"\n"}
 {"\n"}
+<span className="dim">Which folder should Claude Code work in?</span> <span className="ok">~/code/myapp</span>{"\n"}
+{"\n"}
 <span className="ok">✓</span> Claude Code found · using your login{"\n"}
-<span className="ok">✓</span> guardrails on · working dir <span className="dim">~/notes</span>{"\n"}
+<span className="ok">✓</span> guardrails on · edits stay inside <span className="dim">~/code/myapp</span>{"\n"}
 <span className="ok">✓</span> key generated <span className="dim">· never leaves this machine</span>{"\n"}
 {"\n"}
 <span className="dim">scan from your tablet to pair ↴</span>

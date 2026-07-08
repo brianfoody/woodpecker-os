@@ -21,6 +21,17 @@ const items: Array<{ q: string; a: React.ReactNode }> = [
     ),
   },
   {
+    q: "Can I run several tasks at once?",
+    a: (
+      <>
+        Yes. Each circle starts its own Claude Code session, and they run in
+        parallel on your machine. Every agent streams progress beside the note
+        that launched it, so there&apos;s no jumping between terminal tabs, and
+        circling any reply resumes that session, even days later.
+      </>
+    ),
+  },
+  {
     q: "What can woodpeckeros.com see?",
     a: (
       <>

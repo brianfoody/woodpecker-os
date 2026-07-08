@@ -562,16 +562,20 @@ html:has(.lp) {
   26% { opacity: 1; }
   30%, 100% { left: 87%; opacity: 0; }
 }
-/* the text encrypts at the halfway point, in sync with the relay flash (17.5%) */
+/*
+ * The text encrypts the moment it leaves the canvas (~10%, well before the
+ * relay pass at 17.5%) and stays ciphertext until it reaches the machine —
+ * cleartext must never be shown touching the relay.
+ */
 @keyframes lp-out-plain {
-  0%, 16% { opacity: 1; }
-  17.5%, 26.5% { opacity: 0; }
+  0%, 8.5% { opacity: 1; }
+  10%, 26.5% { opacity: 0; }
   28%, 100% { opacity: 1; }
 }
 @keyframes lp-out-cipher {
-  0%, 17.5% { opacity: 0; }
-  19%, 25% { opacity: 1; }
-  26.5%, 100% { opacity: 0; }
+  0%, 10% { opacity: 0; }
+  11.5%, 26.5% { opacity: 1; }
+  28%, 100% { opacity: 0; }
 }
 @keyframes lp-travel-back {
   0%, 58% { left: 87%; opacity: 0; }
@@ -579,16 +583,19 @@ html:has(.lp) {
   86% { opacity: 1; }
   90%, 100% { left: 13%; opacity: 0; }
 }
-/* return leg mirrors it: encrypts at the halfway flash (74%) */
+/*
+ * Return leg mirrors it: encrypts leaving the machine (~63%, before the
+ * relay pass at 74%) and only decrypts arriving back at the canvas.
+ */
 @keyframes lp-back-plain {
-  0%, 72.5% { opacity: 1; }
-  74%, 84.5% { opacity: 0; }
-  86%, 100% { opacity: 1; }
+  0%, 61.5% { opacity: 1; }
+  63%, 85% { opacity: 0; }
+  86.5%, 100% { opacity: 1; }
 }
 @keyframes lp-back-cipher {
-  0%, 74% { opacity: 0; }
-  75.5%, 83% { opacity: 1; }
-  84.5%, 100% { opacity: 0; }
+  0%, 63% { opacity: 0; }
+  64.5%, 85% { opacity: 1; }
+  86.5%, 100% { opacity: 0; }
 }
 
 .lp-pipe-legend {

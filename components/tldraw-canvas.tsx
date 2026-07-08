@@ -40,16 +40,20 @@ import {
   clearCanvasData,
   saveViewport,
   loadViewport,
+  getCanvasRev,
+  setCanvasRev,
 } from "@/lib/canvas-persistence";
+import { getConnectorClient } from "@/lib/connector-client";
+import { ConnectorStatusPill, useConnectorStatus } from "@/components/connector-status";
 import { loadContacts } from "@/lib/contact-storage";
 import {
   getLastMessageCheck,
   updateLastMessageCheck,
 } from "@/lib/message-tracking";
 import type { SmartMessage } from "@/lib/models";
-import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { FirstRunOverlay } from "@/components/first-run-overlay";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
-import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
+import { shouldShowOnboarding, markFirstRunDone } from "@/lib/onboarding-state";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 import { useClaudeCode } from "@/hooks/use-claude-code";
 import { replayMissedSessionContent } from "@/lib/session-replay";
@@ -130,6 +134,29 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
   // Session panel state
   const [showSessionPanel, setShowSessionPanel] = useState(false);
+
+  // Connector link (status pill + cross-device canvas pull)
+  const { status: connectorStatus, info: connectorInfo } = useConnectorStatus();
+  const remoteCanvasLoadedRef = useRef(false);
+  useEffect(() => {
+    if (connectorStatus !== "connected" || remoteCanvasLoadedRef.current) return;
+    remoteCanvasLoadedRef.current = true;
+    const key = storageKey ?? "woodpecker-canvas-data";
+    getConnectorClient()
+      .loadCanvas(key)
+      .then(({ rev, snapshot }) => {
+        const editor = editorRef.current;
+        if (!snapshot || !editor) return;
+        if (rev <= getCanvasRev(key)) return; // local copy is as new or newer
+        try {
+          loadSnapshot(editor.store, snapshot as any);
+          setCanvasRev(rev, key);
+          console.log(`📥 Loaded canvas rev ${rev} from connector`);
+        } catch (error) {
+          console.error("Failed to load canvas from connector:", error);
+        }
+      });
+  }, [connectorStatus, storageKey]);
 
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -816,10 +843,8 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
           // Check if onboarding should be shown
           setTimeout(() => {
-            const shouldShow = shouldShowOnboarding();
-            if (shouldShow) {
+            if (shouldShowOnboarding()) {
               setShowOnboarding(true);
-              startOnboarding();
             }
           }, 100);
 
@@ -1158,14 +1183,13 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />
       )}
 
-      <OnboardingDialog
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        onStepChange={(step) => {
-          if (step === "complete") {
-            setShowOnboarding(false);
-          }
+      <FirstRunOverlay
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false);
+          markFirstRunDone();
         }}
+        darkMode={darkMode}
       />
 
       {!showSessionPanel && (
@@ -1175,6 +1199,12 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         editorRef={editorRef}
         open={showSessionPanel}
         onClose={() => setShowSessionPanel(false)}
+        darkMode={darkMode}
+      />
+
+      <ConnectorStatusPill
+        status={connectorStatus}
+        info={connectorInfo}
         darkMode={darkMode}
       />
     </div>

@@ -154,8 +154,11 @@ describe("Canvas Persistence", () => {
       // Fast-forward time
       jest.advanceTimersByTime(1000);
 
-      // Should only save once
-      expect(localStorageMock.setItem).toHaveBeenCalledTimes(1);
+      // Should only save the snapshot once (a rev-counter write may accompany it)
+      const snapshotWrites = localStorageMock.setItem.mock.calls.filter(
+        ([key]: [string]) => key === "woodpecker-canvas-data"
+      );
+      expect(snapshotWrites).toHaveLength(1);
     });
 
     it("should force immediate save", () => {
@@ -185,8 +188,11 @@ describe("Canvas Persistence", () => {
       // Fast-forward time
       jest.advanceTimersByTime(1000);
 
-      // Should only have saved once (from force save)
-      expect(localStorageMock.setItem).toHaveBeenCalledTimes(1);
+      // Should only have saved the snapshot once (from force save)
+      const snapshotWrites = localStorageMock.setItem.mock.calls.filter(
+        ([key]: [string]) => key === "woodpecker-canvas-data"
+      );
+      expect(snapshotWrites).toHaveLength(1);
     });
 
     it("should cleanup timers", () => {

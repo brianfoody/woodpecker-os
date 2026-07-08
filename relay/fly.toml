@@ -1,0 +1,25 @@
+# fly launch --no-deploy (from relay/), then: fly deploy
+# DNS: point relay.woodpeckeros.com at this app (fly certs add relay.woodpeckeros.com)
+app = "woodpecker-relay"
+primary_region = "syd"
+
+[build]
+
+[http_service]
+  internal_port = 9000
+  force_https = true
+  auto_stop_machines = false   # long-lived websockets — keep the machine up
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 9000
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"

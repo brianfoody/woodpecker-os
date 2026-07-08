@@ -1,4 +1,18 @@
-import { MessageStatus } from "twilio/lib/rest/api/v2010/account/message";
+// Legacy SMS message status (previously twilio's MessageStatus type)
+type MessageStatus =
+  | "queued"
+  | "sending"
+  | "sent"
+  | "failed"
+  | "delivered"
+  | "undelivered"
+  | "receiving"
+  | "received"
+  | "accepted"
+  | "scheduled"
+  | "read"
+  | "partially_delivered"
+  | "canceled";
 
 export type SmartContact = {
   name: string;

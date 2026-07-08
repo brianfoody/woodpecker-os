@@ -101,7 +101,19 @@ export function dismissOnboarding(): OnboardingState {
   return state;
 }
 
+const FIRST_RUN_KEY = "woodpecker-first-run-done";
+
 export function shouldShowOnboarding(): boolean {
-  // Onboarding disabled for now
-  return false;
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(FIRST_RUN_KEY) !== "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markFirstRunDone(): void {
+  try {
+    localStorage.setItem(FIRST_RUN_KEY, "1");
+  } catch {}
 }

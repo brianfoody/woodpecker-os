@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Clock, GitBranch, X, History, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getConnectorClient } from "@/lib/connector-client";
 
 interface SessionInfo {
   session_id: string;
@@ -64,10 +65,10 @@ export function SessionPanel({ editorRef, open, onClose, darkMode }: SessionPane
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    fetch("/api/sessions")
-      .then((r) => r.json())
-      .then((d) => {
-        setSessions(d.sessions || []);
+    getConnectorClient()
+      .listSessions()
+      .then((sessions) => {
+        setSessions(sessions as SessionInfo[]);
         setLoading(false);
       })
       .catch(() => setLoading(false));

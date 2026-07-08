@@ -2,7 +2,41 @@
 
 This document records important technical decisions made during the development of the Woodpecker project.
 
-_Last reviewed: 2026-05-27. Decisions tied to the original handwriting-recognition architecture have been moved to [Superseded decisions](#superseded-decisions) below._
+_Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recognition architecture have been moved to [Superseded decisions](#superseded-decisions) below._
+
+---
+
+## 0. Going Live: Local Connector + E2E-Encrypted Relay (woodpeckeros.com)
+
+**Decision**: woodpeckeros.com hosts only the static canvas UI; each user runs a local **connector** (`npx woodpeckeros connect`) that executes Claude Code on their own machine with their own Claude login. Browser and connector communicate through a dumb WebSocket **relay** with end-to-end encryption. No user accounts.
+
+**Date**: July 2026
+
+**Context**:
+
+- The original app ran the Claude Agent SDK inside the Next.js server with a shared static token baked into the client bundle — unusable as a public product (arbitrary command execution behind a public token)
+- The product ethos is self-hosted: your machine, your files, your Claude Max login, no cloud storage
+
+**Decision Details**:
+
+- **Three artifacts, one repo (npm workspaces)**: the Next.js app (Vercel, fully static, zero API routes), `connector/` (npm package `woodpeckeros`, bundles the Agent SDK invocation moved verbatim from the old `lib/claude-code.ts`), `relay/` (~200-line Node `ws` server on Fly.io at `relay.woodpeckeros.com`)
+- **Shared protocol** in `packages/protocol` — relay frames (join/relay/peer-status) carry only ciphertext; app-layer messages (hello, execute→StreamEvent stream, cancel, extract-text, canvas-save/load, sessions-list, transcript) are AES-256-GCM encrypted (WebCrypto on both sides, zero deps)
+- **Pairing**: connector generates a 128-bit channelId + 256-bit key, prints a QR for `https://woodpeckeros.com/pair#<id>.<key>` — the fragment never reaches the server. Re-pair/revoke with `--reset-pairing`. Replay protection via per-sender epoch + monotonic seq
+- **No accounts**: all durable state (pairing, config, devices, canvas snapshots) lives in `~/.woodpecker/` on the user's machine; cross-device canvas sync flows through the connector (monotonic rev, last-writer-wins)
+- **Guardrails**: every tool call routes through `canUseTool` (connector `guardrails.ts`): read-only + user MCP tools auto-allowed, Edit/Write scoped to the working dir, Bash checked against a destructive-command denylist; denials surface as status events on the canvas. `--yolo` bypasses
+- **Relay choice**: plain Node `ws` on Fly.io over Cloudflare DO / Ably / PartyKit (no second toolchain, no per-message pricing, identical server runs locally). WebRTC skipped for v1
+- **Local dev**: `woodpecker connect --local` serves plaintext WS on localhost:8787; the canvas auto-connects when running on localhost with no pairing
+
+**Alternatives Considered**:
+
+- Fully hosted per-user sandboxes (Fly Machines / E2B) — rejected: heavy ops, users' own files/MCPs unavailable, needs accounts + billing
+- Docs-only self-hosting — rejected: too much friction for "anyone can use it"
+
+**Implications**:
+
+- woodpeckeros.com never sees keys or executes user code; compromise of the relay leaks only ciphertext and presence
+- Gmail/Calendar OAuth routes, mirroir hardcoding, the settings page, and the old `/api/*` surface were deleted; users' own MCP config passes through instead
+- The web app is fully static — only env var is `NEXT_PUBLIC_RELAY_URL`
 
 ---
 

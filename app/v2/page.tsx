@@ -1,26 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useMemo } from "react";
-import dynamic from "next/dynamic";
-import { createNeonGridTheme } from "@/lib/woodpecker-theme";
-
-const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
-  ssr: false,
-  loading: () => (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: "#0a0a14", color: "#88ccaa", fontFamily: "'Share Tech Mono', monospace" }}>
-      Loading canvas...
-    </div>
-  ),
-});
-
-export default function V2Page() {
-  const theme = useMemo(() => createNeonGridTheme("dark"), []);
-
-  return (
-    <TldrawCanvas
-      theme={theme}
-      storageKey="woodpecker-canvas-data-v2"
-      darkMode={true}
-    />
-  );
+// The canvas moved to /canvas when woodpeckeros.com launched.
+export default function V2Redirect() {
+  redirect("/canvas");
 }

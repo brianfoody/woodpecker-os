@@ -17,8 +17,11 @@ import { WebSocketServer } from "ws";
 const PORT = Number(process.env.PORT || 9000);
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_CLIENTS_PER_CHANNEL = 8;
-const MSG_RATE_PER_SEC = 20;
-const BYTES_PER_MIN = 20 * 1024 * 1024;
+// Generous per-socket caps: agent event streams exceed 20 msg/s, and canvas
+// snapshot syncs are megabytes each. These exist to stop abuse, not to
+// throttle legitimate bursts.
+const MSG_RATE_PER_SEC = 100;
+const BYTES_PER_MIN = 100 * 1024 * 1024;
 const CONNECTS_PER_IP_PER_MIN = 10;
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const HEARTBEAT_MS = 30 * 1000;

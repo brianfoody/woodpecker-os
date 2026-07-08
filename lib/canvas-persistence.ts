@@ -5,6 +5,12 @@ import { peekConnectorClient } from "@/lib/connector-client";
 const DEFAULT_STORAGE_KEY = "woodpecker-canvas-data";
 const AUTO_SAVE_DELAY = 1000; // 1 second delay for auto-save
 const REV_KEY_PREFIX = "woodpecker-canvas-rev-";
+// Pushing to the connector ships the full snapshot over the relay, so it is
+// throttled much harder than the local save and skipped when nothing changed.
+const CONNECTOR_PUSH_MIN_INTERVAL = 4000;
+let lastPushedData: string | null = null;
+let lastPushAt = 0;
+let pushRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ── Canvas revision counter (cross-device last-writer-wins) ──
 
@@ -68,13 +74,7 @@ export function saveCanvasData(store: TLStore, storageKey = DEFAULT_STORAGE_KEY)
     // Best-effort push to the paired connector so other devices can pick
     // this canvas up. Oversized snapshots stay localStorage-only.
     try {
-      const rev = getCanvasRev(storageKey) + 1;
-      setCanvasRev(rev, storageKey);
-      if (serializedData.length <= MAX_SNAPSHOT_BYTES) {
-        peekConnectorClient()?.saveCanvas(storageKey, rev, snapshot);
-      } else {
-        console.warn("⚠️ Canvas snapshot too large to sync — kept local only");
-      }
+      pushToConnector(serializedData, snapshot, storageKey);
     } catch {}
   } catch (error) {
     if (error instanceof Error && error.name === "QuotaExceededError") {
@@ -84,6 +84,44 @@ export function saveCanvasData(store: TLStore, storageKey = DEFAULT_STORAGE_KEY)
     }
   }
 }
+
+/**
+ * Rate-limited, deduplicated push of the snapshot to the connector. At most
+ * one push per CONNECTOR_PUSH_MIN_INTERVAL, and only when the snapshot
+ * actually changed — an idle canvas sends nothing.
+ */
+function pushToConnector(
+  serializedData: string,
+  snapshot: unknown,
+  storageKey: string
+): void {
+  if (serializedData === lastPushedData) return;
+  if (serializedData.length > MAX_SNAPSHOT_BYTES) {
+    console.warn("⚠️ Canvas snapshot too large to sync — kept local only");
+    return;
+  }
+
+  const now = Date.now();
+  const wait = lastPushAt + CONNECTOR_PUSH_MIN_INTERVAL - now;
+  if (wait > 0) {
+    // Too soon — re-save from the live store when the window opens.
+    if (!pushRetryTimer) {
+      pushRetryTimer = setTimeout(() => {
+        pushRetryTimer = null;
+        if (activeAutoSaver) saveCanvasData(activeAutoSaver.getStore(), storageKey);
+      }, wait);
+    }
+    return;
+  }
+
+  lastPushAt = now;
+  lastPushedData = serializedData;
+  const rev = getCanvasRev(storageKey) + 1;
+  setCanvasRev(rev, storageKey);
+  peekConnectorClient()?.saveCanvas(storageKey, rev, snapshot);
+}
+
+let activeAutoSaver: CanvasAutoSaver | null = null;
 
 /**
  * Loads canvas data from localStorage
@@ -180,6 +218,11 @@ export class CanvasAutoSaver {
   constructor(store: TLStore, storageKey = DEFAULT_STORAGE_KEY) {
     this.store = store;
     this.storageKey = storageKey;
+    activeAutoSaver = this;
+  }
+
+  getStore(): TLStore {
+    return this.store;
   }
 
   /**

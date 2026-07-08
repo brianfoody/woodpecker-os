@@ -1,7 +1,26 @@
 import { TLStore } from "tldraw";
+import { MAX_SNAPSHOT_BYTES } from "@woodpeckeros/protocol";
+import { peekConnectorClient } from "@/lib/connector-client";
 
 const DEFAULT_STORAGE_KEY = "woodpecker-canvas-data";
 const AUTO_SAVE_DELAY = 1000; // 1 second delay for auto-save
+const REV_KEY_PREFIX = "woodpecker-canvas-rev-";
+
+// ── Canvas revision counter (cross-device last-writer-wins) ──
+
+export function getCanvasRev(storageKey = DEFAULT_STORAGE_KEY): number {
+  try {
+    return Number(localStorage.getItem(REV_KEY_PREFIX + storageKey)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setCanvasRev(rev: number, storageKey = DEFAULT_STORAGE_KEY): void {
+  try {
+    localStorage.setItem(REV_KEY_PREFIX + storageKey, String(rev));
+  } catch {}
+}
 
 /**
  * Validates that a store snapshot is valid before saving
@@ -45,6 +64,18 @@ export function saveCanvasData(store: TLStore, storageKey = DEFAULT_STORAGE_KEY)
 
     localStorage.setItem(storageKey, serializedData);
     console.log("💾 Canvas data saved to localStorage");
+
+    // Best-effort push to the paired connector so other devices can pick
+    // this canvas up. Oversized snapshots stay localStorage-only.
+    try {
+      const rev = getCanvasRev(storageKey) + 1;
+      setCanvasRev(rev, storageKey);
+      if (serializedData.length <= MAX_SNAPSHOT_BYTES) {
+        peekConnectorClient()?.saveCanvas(storageKey, rev, snapshot);
+      } else {
+        console.warn("⚠️ Canvas snapshot too large to sync — kept local only");
+      }
+    } catch {}
   } catch (error) {
     if (error instanceof Error && error.name === "QuotaExceededError") {
       console.error("❌ localStorage quota exceeded, cannot save canvas data");

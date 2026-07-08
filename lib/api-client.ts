@@ -1,30 +1,25 @@
-export function claudeCodeFetch(prompt: string, opts?: { resumeSessionId?: string; image?: string }) {
-  return fetch("/api/claude-code", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Woodpecker-Token": process.env.NEXT_PUBLIC_WOODPECKER_AUTH_TOKEN!,
-    },
-    body: JSON.stringify({ prompt, resumeSessionId: opts?.resumeSessionId, image: opts?.image }),
-  });
+/**
+ * Thin shim over the connector client, preserving the call sites of the old
+ * fetch-based API client. All requests now go to the user's own machine via
+ * the paired connector instead of Next.js API routes.
+ */
+
+import type { StreamEvent } from "@woodpeckeros/protocol";
+import { getConnectorClient } from "@/lib/connector-client";
+
+export function executeClaudeStream(
+  prompt: string,
+  opts?: { resumeSessionId?: string; image?: string }
+): AsyncGenerator<StreamEvent> {
+  return getConnectorClient().execute(prompt, opts);
 }
 
 export async function extractTextFromImage(base64: string): Promise<string> {
-  const res = await fetch("/api/extract-text", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Woodpecker-Token": process.env.NEXT_PUBLIC_WOODPECKER_AUTH_TOKEN!,
-    },
-    body: JSON.stringify({ image: base64 }),
-  });
-  if (!res.ok) throw new Error(`OCR request failed: ${res.status}`);
-  const data = await res.json();
-  return data.text || "";
+  return getConnectorClient().extractText(base64);
 }
 
-export function fetchSessionTranscript(sessionId: string): Promise<{ textBlocks: string[]; isComplete: boolean } | null> {
-  return fetch(`/api/sessions/${sessionId}/transcript`, {
-    headers: { "X-Woodpecker-Token": process.env.NEXT_PUBLIC_WOODPECKER_AUTH_TOKEN! },
-  }).then(r => r.ok ? r.json() : null);
+export function fetchSessionTranscript(
+  sessionId: string
+): Promise<{ textBlocks: string[]; isComplete: boolean } | null> {
+  return getConnectorClient().getTranscript(sessionId);
 }

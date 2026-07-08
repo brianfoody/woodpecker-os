@@ -2,7 +2,41 @@
 
 This document records important technical decisions made during the development of the Woodpecker project.
 
-_Last reviewed: 2026-05-27. Decisions tied to the original handwriting-recognition architecture have been moved to [Superseded decisions](#superseded-decisions) below._
+_Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recognition architecture have been moved to [Superseded decisions](#superseded-decisions) below._
+
+---
+
+## 0. Going Live: Local Connector + E2E-Encrypted Relay (woodpeckeros.com)
+
+**Decision**: woodpeckeros.com hosts only the static canvas UI; each user runs a local **connector** (`npx woodpeckeros connect`) that executes Claude Code on their own machine with their own Claude login. Browser and connector communicate through a dumb WebSocket **relay** with end-to-end encryption. No user accounts.
+
+**Date**: July 2026
+
+**Context**:
+
+- The original app ran the Claude Agent SDK inside the Next.js server with a shared static token baked into the client bundle — unusable as a public product (arbitrary command execution behind a public token)
+- The product ethos is self-hosted: your machine, your files, your Claude Max login, no cloud storage
+
+**Decision Details**:
+
+- **Three artifacts, one repo (npm workspaces)**: the Next.js app (Vercel, fully static, zero API routes), `connector/` (npm package `woodpeckeros`, bundles the Agent SDK invocation moved verbatim from the old `lib/claude-code.ts`), `relay/` (~200-line Node `ws` server on Fly.io at `relay.woodpeckeros.com`)
+- **Shared protocol** in `packages/protocol` — relay frames (join/relay/peer-status) carry only ciphertext; app-layer messages (hello, execute→StreamEvent stream, cancel, extract-text, canvas-save/load, sessions-list, transcript) are AES-256-GCM encrypted (WebCrypto on both sides, zero deps)
+- **Pairing**: connector generates a 128-bit channelId + 256-bit key, prints a QR for `https://woodpeckeros.com/pair#<id>.<key>` — the fragment never reaches the server. Re-pair/revoke with `--reset-pairing`. Replay protection via per-sender epoch + monotonic seq
+- **No accounts**: all durable state (pairing, config, devices, canvas snapshots) lives in `~/.woodpecker/` on the user's machine; cross-device canvas sync flows through the connector (monotonic rev, last-writer-wins)
+- **Guardrails**: every tool call routes through `canUseTool` (connector `guardrails.ts`): read-only + user MCP tools auto-allowed, Edit/Write scoped to the working dir, Bash checked against a destructive-command denylist; denials surface as status events on the canvas. `--yolo` bypasses
+- **Relay choice**: plain Node `ws` on Fly.io over Cloudflare DO / Ably / PartyKit (no second toolchain, no per-message pricing, identical server runs locally). WebRTC skipped for v1
+- **Local dev**: `woodpecker connect --local` serves plaintext WS on localhost:8787; the canvas auto-connects when running on localhost with no pairing
+
+**Alternatives Considered**:
+
+- Fully hosted per-user sandboxes (Fly Machines / E2B) — rejected: heavy ops, users' own files/MCPs unavailable, needs accounts + billing
+- Docs-only self-hosting — rejected: too much friction for "anyone can use it"
+
+**Implications**:
+
+- woodpeckeros.com never sees keys or executes user code; compromise of the relay leaks only ciphertext and presence
+- Gmail/Calendar OAuth routes, mirroir hardcoding, the settings page, and the old `/api/*` surface were deleted; users' own MCP config passes through instead
+- The web app is fully static — only env var is `NEXT_PUBLIC_RELAY_URL`
 
 ---
 
@@ -215,6 +249,39 @@ _Last reviewed: 2026-05-27. Decisions tied to the original handwriting-recogniti
 
 - Requires Google Cloud Console and Azure AD app registrations for credentials (not part of the minimal `.env.example`)
 - Safety guardrails enforced at the OAuth-scope level
+
+---
+
+## 9. Writing-Anchored Reply Layout for the Magic Pen
+
+**Decision**: Anchor the magic pen reply chain (YOU card + AI response) to the user's circled **writing**, and decide loop membership by polygon containment — replacing the card-relative 5-slot positioning table and the bbox-graze capture test
+
+**Date**: July 2026
+
+**Context**:
+
+- Users often write at the edge of an AI card and circle their writing; the reply then appeared far from the handwriting (up to card-width + 685px away)
+- Three compounding causes: (1) any shape whose bbox merely grazed the circle's bbox was "captured", so the neighbouring card hijacked the layout anchor; (2) placement then snapped to one of 5 hardcoded slots relative to the whole card (`card.x ± (665 + 20)`); (3) `estimateTextHeight` assumed 500px-wide cards while cards are 665px, inflating every stacking gap ~35%
+
+**Decision Details**:
+
+- Layout math extracted to a pure, unit-tested module: `lib/magic-loop-layout.ts` (`isShapeInLoop`, `rectsIntersect`, `computeReplyLayout`)
+- **Capture is split by shape kind**: *ink* (strokes, text, bubbles) is circled only when its center is inside the loop polygon (ray-casting), the loop was drawn ON it, or ≥50% of its area lies in the loop bounds — grazing strokes no longer pollute the anchor bounds. *AI cards* keep generous bbox-overlap capture: circling writing at the edge of a card must still capture the card so its **session resumes** (strict containment here would trade the layout bug for a lost-context bug). Connector arrows and thinking indicators are never captured
+- **Placement**: reply is left-aligned with the circled ink (fallback: loop bounds). If the 665px reply column horizontally overlaps the source card it drops below `max(content bottom, card bottom) + 20px` so it can't land on the card; writing *beside* a (possibly tall) card keeps the reply level with the writing instead of pushing it below the card. Branch direction (`under`/`left`/`right`) is *derived* from where the reply lands and only controls connector anchors; the 5-slot table and the `isBodyLevel` knife-edge are gone
+- **Collision + visibility**: reply nudges downward past existing cards/bubbles, and the camera pans (`centerOnPoint`) if the final spot is off-viewport
+- Layout anchor and session-resume anchor now use the same bottom-most-first card ordering so the connector and the resumed session always agree
+- `estimateTextHeight` default width corrected to 665
+
+**Alternatives Considered**:
+
+- Keeping the 5-slot table with better direction detection (rejected: any card-relative slot can still land far from the handwriting)
+- Point-in-polygon for every point of every shape (rejected: center + majority-area is enough and cheap)
+
+**Implications**:
+
+- Replies now appear directly under the handwriting; side-branch layouts still emerge naturally when the user writes beside a card
+- Circling empty space *near* a card no longer resumes that card's session — the circle must be on the card or around its center
+- `lib/__tests__/magic-loop-layout.test.ts` covers capture and placement scenarios
 
 ---
 

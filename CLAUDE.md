@@ -103,12 +103,16 @@ This should be a returned promise that pops up in the canvas.
 
 - `npm run dev` - Start development server on http://localhost:3000
 - `npm run build` - Build production bundle
-- `npm run start` - Start production server
+- `npm run typecheck` - TypeScript check (web app)
 - `npm run lint` - Run ESLint checks
+- `npm test` - Jest suite
+- `npm run build -w woodpeckeros` - Build the connector CLI bundle
+- `node connector/dist/cli.js connect --local --dir <path>` - Run the connector in local dev mode (canvas on localhost auto-connects)
+- `node relay/src/server.js` - Run the relay locally on :9000
 
 ## Architecture
 
-This is a Next.js 15 application using the App Router with TypeScript and React 19. The project is set up with shadcn/ui components and Tailwind CSS v4.
+This is an npm-workspaces monorepo. The Next.js 15 app (repo root, App Router, React 19, shadcn/ui, Tailwind v4) is **fully static** and deploys to Vercel — it has NO API routes and no secrets. Claude Code execution happens in `connector/` (npm package `woodpeckeros`) on the user's own machine; the browser reaches it through `relay/` (dumb ciphertext pipe on Fly.io) using the E2E-encrypted protocol in `packages/protocol/`. See `docs/DECISIONS.md` #0 for the full model. Do not add server-side API routes or secrets to the web app.
 
 ### Key Structure
 

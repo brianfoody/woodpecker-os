@@ -39,5 +39,10 @@ next-env.d.ts
 .venv
 __pycache__/
 docker-container/app
+docker-container/.env
 .python-version
 *.db
+*.db-shm
+*.db-wal
+.woodpecker-tokens.json
+connector/dist/

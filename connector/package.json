@@ -1,0 +1,36 @@
+{
+  "name": "woodpeckeros",
+  "version": "0.1.0",
+  "description": "Woodpecker OS connector — drive your local Claude Code from the woodpeckeros.com writing canvas",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "woodpecker": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/cli.js --external:@anthropic-ai/claude-agent-sdk --external:ws --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\"",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.105",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/ws": "^8.5.12",
+    "@woodpeckeros/protocol": "*",
+    "esbuild": "^0.24.0",
+    "qrcode-terminal": "^0.12.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

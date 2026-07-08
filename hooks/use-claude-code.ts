@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createShapeId, TLShapeId } from "tldraw";
-import { claudeCodeFetch, extractTextFromImage } from "@/lib/api-client";
+import { executeClaudeStream, extractTextFromImage } from "@/lib/api-client";
 import { getReplayWatermark, setReplayWatermark } from "@/lib/canvas-persistence";
-
-type StreamEvent = {
-  type: "text_delta" | "tool_use" | "tool_result" | "status" | "error" | "done";
-  content?: string;
-  toolName?: string;
-  sessionId?: string;
-  forkSessionId?: string;
-};
+import type { StreamEvent } from "@woodpeckeros/protocol";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 import type { WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 import { toast } from "@/hooks/use-toast";
@@ -311,8 +304,10 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
         }
       };
 
-      /** Estimate rendered height from text content (autoSize is async, so geometry may be stale) */
-      const estimateTextHeight = (text: string, shapeWidth = 500): number => {
+      /** Estimate rendered height from text content (autoSize is async, so geometry may be stale).
+       *  Default width must match the width cards are created with (w: 665) —
+       *  a smaller width overestimates line count and inflates stacking gaps. */
+      const estimateTextHeight = (text: string, shapeWidth = 665): number => {
         if (!text) return theme ? 80 : 40;
         const charWidth = 10; // approx char width at size "m" (20px font)
         const lineHeight = theme ? 33 : 28; // card uses lineHeight 1.65 vs 1.5
@@ -582,9 +577,11 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
           const userCardHeight = estimateTextHeight(userDisplayText);
           nextY += userCardHeight + SHAPE_GAP;
         } else {
-          // No text extracted — remove the placeholder card
-          editor.deleteShapes([userCardId]);
-          userCardId = undefined as any;
+          // No text extracted — the placeholder (userThinkingId) is already
+          // deleted above and no user card was created, so nothing to remove.
+          // Deleting here would pass undefined to deleteShapes and throw,
+          // killing the session before it starts.
+          userCardId = undefined;
         }
       } else if (!isRetry) {
         // Non-themed: clean up stroke immediately
@@ -595,39 +592,11 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
       createThinkingShape(isRetry ? "retrying..." : "waking up...");
 
       try {
-        const response = await claudeCodeFetch(prompt, opts);
-
-        if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
-        }
-
-        if (!response.body) {
-          throw new Error("No response body");
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
+        for await (const event of executeClaudeStream(prompt, opts)) {
           if (abortController.signal.aborted) break;
-
-          const { done, value } = await reader.read();
-          if (done) break;
 
           // Track activity so zombie-stream detection knows we're alive
           lastStreamActivityRef.current = Date.now();
-
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-
-            try {
-              const event: StreamEvent = JSON.parse(line.slice(6));
 
               if (event.type === "status" && event.content) {
                 setThinking((prev) => ({ ...prev, label: event.content! }));
@@ -698,11 +667,6 @@ export function useClaudeCode({ editorRef, responseRendererRef, theme }: UseClau
                   receivedForkSessionId = event.forkSessionId;
                 }
               }
-            } catch (parseError) {
-              if (parseError instanceof SyntaxError) continue;
-              throw parseError;
-            }
-          }
         }
 
         // Stream finished — mark inactive so visibility-change cleanup can run

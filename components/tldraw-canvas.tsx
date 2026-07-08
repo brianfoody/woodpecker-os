@@ -23,6 +23,14 @@ import {
 } from "@/lib/shapes";
 
 import { analyzeForSingleLoop } from "@/lib/gesture-detection";
+import {
+  isShapeInLoop,
+  rectsIntersect,
+  computeReplyLayout,
+  RESPONSE_CARD_WIDTH,
+  type Rect,
+  type BranchDirection,
+} from "@/lib/magic-loop-layout";
 import { MysticSmokeFilter } from "@/components/explore/mystic-smoke-filter";
 import { MagicDrawTool } from "@/lib/magic-draw-tool";
 import { cancelClaudeCodeRef, retryClaudeCodeRef, dismissCancelledRef } from "@/lib/shapes/thinking-indicator-shape";
@@ -32,16 +40,20 @@ import {
   clearCanvasData,
   saveViewport,
   loadViewport,
+  getCanvasRev,
+  setCanvasRev,
 } from "@/lib/canvas-persistence";
+import { getConnectorClient } from "@/lib/connector-client";
+import { ConnectorStatusPill, useConnectorStatus } from "@/components/connector-status";
 import { loadContacts } from "@/lib/contact-storage";
 import {
   getLastMessageCheck,
   updateLastMessageCheck,
 } from "@/lib/message-tracking";
 import type { SmartMessage } from "@/lib/models";
-import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { FirstRunOverlay } from "@/components/first-run-overlay";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
-import { shouldShowOnboarding, startOnboarding } from "@/lib/onboarding-state";
+import { shouldShowOnboarding, markFirstRunDone } from "@/lib/onboarding-state";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
 import { useClaudeCode } from "@/hooks/use-claude-code";
 import { replayMissedSessionContent } from "@/lib/session-replay";
@@ -118,10 +130,33 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
   // Magic pen — tracked via tldraw's current tool ("magic-draw")
   const [magicPenActive, setMagicPenActive] = useState(false);
   const magicShapeIdsRef = useRef<Set<string>>(new Set());
-  const [magicShapeIds, setMagicShapeIds] = useState<string[]>([]);
+  const [magicShapeIds] = useState<string[]>([]);
 
   // Session panel state
   const [showSessionPanel, setShowSessionPanel] = useState(false);
+
+  // Connector link (status pill + cross-device canvas pull)
+  const { status: connectorStatus, info: connectorInfo } = useConnectorStatus();
+  const remoteCanvasLoadedRef = useRef(false);
+  useEffect(() => {
+    if (connectorStatus !== "connected" || remoteCanvasLoadedRef.current) return;
+    remoteCanvasLoadedRef.current = true;
+    const key = storageKey ?? "woodpecker-canvas-data";
+    getConnectorClient()
+      .loadCanvas(key)
+      .then(({ rev, snapshot }) => {
+        const editor = editorRef.current;
+        if (!snapshot || !editor) return;
+        if (rev <= getCanvasRev(key)) return; // local copy is as new or newer
+        try {
+          loadSnapshot(editor.store, snapshot as any);
+          setCanvasRev(rev, key);
+          console.log(`📥 Loaded canvas rev ${rev} from connector`);
+        } catch (error) {
+          console.error("Failed to load canvas from connector:", error);
+        }
+      });
+  }, [connectorStatus, storageKey]);
 
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -368,24 +403,30 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         const maxX = Math.max(...allPoints.map((p) => p.x));
         const minY = Math.min(...allPoints.map((p) => p.y));
         const maxY = Math.max(...allPoints.map((p) => p.y));
+        const loopRect: Rect = { minX, minY, maxX, maxY };
 
-        // Get all shapes and find ones inside the loop
+        const getPageRect = (shape: any): Rect | null => {
+          const b = eventEditor.getShapePageBounds(shape);
+          if (!b) return null;
+          return { minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY };
+        };
+
+        // Get all shapes and find ones actually circled by the loop.
+        // AI cards use generous bbox overlap — circling writing at the edge
+        // of a card must still capture the card so its session resumes.
+        // Everything else (ink) requires polygon containment so neighbouring
+        // strokes don't pollute the bounds the reply is anchored to.
+        // Connector arrows and thinking indicators are never content.
+        const isAiCard = (s: any) => s.type === "handwritten-text" && s.props?.cardBg;
         const allShapes = eventEditor.getCurrentPageShapes();
         const shapesInLoop = allShapes.filter((shape: any) => {
           if (shape.id === stroke.id) return false;
-
-          const bounds = eventEditor.getShapeGeometry(shape).bounds;
-          const shapeMinX = shape.x + bounds.minX;
-          const shapeMaxX = shape.x + bounds.maxX;
-          const shapeMinY = shape.y + bounds.minY;
-          const shapeMaxY = shape.y + bounds.maxY;
-
-          return !(
-            shapeMaxX < minX ||
-            shapeMinX > maxX ||
-            shapeMaxY < minY ||
-            shapeMinY > maxY
-          );
+          if (shape.type === "arrow" || shape.type === "thinking-indicator") return false;
+          const rect = getPageRect(shape);
+          if (!rect) return false;
+          return isAiCard(shape)
+            ? rectsIntersect(rect, loopRect)
+            : isShapeInLoop(rect, loopRect, allPoints);
         });
 
         if (shapesInLoop.length === 0) {
@@ -476,100 +517,79 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           ? { resumeSessionId: resumeId, image: imageBase64 }
           : { image: imageBase64 };
 
-        // Find any AI card in the circle for layout positioning
-        // (not all AI cards have a claudeSessionId — only the last card in a response does)
-        const aiCardForLayout = shapesInLoop.find(
-          (s: any) => s.type === "handwritten-text" && s.props?.cardBg
-        ) ?? aiResponseShape;
+        // The AI card the reply branches from. Uses the same bottom-most-first
+        // ordering as the session selection above so the connector anchor and
+        // the resumed session always agree.
+        const cardsInLoop = shapesInLoop
+          .filter(isAiCard)
+          .sort((a: any, b: any) => b.y - a.y);
+        const aiCardForLayout =
+          aiResponseShape ?? (cardsInLoop.length > 0 ? cardsInLoop[0] : undefined);
 
-        // Determine branch direction and position for themed follow-ups
+        // Bounds of the user's circled ink (everything that isn't a card) —
+        // the reply is anchored to where the user actually wrote, falling
+        // back to the loop bounds when only cards were circled.
+        let inkRect: Rect | null = null;
+        for (const s of shapesInLoop) {
+          if (isAiCard(s)) continue;
+          const rect = getPageRect(s);
+          if (!rect) continue;
+          inkRect = inkRect
+            ? {
+                minX: Math.min(inkRect.minX, rect.minX),
+                minY: Math.min(inkRect.minY, rect.minY),
+                maxX: Math.max(inkRect.maxX, rect.maxX),
+                maxY: Math.max(inkRect.maxY, rect.maxY),
+              }
+            : rect;
+        }
+
+        // Position the reply chain — anchored to the writing, not the card
         let bubbleX = minX;
-        let bubbleY = theme
-          ? maxY + RESPONSE_GAP
-          : maxY + FRAME_PADDING + RESPONSE_GAP;
-        let direction: "right" | "right-under" | "under" | "left" | "left-under" | undefined;
-        let branchAnchorY: number | undefined;
+        let bubbleY = maxY + FRAME_PADDING + RESPONSE_GAP;
+        let direction: BranchDirection | undefined;
+        const branchAnchorY: number | undefined = undefined;
 
-        if (aiCardForLayout && theme) {
-          const sourceBounds = eventEditor.getShapeGeometry(aiCardForLayout).bounds;
-          const sourceCenterX = aiCardForLayout.x + sourceBounds.width / 2;
-          const sourceW = sourceBounds.width;
-          const sourceH = sourceBounds.height;
-          const sourceBottom = aiCardForLayout.y + sourceH;
+        if (theme) {
+          const obstacles = allShapes
+            .filter((s: any) =>
+              ["handwritten-text", "thinking-indicator", "message-bubble", "website-bubble", "interaction-bubble"].includes(s.type)
+            )
+            .map(getPageRect)
+            .filter(Boolean) as Rect[];
 
-          const BRANCH_GAP = 20;
-          const RESPONSE_CARD_WIDTH = 665;
+          const layout = computeReplyLayout({
+            loop: loopRect,
+            ink: inkRect,
+            sourceCard: aiCardForLayout ? getPageRect(aiCardForLayout) : null,
+            obstacles,
+          });
+          bubbleX = layout.x;
+          bubbleY = layout.y;
+          direction = layout.direction;
 
-          // Calculate where the user wrote relative to the source AI card
-          const userShapes = shapesInLoop.filter(
-            (s: any) => s.id !== aiCardForLayout!.id
-          );
-
-          let uMinY = maxY;
-
-          if (userShapes.length > 0) {
-            uMinY = Infinity;
-            for (const s of userShapes) {
-              const b = eventEditor.getShapeGeometry(s).bounds;
-              uMinY = Math.min(uMinY, s.y + b.minY);
+          // Bring the reply into view if the (possibly nudged) position
+          // landed outside the current viewport
+          try {
+            const vp = eventEditor.getViewportPageBounds();
+            const visible =
+              bubbleX < vp.maxX &&
+              bubbleX + RESPONSE_CARD_WIDTH > vp.minX &&
+              bubbleY < vp.maxY &&
+              bubbleY + 100 > vp.minY;
+            if (!visible) {
+              eventEditor.centerOnPoint(
+                { x: bubbleX + RESPONSE_CARD_WIDTH / 2, y: bubbleY + 150 },
+                { animation: { duration: 400 } }
+              );
             }
-          }
-
-          // Direction detection using circle center against source center.
-          // "Center" only if the circle center is within 25% of source width
-          // from the source center — prevents large body-level circles from
-          // being misdetected as center on tall cards.
-          const circleCenterX = (minX + maxX) / 2;
-          const circleCenterY = (minY + maxY) / 2;
-          const circleMaxY = maxY;
-
-          let hDir: "center" | "left" | "right";
-          const centerThreshold = sourceW * 0.25;
-          if (Math.abs(circleCenterX - sourceCenterX) < centerThreshold) {
-            hDir = "center";
-          } else {
-            hDir = circleCenterX < sourceCenterX ? "left" : "right";
-          }
-
-          const isBodyLevel = circleCenterY < sourceBottom;
-
-          // Apply the 5-scenario positioning table.
-          // For all left/right scenarios the YOU card goes BELOW both the
-          // source card and the circle so the elbow connector forms a clean L.
-          if (hDir === "center") {
-            // Center + under (scenario 1)
-            direction = "under";
-            bubbleX = aiCardForLayout.x + (sourceW - RESPONSE_CARD_WIDTH) / 2;
-            bubbleY = circleMaxY + BRANCH_GAP;
-          } else if (hDir === "left" && isBodyLevel) {
-            // Left + body (scenario 2)
-            direction = "left";
-            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
-            bubbleY = circleMaxY + BRANCH_GAP;
-          } else if (hDir === "left" && !isBodyLevel) {
-            // Left + under (scenario 3)
-            direction = "left-under";
-            bubbleX = aiCardForLayout.x - RESPONSE_CARD_WIDTH - BRANCH_GAP;
-            bubbleY = circleMaxY + BRANCH_GAP;
-          } else if (hDir === "right" && isBodyLevel) {
-            // Right + body (scenario 4)
-            direction = "right";
-            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
-            bubbleY = circleMaxY + BRANCH_GAP;
-          } else {
-            // Right + under (scenario 5)
-            direction = "right-under";
-            bubbleX = aiCardForLayout.x + sourceW + BRANCH_GAP;
-            bubbleY = circleMaxY + BRANCH_GAP;
-          }
-
-          // All connectors exit from bottom center — branchAnchorY not needed
+          } catch {}
         }
 
         // Determine source shape for connecting arrow.
         // Themed continuations use the AI card; unthemed uses the frame.
-        let sourceId = aiCardForLayout?.id ?? aiResponseShape?.id ?? frameId;
-        let branchDir: "right" | "right-under" | "under" | "left" | "left-under" | undefined =
+        let sourceId = aiCardForLayout?.id ?? frameId;
+        let branchDir: BranchDirection | undefined =
           aiCardForLayout && theme ? direction : undefined;
 
         if (!sourceId && theme && shapesInLoop.length > 0) {
@@ -596,7 +616,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         console.error("Magic wand processing failed:", error);
       }
     },
-    [originalStrokeProps, executeClaudeCode, resizeAndEncodeImage]
+    [originalStrokeProps, executeClaudeCode, resizeAndEncodeImage, theme]
   );
 
   // Handler for onboarding actions
@@ -823,10 +843,8 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
           // Check if onboarding should be shown
           setTimeout(() => {
-            const shouldShow = shouldShowOnboarding();
-            if (shouldShow) {
+            if (shouldShowOnboarding()) {
               setShowOnboarding(true);
-              startOnboarding();
             }
           }, 100);
 
@@ -932,6 +950,14 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           // Tint magic-draw strokes neon green so they're visually distinct.
           const MAGIC_INK_COLOR = "light-green";
           let lastMagicDrawId: string | null = null;
+          // Strokes that already triggered (or are triggering) a session.
+          // The gesture handler recolors/deletes its stroke, which fires
+          // store updates — without this set those updates would re-arm
+          // lastMagicDrawId with a dead id, and every later pointerup/tap
+          // would burn ~1.5s retrying a deleted shape, silently eating the
+          // pointerup of any circle drawn in that window (the "works once,
+          // then broken" iPad/Safari bug).
+          const consumedMagicIds = new Set<string>();
           const trackMagicShapes = editor.store.listen((event: any) => {
             if (editor.getCurrentToolId() !== "magic-draw") return;
 
@@ -951,11 +977,17 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
               }
             }
 
-            // Track latest updated draw shape
+            // Track latest updated draw shape — only strokes the magic pen
+            // created and that haven't already triggered a session
             const updated = Object.values(event.changes.updated) as any[];
             for (const pair of updated) {
               const after = Array.isArray(pair) ? pair[1] : pair;
-              if (after?.typeName === "shape" && after.type === "draw") {
+              if (
+                after?.typeName === "shape" &&
+                after.type === "draw" &&
+                magicShapeIdsRef.current.has(after.id) &&
+                !consumedMagicIds.has(after.id)
+              ) {
                 lastMagicDrawId = after.id;
               }
             }
@@ -968,43 +1000,57 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           // time the event fires, tldraw may have already transitioned
           // the tool state. lastMagicDrawId is only set inside the
           // store listener which already gates on magic-draw.
-          let loopCheckInFlight = false;
+          let loopCheckGeneration = 0;
+          let thinkingWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
+          // Try at increasing delays — iPad shape finalization timing varies.
+          // A newer stroke supersedes any pending ladder (generation check),
+          // so a slow ladder can never swallow the pointerup of a new circle.
+          const runLoopCheck = (idToCheck: string, delay: number, gen: number) => {
+            setTimeout(async () => {
+              if (gen !== loopCheckGeneration) return; // superseded by a newer stroke
+              const shape = editor.getShape(idToCheck as any);
+              if (!shape) return; // stroke was deleted — nothing to check
+              if (analyzeForSingleLoop(shape as any)) {
+                consumedMagicIds.add(idToCheck);
+                console.log("Magic pen loop detected — triggering session");
+                if (magicWandCallbackRef.current) {
+                  try {
+                    await magicWandCallbackRef.current(shape, editor);
+                  } catch (error) {
+                    console.error("Error in magic pen callback:", error);
+                  }
+                }
+              } else if (delay < 500) {
+                // Shape may not be finalized yet — retry
+                runLoopCheck(idToCheck, delay * 2, gen);
+              }
+            }, delay);
+          };
+
           const checkMagicLoop = () => {
-            if (!lastMagicDrawId || loopCheckInFlight) return;
+            if (!lastMagicDrawId) return;
 
             const hasThinking = editor.getCurrentPageShapes().some(
               (s: any) => s.type === "thinking-indicator"
             );
-            if (hasThinking) return;
+            if (hasThinking) {
+              // A session is running — keep the newest stroke queued and
+              // re-check once the indicator clears, instead of silently
+              // dropping the gesture and leaving a dead stroke behind
+              if (thinkingWaitTimer) clearTimeout(thinkingWaitTimer);
+              thinkingWaitTimer = setTimeout(() => {
+                thinkingWaitTimer = null;
+                checkMagicLoop();
+              }, 500);
+              return;
+            }
 
+            // Consume the id now — a failed check must not leave a stale id
+            // behind to spawn dead retry ladders on every later pointerup
             const idToCheck = lastMagicDrawId;
-            loopCheckInFlight = true;
-
-            // Try at increasing delays — iPad shape finalization timing varies
-            const tryCheck = (delay: number) => {
-              setTimeout(async () => {
-                const shape = editor.getShape(idToCheck as any);
-                if (shape && analyzeForSingleLoop(shape as any)) {
-                  loopCheckInFlight = false;
-                  lastMagicDrawId = null;
-                  console.log("Magic pen loop detected — triggering session");
-                  if (magicWandCallbackRef.current) {
-                    try {
-                      await magicWandCallbackRef.current(shape, editor);
-                    } catch (error) {
-                      console.error("Error in magic pen callback:", error);
-                    }
-                  }
-                } else if (delay < 500) {
-                  // Shape may not be finalized yet — retry
-                  tryCheck(delay * 2);
-                } else {
-                  loopCheckInFlight = false;
-                }
-              }, delay);
-            };
-
-            tryCheck(50);
+            lastMagicDrawId = null;
+            runLoopCheck(idToCheck, 50, ++loopCheckGeneration);
           };
 
           document.addEventListener("pointerup", checkMagicLoop);
@@ -1077,8 +1123,10 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
                       if (cancelClaudeCodeRef.current) cancelClaudeCodeRef.current();
                     }
 
+                    // Remove the magic pen stroke that started this session —
+                    // never the user's handwriting (magic strokes only)
                     const drawShapes = editor.getCurrentPageShapes().filter(
-                      (s: any) => s.type === "draw"
+                      (s: any) => s.type === "draw" && magicShapeIdsRef.current.has(s.id)
                     );
                     const lastStroke = drawShapes[drawShapes.length - 1];
                     if (lastStroke) {
@@ -1105,6 +1153,11 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
             }
             unsubscribe();
             trackMagicShapes();
+            if (thinkingWaitTimer) {
+              clearTimeout(thinkingWaitTimer);
+              thinkingWaitTimer = null;
+            }
+            loopCheckGeneration++; // abort any pending loop-check ladder
             document.removeEventListener("pointerup", checkMagicLoop);
             document.removeEventListener("touchend", checkMagicLoop);
             editor.off("change", syncMagicState);
@@ -1130,14 +1183,13 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         <ThinkingIndicator label={thinking.label} theme={theme} onCancel={cancelClaudeCode} />
       )}
 
-      <OnboardingDialog
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        onStepChange={(step) => {
-          if (step === "complete") {
-            setShowOnboarding(false);
-          }
+      <FirstRunOverlay
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false);
+          markFirstRunDone();
         }}
+        darkMode={darkMode}
       />
 
       {!showSessionPanel && (
@@ -1147,6 +1199,12 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         editorRef={editorRef}
         open={showSessionPanel}
         onClose={() => setShowSessionPanel(false)}
+        darkMode={darkMode}
+      />
+
+      <ConnectorStatusPill
+        status={connectorStatus}
+        info={connectorInfo}
         darkMode={darkMode}
       />
     </div>

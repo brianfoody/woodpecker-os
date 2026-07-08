@@ -96,6 +96,13 @@ export default function Landing() {
         </div>
         <div className="lp-footer-bar">
           <span>WOODPECKER_OS</span>
+          <a
+            href="https://github.com/brianfoody/woodpecker-os"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GITHUB
+          </a>
           <span>YOUR MACHINE · YOUR KEYS · YOUR INK</span>
         </div>
       </footer>

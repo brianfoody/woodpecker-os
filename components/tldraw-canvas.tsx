@@ -51,7 +51,7 @@ import {
   updateLastMessageCheck,
 } from "@/lib/message-tracking";
 import type { SmartMessage } from "@/lib/models";
-import { FirstRunOverlay } from "@/components/first-run-overlay";
+import { FirstRunOverlay, type TutorialStep } from "@/components/first-run-overlay";
 import { useOnboardingActions } from "@/hooks/use-onboarding-actions";
 import { shouldShowOnboarding, markFirstRunDone } from "@/lib/onboarding-state";
 import { HandwrittenResponseRenderer } from "@/lib/handwritten-response-renderer";
@@ -158,9 +158,51 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
       });
   }, [connectorStatus, storageKey]);
 
-  // Onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // First-run tutorial state (null = hidden)
+  const [tutorialStep, setTutorialStep] = useState<TutorialStep | null>(null);
   const onboardingActions = useOnboardingActions();
+
+  // Tutorial "write" step: advance to "circle" once the user has typed or
+  // handwritten something and paused for a beat
+  useEffect(() => {
+    if (tutorialStep !== "write") return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = editor.store.listen(
+      (event: any) => {
+        const records = [
+          ...Object.values(event.changes.added),
+          ...Object.values(event.changes.updated).map((pair: any) =>
+            Array.isArray(pair) ? pair[1] : pair
+          ),
+        ] as any[];
+        const wroteSomething = records.some(
+          (r) => r?.typeName === "shape" && (r.type === "draw" || r.type === "text")
+        );
+        if (wroteSomething) {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            setTutorialStep((s) => (s === "write" ? "circle" : s));
+          }, 2500);
+        }
+      },
+      { source: "user", scope: "document" }
+    );
+    return () => {
+      unsubscribe();
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+  }, [tutorialStep]);
+
+  // Tutorial "reply" step: the user has completed the loop — persist that
+  // and let the final hint linger briefly
+  useEffect(() => {
+    if (tutorialStep !== "reply") return;
+    markFirstRunDone();
+    const timer = setTimeout(() => setTutorialStep(null), 15000);
+    return () => clearTimeout(timer);
+  }, [tutorialStep]);
 
   // Message polling state (kept for existing message bubbles)
   const [isPollingEnabled, setIsPollingEnabled] = useState(false);
@@ -603,6 +645,9 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         try { eventEditor.deleteShape(stroke.id); } catch {}
         setOriginalStrokeProps(null);
 
+        // Tutorial: a successful circle completes the tour
+        setTutorialStep((s) => (s === "circle" || s === "write" ? "reply" : s));
+
         // Execute Claude Code with image for vision-based content extraction
         await executeClaudeCode(
           prompt, sessionOpts,
@@ -622,13 +667,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
   // Handler for onboarding actions
   const handleOnboardingAction = useCallback(
     (actionType: string, additionalData?: any) => {
-      const onboardingUpdate = onboardingActions.checkActionForOnboarding(
-        actionType,
-        additionalData
-      );
-      if (onboardingUpdate && onboardingUpdate.isActive) {
-        setTimeout(() => setShowOnboarding(true), 1000);
-      }
+      onboardingActions.checkActionForOnboarding(actionType, additionalData);
     },
     [onboardingActions]
   );
@@ -841,10 +880,10 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           // Replay any missed Claude Code session content after reload
           setTimeout(() => replayMissedSessionContent(editor), 500);
 
-          // Check if onboarding should be shown
+          // Check if the first-run tutorial should be shown
           setTimeout(() => {
             if (shouldShowOnboarding()) {
-              setShowOnboarding(true);
+              setTutorialStep("welcome");
             }
           }, 100);
 
@@ -1184,9 +1223,10 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
       )}
 
       <FirstRunOverlay
-        open={showOnboarding}
-        onClose={() => {
-          setShowOnboarding(false);
+        step={tutorialStep}
+        onStart={() => setTutorialStep("write")}
+        onSkip={() => {
+          setTutorialStep(null);
           markFirstRunDone();
         }}
         darkMode={darkMode}

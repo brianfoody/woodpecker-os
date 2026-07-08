@@ -99,6 +99,11 @@ export default function Landing() {
           <QuickStart />
         </Reveal>
 
+        {/* How it works + security */}
+        <Reveal>
+          <SecuritySection />
+        </Reveal>
+
         {/* The gesture */}
         <Reveal>
           <section id="gesture" className="lp-section">
@@ -142,11 +147,6 @@ export default function Landing() {
               paper-like calm on one side, full Claude Code on the other.
             </p>
           </section>
-        </Reveal>
-
-        {/* How it works + security */}
-        <Reveal>
-          <SecuritySection />
         </Reveal>
 
         {/* FAQ */}

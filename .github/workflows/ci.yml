@@ -22,6 +22,6 @@ jobs:
         env:
           NEXT_PUBLIC_RELAY_URL: wss://relay.woodpeckeros.com
       - name: Typecheck connector
-        run: npm run typecheck -w woodpeckeros
+        run: npm run typecheck -w @woodpeckeros/connect
       - name: Build connector
-        run: npm run build -w woodpeckeros
+        run: npm run build -w @woodpeckeros/connect

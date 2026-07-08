@@ -3,7 +3,7 @@
 The [Woodpecker OS](https://woodpeckeros.com) connector — drive your local Claude Code from a handwriting canvas.
 
 ```bash
-npx woodpeckeros connect
+npx @woodpeckeros/connect
 ```
 
 Then scan the QR code it prints from your iPad (or open the link in any browser), write something on the canvas, and circle it with the magic pen.

@@ -47,7 +47,7 @@ export default function PairPage() {
         <>
           <div style={{ fontSize: 18 }}>That pairing link isn&apos;t valid.</div>
           <div style={{ fontSize: 14, opacity: 0.7, maxWidth: 420, lineHeight: 1.6 }}>
-            On your computer, run <code>npx woodpeckeros connect</code> and scan
+            On your computer, run <code>npx @woodpeckeros/connect</code> and scan
             the QR code it prints (or open the printed link on this device).
           </div>
         </>

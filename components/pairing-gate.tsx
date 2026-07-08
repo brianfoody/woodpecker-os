@@ -5,7 +5,7 @@ import { parsePairingHash } from "@woodpeckeros/protocol";
 import { getConnectorClient } from "@/lib/connector-client";
 
 const mono = "'Share Tech Mono', ui-monospace, monospace";
-const CONNECT_CMD = "npx woodpeckeros connect";
+const CONNECT_CMD = "npx @woodpeckeros/connect";
 
 /**
  * Shown at /canvas when this device has never been paired. The connector

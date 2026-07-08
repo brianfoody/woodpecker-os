@@ -8,7 +8,7 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 
 ## 0. Going Live: Local Connector + E2E-Encrypted Relay (woodpeckeros.com)
 
-**Decision**: woodpeckeros.com hosts only the static canvas UI; each user runs a local **connector** (`npx woodpeckeros connect`) that executes Claude Code on their own machine with their own Claude login. Browser and connector communicate through a dumb WebSocket **relay** with end-to-end encryption. No user accounts.
+**Decision**: woodpeckeros.com hosts only the static canvas UI; each user runs a local **connector** (`npx @woodpeckeros/connect`) that executes Claude Code on their own machine with their own Claude login. Browser and connector communicate through a dumb WebSocket **relay** with end-to-end encryption. No user accounts.
 
 **Date**: July 2026
 
@@ -19,7 +19,7 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 
 **Decision Details**:
 
-- **Three artifacts, one repo (npm workspaces)**: the Next.js app (Vercel, fully static, zero API routes), `connector/` (npm package `woodpeckeros`, bundles the Agent SDK invocation moved verbatim from the old `lib/claude-code.ts`), `relay/` (~200-line Node `ws` server on Fly.io at `relay.woodpeckeros.com`)
+- **Three artifacts, one repo (npm workspaces)**: the Next.js app (Vercel, fully static, zero API routes), `connector/` (npm package `@woodpeckeros/connect`, bundles the Agent SDK invocation moved verbatim from the old `lib/claude-code.ts`), `relay/` (~200-line Node `ws` server on Fly.io at `relay.woodpeckeros.com`)
 - **Shared protocol** in `packages/protocol` — relay frames (join/relay/peer-status) carry only ciphertext; app-layer messages (hello, execute→StreamEvent stream, cancel, extract-text, canvas-save/load, sessions-list, transcript) are AES-256-GCM encrypted (WebCrypto on both sides, zero deps)
 - **Pairing**: connector generates a 128-bit channelId + 256-bit key, prints a QR for `https://woodpeckeros.com/pair#<id>.<key>` — the fragment never reaches the server. Re-pair/revoke with `--reset-pairing`. Replay protection via per-sender epoch + monotonic seq
 - **No accounts**: all durable state (pairing, config, devices, canvas snapshots) lives in `~/.woodpecker/` on the user's machine; cross-device canvas sync flows through the connector (monotonic rev, last-writer-wins)
@@ -282,6 +282,38 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 - Replies now appear directly under the handwriting; side-branch layouts still emerge naturally when the user writes beside a card
 - Circling empty space *near* a card no longer resumes that card's session — the circle must be on the card or around its center
 - `lib/__tests__/magic-loop-layout.test.ts` covers capture and placement scenarios
+
+---
+
+## 10. Landing Page: Scoped CSS Design System + Pure-CSS Animation
+
+**Decision**: The marketing landing page (`app/page.tsx`) uses its own scoped design system (`app/landing.css`, all classes prefixed `lp-`) with pure CSS/SVG animation — no animation library, no client JS beyond a tiny IntersectionObserver reveal and the existing pairing-aware CTA.
+
+**Date**: July 2026
+
+**Context**:
+
+- The original landing page was a single narrow column of inline styles referencing a font (`Share Tech Mono`) that was never loaded, with no visual explanation of the architecture or security model
+- The page must visually document how the system works (canvas → relay → machine) and its security guarantees, and needs an FAQ
+
+**Decision Details**:
+
+- **Scoped stylesheet** `app/landing.css` under a `.lp` root: ink-dark palette, sage/teal accent, violet "magic pen", paper-toned demo card; uses the fonts already loaded in `layout.tsx` (Geist, Geist Mono, Caveat, Kalam — the handwriting fonts double as the product's ink aesthetic)
+- **Hero demo** (`components/landing/hero-demo.tsx`): a looping pure-CSS/SVG reenactment of the core gesture — handwritten note wipes in (clip-path), a hand-drawn SVG circle draws itself (`pathLength`/dashoffset), the reply appears in ink
+- **Security diagram** (`components/landing/security.tsx`): canvas/relay/machine nodes with an animated packet lane *below* the cards (packets behind flex-1 cards are invisible — lane must be its own strip); the packet crossfades plaintext → 🔒 ciphertext → plaintext to show E2E encryption, plus a 6-card security grid sourced from decision #0
+- **FAQ** (`components/landing/faq.tsx`): native `<details>` accordion, CSS-only animation — stays a server component
+- Scroll reveals via one small client component (`components/landing/reveal.tsx`); all motion disabled under `prefers-reduced-motion`
+- Everything remains fully static (no API routes), per decision #0
+
+**Alternatives Considered**:
+
+- Framer Motion / GSAP (rejected: bundle weight and a client-side dependency for what CSS keyframes do fine on a static page)
+- Tailwind utility classes throughout (rejected for this page: a bespoke marketing design with many keyframes reads better as one scoped stylesheet; the app proper keeps Tailwind/shadcn)
+
+**Implications**:
+
+- The landing page ships zero animation-library JS and works with JS disabled except for scroll reveals and the paired-device CTA swap
+- Security claims on the page (AES-256-GCM, fragment-carried keys, replay protection, guardrails, `--reset-pairing`, `--local`) mirror decision #0 — update both together
 
 ---
 

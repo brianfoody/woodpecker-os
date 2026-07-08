@@ -15,7 +15,7 @@ Live at **[woodpeckeros.com](https://woodpeckeros.com)**.
                                                               │ wss
                                              ┌────────────────┴──────────────────┐
                                              │  your machine                     │
-                                             │  npx woodpeckeros connect         │
+                                             │  npx @woodpeckeros/connect         │
                                              │  → Claude Agent SDK, your login   │
                                              │  → your files, your MCP servers   │
                                              │  → state in ~/.woodpecker/        │
@@ -29,7 +29,7 @@ Live at **[woodpeckeros.com](https://woodpeckeros.com)**.
 
 ## Using it
 
-1. On your computer: `npx woodpeckeros connect` (needs Node 20+ and a signed-in Claude Code — Pro/Max plan or API key)
+1. On your computer: `npx @woodpeckeros/connect` (needs Node 20+ and a signed-in Claude Code — Pro/Max plan or API key)
 2. Scan the QR it prints from your iPad, or open the link in any browser
 3. Write something, pick the magic pen (brain icon), circle it
 
@@ -71,7 +71,7 @@ node connector/dist/cli.js connect --relay ws://localhost:9000 --app-url http://
 # open the printed /pair link in the browser
 ```
 
-Checks: `npm run lint` · `npm run typecheck` · `npm test` · `npm run build` · `npm run build -w woodpeckeros`
+Checks: `npm run lint` · `npm run typecheck` · `npm test` · `npm run build` · `npm run build -w @woodpeckeros/connect`
 
 ## Deploying
 

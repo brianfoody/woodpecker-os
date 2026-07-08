@@ -132,7 +132,7 @@ export function ConnectorStatusPill({
                     fontSize: 13,
                   }}
                 >
-                  npx woodpeckeros connect
+                  npx @woodpeckeros/connect
                 </code>
               </li>
               <li>Scan the QR code it prints (or open the link) on this device</li>

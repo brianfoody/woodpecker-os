@@ -426,12 +426,12 @@ export class ConnectorClient {
     this.start();
     if (this.status === "unpaired") {
       throw new Error(
-        "Not paired — run `npx woodpeckeros connect` on your computer and scan the QR code"
+        "Not paired — run `npx @woodpeckeros/connect` on your computer and scan the QR code"
       );
     }
     if (this.status !== "connected") {
       throw new Error(
-        "Connector offline — run `npx woodpeckeros connect` on your computer"
+        "Connector offline — run `npx @woodpeckeros/connect` on your computer"
       );
     }
   }

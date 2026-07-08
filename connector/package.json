@@ -1,6 +1,6 @@
 {
   "name": "@woodpeckeros/connect",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Woodpecker OS connector — drive your local Claude Code from the woodpeckeros.com writing canvas",
   "license": "MIT",
   "type": "module",
@@ -27,6 +27,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@clack/prompts": "^0.11.0",
     "@types/node": "^22.0.0",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/ws": "^8.5.12",

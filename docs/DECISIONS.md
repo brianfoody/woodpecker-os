@@ -317,6 +317,37 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 
 ---
 
+## 11. Connector Onboarding as a Guided Tutorial (@clack/prompts)
+
+**Decision**: `woodpecker connect` runs a three-step guided tutorial on every interactive start (choose folder → pair iPad → going live), built on `@clack/prompts`, with a text-prompt-→-arrow-key-directory-browser folder picker and a live "✓ Paired!" celebration when the first device handshakes.
+
+**Date**: July 2026
+
+**Context**:
+
+- The old flow was a bare readline prompt, a QR dump, and raw `[connector]`/`[agent]` log lines — a newcomer had no way to know the folder they pick is what the iPad controls, or that a parent folder containing multiple repos makes them all reachable from one canvas
+- There was no observable event for "a device actually paired" — only relay-level "canvas connected"
+
+**Decision Details**:
+
+- **`@clack/prompts`** (devDependency, esbuild-bundled into `dist/cli.js` like qrcode-terminal) provides intro/note/log/outro and the text/select prompts; new modules `connector/src/dirpicker.ts` (folder picker with `(git repo)` / `(N repos inside)` badges) and `connector/src/tutorial.ts` (step copy + status renderer)
+- The QR code and live status lines print with plain `console.log` — clack `note()` borders would mangle the QR, and persistent spinners fight async agent logs
+- **Typed `StatusEvent` union** replaces the string `onStatus` callback in `transports.ts`; **`createCore` gained `onDeviceConnected`** (fed by `recordDevice`, which now returns `{isNew, isFirstEver}`) so the CLI can celebrate the first handshake, then drop to dimmed `[connector]` log lines
+- Non-TTY runs keep the exact legacy output (no clack anywhere); `--dir` still skips the prompt; terminals that claim a TTY but can't do raw mode fall back to the non-interactive path
+
+**Alternatives Considered**:
+
+- First-run-only tutorial (rejected by user: runs every launch — the folder confirmation is a feature)
+- Hand-rolled raw-mode picker with zero deps (rejected: ~120 lines of keypress/redraw code to own for what clack does better)
+- inquirer/enquirer/ink (rejected: heavier; ink drags in React for a CLI)
+
+**Implications**:
+
+- Any new transport status must be added to the `StatusEvent` union and both renderers (tutorial + `statusToPlainText`)
+- The tutorial copy promises "everything inside the folder is reachable" — Claude Code can already traverse into sub-repos of `cwd`, but per-session repo targeting from the canvas remains future work
+
+---
+
 ## Superseded decisions
 
 These reflect earlier choices that are no longer active. They're kept for historical context.

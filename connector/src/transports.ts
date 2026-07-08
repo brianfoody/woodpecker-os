@@ -23,6 +23,15 @@ import type { ConnectorCore } from "./core";
 
 export type Transport = { stop(): void };
 
+/** Connection lifecycle events, rendered by the CLI (tutorial or plain). */
+export type StatusEvent =
+  | { kind: "relay-connecting" }
+  | { kind: "relay-waiting" }
+  | { kind: "canvas-connected"; local?: boolean }
+  | { kind: "canvas-disconnected" }
+  | { kind: "relay-retry"; seconds: number }
+  | { kind: "local-listening"; port: number };
+
 // ---------------------------------------------------------------------------
 // Relay transport
 // ---------------------------------------------------------------------------
@@ -31,7 +40,7 @@ export function startRelayTransport(opts: {
   relayUrl: string;
   pairing: Pairing;
   core: ConnectorCore;
-  onStatus?: (status: string) => void;
+  onStatus?: (event: StatusEvent) => void;
 }): Transport {
   let ws: WebSocket | null = null;
   let stopped = false;
@@ -64,7 +73,7 @@ export function startRelayTransport(opts: {
 
   function connect(): void {
     if (stopped) return;
-    opts.onStatus?.("connecting to relay...");
+    opts.onStatus?.({ kind: "relay-connecting" });
     ws = new WebSocket(opts.relayUrl, { maxPayload: MAX_FRAME_BYTES });
 
     ws.on("open", () => {
@@ -75,7 +84,7 @@ export function startRelayTransport(opts: {
         role: "connector",
       };
       ws?.send(JSON.stringify(join));
-      opts.onStatus?.("connected to relay — waiting for canvas");
+      opts.onStatus?.({ kind: "relay-waiting" });
 
       // A silently dead TCP connection (sleep, network change) never fires
       // "close", which would leave us waiting on a socket the relay has long
@@ -121,7 +130,9 @@ export function startRelayTransport(opts: {
         if (frame.role === "client" && frame.connected !== canvasPresent) {
           canvasPresent = frame.connected;
           opts.onStatus?.(
-            frame.connected ? "canvas connected" : "canvas disconnected"
+            frame.connected
+              ? { kind: "canvas-connected" }
+              : { kind: "canvas-disconnected" }
           );
         }
       } else if (frame.type === "relay-error") {
@@ -135,7 +146,10 @@ export function startRelayTransport(opts: {
         heartbeatTimer = null;
       }
       if (stopped) return;
-      opts.onStatus?.(`relay connection lost — retrying in ${Math.round(backoffMs / 1000)}s`);
+      opts.onStatus?.({
+        kind: "relay-retry",
+        seconds: Math.round(backoffMs / 1000),
+      });
       reconnectTimer = setTimeout(connect, backoffMs);
       backoffMs = Math.min(backoffMs * 2, 30_000);
     };
@@ -166,7 +180,7 @@ export function startRelayTransport(opts: {
 export function startLocalServer(opts: {
   port: number;
   core: ConnectorCore;
-  onStatus?: (status: string) => void;
+  onStatus?: (event: StatusEvent) => void;
 }): Transport {
   const wss = new WebSocketServer({
     port: opts.port,
@@ -175,11 +189,11 @@ export function startLocalServer(opts: {
   });
 
   wss.on("listening", () => {
-    opts.onStatus?.(`local mode: ws://localhost:${opts.port}`);
+    opts.onStatus?.({ kind: "local-listening", port: opts.port });
   });
 
   wss.on("connection", (socket) => {
-    opts.onStatus?.("canvas connected (local)");
+    opts.onStatus?.({ kind: "canvas-connected", local: true });
     const send = (msg: AppMessage): void => {
       // Broadcast to every connected client — one user, shared canvas.
       for (const client of wss.clients) {

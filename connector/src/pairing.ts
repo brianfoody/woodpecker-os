@@ -21,10 +21,19 @@ export function loadOrCreatePairing(reset = false): Pairing {
   return pairing;
 }
 
-export function printPairing(appUrl: string, pairing: Pairing): void {
+export function renderQr(url: string): Promise<string> {
+  return new Promise((resolvePromise) => {
+    qrcode.generate(url, { small: true }, (qr: string) => resolvePromise(qr));
+  });
+}
+
+export async function printPairing(
+  appUrl: string,
+  pairing: Pairing
+): Promise<void> {
   const url = pairingUrl(appUrl, pairing);
   console.log("\nScan this from your iPad or any browser to pair:\n");
-  qrcode.generate(url, { small: true }, (qr: string) => console.log(qr));
+  console.log(await renderQr(url));
   console.log(`Or open this link on the device:\n\n  ${url}\n`);
   console.log(
     "Anyone with this link can drive Claude Code on this machine — treat it like a password.",

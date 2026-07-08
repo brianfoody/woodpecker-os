@@ -6,7 +6,7 @@ The [Woodpecker OS](https://woodpeckeros.com) connector — drive your local Cla
 npx @woodpeckeros/connect
 ```
 
-Then scan the QR code it prints from your iPad (or open the link in any browser), write something on the canvas, and circle it with the magic pen.
+It walks you through setup in three steps: pick the folder your iPad can control (choose a parent folder like `~/apps` to reach several repos from one canvas — browse with arrow keys or type a path), scan the QR it prints from your iPad (or open the link in any browser), and it lights up when your device pairs. Then write something on the canvas and circle it with the magic pen.
 
 - Runs Claude Code on **this machine** with your existing Claude login (Pro/Max or API key)
 - End-to-end encrypted to your browser — woodpeckeros.com never sees your keys or your content
@@ -16,7 +16,7 @@ Commands:
 
 | Command | |
 |---|---|
-| `woodpecker connect` | start (confirms working dir, prints pairing QR) |
+| `woodpecker connect` | start (guided setup: choose folder, pair, go live) |
 | `woodpecker connect --dir <path>` | set the working directory, skipping the prompt |
 | `woodpecker connect --reset-pairing` | rotate keys, revoke all devices |
 | `woodpecker connect --yolo` | disable tool guardrails |

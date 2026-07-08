@@ -23,20 +23,36 @@ export type ConnectorCore = {
   handle: (msg: AppMessage, send: Send) => void;
 };
 
+export type DeviceConnectedInfo = {
+  deviceId: string;
+  deviceName?: string;
+  isNew: boolean;
+  isFirstEver: boolean;
+};
+
 export function createCore(opts: {
   cwd: string;
   yolo: boolean;
   version: string;
+  onDeviceConnected?: (info: DeviceConnectedInfo) => void;
 }): ConnectorCore {
   const activeRuns = new Map<string, AbortController>();
 
   async function handleAsync(msg: AppMessage, send: Send): Promise<void> {
     switch (msg.kind) {
       case "hello": {
-        recordDevice(msg.deviceId, msg.deviceName);
-        console.log(
-          `[connector] device connected: ${msg.deviceName || msg.deviceId}`
-        );
+        const record = recordDevice(msg.deviceId, msg.deviceName);
+        if (opts.onDeviceConnected) {
+          opts.onDeviceConnected({
+            deviceId: msg.deviceId,
+            deviceName: msg.deviceName,
+            ...record,
+          });
+        } else {
+          console.log(
+            `[connector] device connected: ${msg.deviceName || msg.deviceId}`
+          );
+        }
         send({
           kind: "hello-ack",
           connectorVersion: opts.version,

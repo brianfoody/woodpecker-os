@@ -78,8 +78,12 @@ export function deletePairingFile(): void {
 
 const DEVICES_PATH = join(WOODPECKER_HOME, "devices.json");
 
-export function recordDevice(deviceId: string, name?: string): void {
+export function recordDevice(
+  deviceId: string,
+  name?: string
+): { isNew: boolean; isFirstEver: boolean } {
   const devices = readJson<Record<string, DeviceRecord>>(DEVICES_PATH) ?? {};
+  const isFirstEver = Object.keys(devices).length === 0;
   const now = new Date().toISOString();
   const existing = devices[deviceId];
   devices[deviceId] = {
@@ -88,6 +92,7 @@ export function recordDevice(deviceId: string, name?: string): void {
     lastSeen: now,
   };
   writeJson(DEVICES_PATH, devices);
+  return { isNew: !existing, isFirstEver };
 }
 
 // --- canvas snapshots -------------------------------------------------------

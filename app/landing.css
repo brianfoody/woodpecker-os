@@ -462,31 +462,51 @@ html:has(.lp) {
   border: 1px dashed var(--border-strong);
   border-radius: 999px;
   color: var(--text-3);
-  animation: lp-relay-flash 12s linear infinite;
+  animation: lp-relay-flash 27s linear infinite;
 }
-/* the relay lights up as the pulse passes through it (out ~18%, back ~71%) */
+/* the relay lights up as each pulse passes through it (out ~8% / ~59.5%, back ~31.6% / ~83%) */
 @keyframes lp-relay-flash {
-  0%, 14.5% {
+  0%, 6.3% {
     box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
     border-color: var(--border-strong);
     color: var(--text-3);
   }
-  18% {
+  8% {
     box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
     border-color: rgba(126, 231, 196, 0.9);
     color: var(--accent);
   }
-  22%, 67.5% {
+  9.7%, 29.9% {
     box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
     border-color: var(--border-strong);
     color: var(--text-3);
   }
-  71% {
+  31.6% {
     box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
     border-color: rgba(126, 231, 196, 0.9);
     color: var(--accent);
   }
-  75%, 100% {
+  33.3%, 57.8% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+    border-color: var(--border-strong);
+    color: var(--text-3);
+  }
+  59.5% {
+    box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
+    border-color: rgba(126, 231, 196, 0.9);
+    color: var(--accent);
+  }
+  61.2%, 81.3% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+    border-color: var(--border-strong);
+    color: var(--text-3);
+  }
+  83% {
+    box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
+    border-color: rgba(126, 231, 196, 0.9);
+    color: var(--accent);
+  }
+  84.7%, 100% {
     box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
     border-color: var(--border-strong);
     color: var(--text-3);
@@ -545,16 +565,30 @@ html:has(.lp) {
 }
 .lp-pipe-packet > span { grid-area: 1 / 1; }
 /*
- * One 12s story: circle draws (0-5%), request travels out and encrypts
- * (5-30%), the terminal works (29-55%), the reply travels back (58-90%),
- * and lands as ink on the notepad (90-98%).
+ * One 27s story in two acts.
+ * Act 1: circle draws (0-2.2%), request travels out (2.2-13.8%), the
+ * terminal works (12.9-24.2%), the reply travels back (25.8-40.2%) and
+ * lands as ink on the notepad (40-43.6%).
+ * Interlude: the notepad scrolls up (44.1-46.7%), a follow-up is
+ * handwritten (47-51%), and a second circle wraps reply + follow-up
+ * (51.5-53.7%).
+ * Act 2 repeats act 1's chain exactly 13.9s later — every act-2 element
+ * (packets, terminal lines) reuses the act-1 keyframes with a 13.9s
+ * animation-delay, so one choreography drives both acts. The terminal
+ * clears (~63.5%) and runs a fresh session that resumes feat/payments.
  */
-.lp-pipe-out { animation: lp-travel-out 12s linear infinite; }
-.lp-pipe-back { animation: lp-travel-back 12s linear infinite; }
-.lp-pipe-out .lp-pipe-plain { animation: lp-out-plain 12s linear infinite; }
-.lp-pipe-out .lp-pipe-cipher { animation: lp-out-cipher 12s linear infinite; }
-.lp-pipe-back .lp-pipe-plain { animation: lp-back-plain 12s linear infinite; }
-.lp-pipe-back .lp-pipe-cipher { animation: lp-back-cipher 12s linear infinite; }
+.lp-pipe-out { animation: lp-travel-out 27s linear infinite; }
+.lp-pipe-back { animation: lp-travel-back 27s linear infinite; }
+.lp-pipe-out .lp-pipe-plain { animation: lp-out-plain 27s linear infinite; }
+.lp-pipe-out .lp-pipe-cipher { animation: lp-out-cipher 27s linear infinite; }
+.lp-pipe-back .lp-pipe-plain { animation: lp-back-plain 27s linear infinite; }
+.lp-pipe-back .lp-pipe-cipher { animation: lp-back-cipher 27s linear infinite; }
+.lp-pipe-out2 { animation: lp-travel-out 27s linear 13.9s infinite; }
+.lp-pipe-back2 { animation: lp-travel-back 27s linear 13.9s infinite; }
+.lp-pipe-out2 .lp-pipe-plain { animation: lp-out-plain 27s linear 13.9s infinite; }
+.lp-pipe-out2 .lp-pipe-cipher { animation: lp-out-cipher 27s linear 13.9s infinite; }
+.lp-pipe-back2 .lp-pipe-plain { animation: lp-back-plain 27s linear 13.9s infinite; }
+.lp-pipe-back2 .lp-pipe-cipher { animation: lp-back-cipher 27s linear 13.9s infinite; }
 
 /*
  * The packet parks under each endpoint while it transforms: it appears
@@ -563,45 +597,45 @@ html:has(.lp) {
  * decrypts before fading. Cleartext never moves along the lane.
  */
 @keyframes lp-travel-out {
-  0%, 5% { left: 13%; opacity: 0; }
-  7% { opacity: 1; }
-  12% { left: 13%; }
-  24% { left: 87%; }
-  29% { left: 87%; opacity: 1; }
-  31%, 100% { left: 87%; opacity: 0; }
+  0%, 2.2% { left: 13%; opacity: 0; }
+  3.1% { opacity: 1; }
+  5.3% { left: 13%; }
+  10.7% { left: 87%; }
+  12.9% { left: 87%; opacity: 1; }
+  13.8%, 100% { left: 87%; opacity: 0; }
 }
 @keyframes lp-out-plain {
-  0%, 9.5% { opacity: 1; }
-  11.5%, 25% { opacity: 0; }
-  27%, 100% { opacity: 1; }
+  0%, 4.2% { opacity: 1; }
+  5.1%, 11.1% { opacity: 0; }
+  12%, 100% { opacity: 1; }
 }
 @keyframes lp-out-cipher {
-  0%, 9.5% { opacity: 0; }
-  11.5%, 25% { opacity: 1; }
-  27%, 100% { opacity: 0; }
+  0%, 4.2% { opacity: 0; }
+  5.1%, 11.1% { opacity: 1; }
+  12%, 100% { opacity: 0; }
 }
 /*
  * Return leg mirrors it: parks under the machine to encrypt, crosses as
  * ciphertext, then parks under the canvas and lingers as readable
- * plaintext until the ink lands on the notepad (~90%).
+ * plaintext until the ink lands on the notepad.
  */
 @keyframes lp-travel-back {
-  0%, 58% { left: 87%; opacity: 0; }
-  60% { opacity: 1; }
-  65% { left: 87%; }
-  77% { left: 13%; }
-  88% { left: 13%; opacity: 1; }
-  90.5%, 100% { left: 13%; opacity: 0; }
+  0%, 25.8% { left: 87%; opacity: 0; }
+  26.7% { opacity: 1; }
+  28.9% { left: 87%; }
+  34.2% { left: 13%; }
+  39.1% { left: 13%; opacity: 1; }
+  40.2%, 100% { left: 13%; opacity: 0; }
 }
 @keyframes lp-back-plain {
-  0%, 62.5% { opacity: 1; }
-  64.5%, 78% { opacity: 0; }
-  80%, 100% { opacity: 1; }
+  0%, 27.8% { opacity: 1; }
+  28.7%, 34.7% { opacity: 0; }
+  35.6%, 100% { opacity: 1; }
 }
 @keyframes lp-back-cipher {
-  0%, 62.5% { opacity: 0; }
-  64.5%, 78% { opacity: 1; }
-  80%, 100% { opacity: 0; }
+  0%, 27.8% { opacity: 0; }
+  28.7%, 34.7% { opacity: 1; }
+  35.6%, 100% { opacity: 0; }
 }
 
 .lp-pipe-legend {
@@ -617,30 +651,61 @@ html:has(.lp) {
 }
 .lp-pipe-legend b { color: var(--accent); font-weight: 400; }
 
-/* mini circle-action on the canvas node, synced to the 9s packet cycle */
+/*
+ * Mini notepad on the canvas node, synced to the 27s two-act cycle.
+ * The outer .lp-pipe-mini is a fixed-height paper viewport; the inner
+ * .lp-pipe-mini-scroll (which carries the ruled lines) slides up between
+ * the acts to make room for the follow-up — like panning the canvas.
+ */
 .lp-pipe-mini {
+  --pipe-scroll: -78px;
   position: relative;
   width: 100%;
   max-width: 410px;
+  height: 150px;
   margin: 0 auto 26px;
-  padding: 38px 22px 30px;
   border-radius: 15px;
   background: var(--paper);
-  background-image: linear-gradient(rgba(35, 38, 54, 0.055) 1px, transparent 1px);
-  background-size: 100% 30px;
-  background-position: 0 10px;
   text-align: center;
+  overflow: hidden;
   transform: rotate(-1.7deg);
   box-shadow: 0 28px 60px -26px rgba(0, 0, 0, 0.8);
 }
+.lp-pipe-mini-scroll {
+  padding: 38px 22px 30px;
+  background-image: linear-gradient(rgba(35, 38, 54, 0.055) 1px, transparent 1px);
+  background-size: 100% 30px;
+  background-position: 0 10px;
+  animation: lp-pipe-scroll 27s linear infinite;
+}
+@keyframes lp-pipe-scroll {
+  0%, 44.1% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.25, 1); }
+  46.7%, 100% { transform: translateY(var(--pipe-scroll)); }
+}
 .lp-pipe-mini-gesture { position: relative; display: inline-block; padding: 6px 16px; }
+.lp-pipe-mini-gesture--2 { display: inline-block; margin-top: 10px; padding: 4px 18px 8px; }
 .lp-pipe-mini-note {
   display: inline-block;
   font-family: var(--hand);
   font-size: 27px;
   line-height: 1.2;
   color: var(--paper-ink);
+  white-space: nowrap;
   transform: rotate(-1.2deg);
+}
+/* the follow-up handwrites itself onto the paper after the scroll */
+.lp-pipe-mini-note--2 {
+  display: block;
+  font-size: 24px;
+  margin-top: 2px;
+  opacity: 0;
+  transform: rotate(-0.8deg);
+  animation: lp-mini-note2 27s linear infinite;
+}
+@keyframes lp-mini-note2 {
+  0%, 46.5% { opacity: 0; clip-path: inset(-20% 100% -20% -8%); }
+  47.5% { opacity: 1; }
+  51%, 100% { opacity: 1; clip-path: inset(-20% -8% -20% -8%); }
 }
 .lp-pipe-mini-circle {
   position: absolute;
@@ -659,13 +724,22 @@ html:has(.lp) {
   opacity: 0.85;
   stroke-dasharray: 1 1;
   stroke-dashoffset: 1;
-  animation: lp-mini-circle 12s linear infinite;
+  animation: lp-mini-circle 27s linear infinite;
 }
 @keyframes lp-mini-circle {
   0% { stroke-dashoffset: 1; opacity: 0.85; }
-  5% { stroke-dashoffset: 0; }
-  92% { stroke-dashoffset: 0; opacity: 0.85; }
-  97%, 100% { stroke-dashoffset: 0; opacity: 0; }
+  2.2% { stroke-dashoffset: 0; }
+  97% { stroke-dashoffset: 0; opacity: 0.85; }
+  99.5%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+/* second circle wraps the reply + follow-up right before packet two departs */
+.lp-pipe-mini-circle--2 path { animation: lp-mini-circle2 27s linear infinite; }
+@keyframes lp-mini-circle2 {
+  0%, 51.4% { stroke-dashoffset: 1; opacity: 0; }
+  51.5% { stroke-dashoffset: 1; opacity: 0.85; }
+  53.7% { stroke-dashoffset: 0; }
+  97% { stroke-dashoffset: 0; opacity: 0.85; }
+  99.5%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 .lp-pipe-mini-reply {
   display: block;
@@ -673,16 +747,83 @@ html:has(.lp) {
   font-family: var(--hand-2);
   font-size: 18px;
   color: #3c415c;
+  white-space: nowrap;
   opacity: 0;
-  animation: lp-mini-reply 12s linear infinite;
+  animation: lp-mini-reply 27s linear infinite;
 }
-/* the reply writes itself onto the notepad as the packet arrives */
+.lp-pipe-mini-gesture--2 .lp-pipe-mini-reply { margin-top: 0; }
+/* reply one writes itself onto the notepad as the packet arrives, then stays (it gets circled) */
 @keyframes lp-mini-reply {
-  0%, 88.5% { opacity: 0; clip-path: inset(-20% 100% -20% -4%); }
-  90% { opacity: 1; }
-  94% { clip-path: inset(-20% -6% -20% -4%); }
+  0%, 39.7% { opacity: 0; clip-path: inset(-20% 100% -20% -4%); }
+  40.4% { opacity: 1; }
+  43.6% { clip-path: inset(-20% -6% -20% -4%); }
   98.5% { opacity: 1; clip-path: inset(-20% -6% -20% -4%); }
   100% { opacity: 0; }
+}
+.lp-pipe-mini-reply--2 { animation: lp-mini-reply2 27s linear infinite; }
+@keyframes lp-mini-reply2 {
+  0%, 91.2% { opacity: 0; clip-path: inset(-20% 100% -20% -4%); }
+  91.9% { opacity: 1; }
+  95%, 98.5% { opacity: 1; clip-path: inset(-20% -6% -20% -4%); }
+  100% { opacity: 0; }
+}
+/*
+ * While Claude Code works, the notepad shows a pulsing status line in the
+ * spot where the reply will land, mirroring the terminal's latest line.
+ * Each status swap is keyed to the exact frame its CLI line types in;
+ * the act-2 statuses stay in sync automatically via the shared 13.9s delay.
+ */
+.lp-pipe-mini-slot { display: grid; justify-items: center; }
+.lp-pipe-mini-slot > * { grid-area: 1 / 1; }
+.lp-pipe-mini-slot .lp-pipe-mini-reply { margin-top: 0; }
+.lp-pipe-mini-slot--2 { margin-top: 14px; }
+.lp-pipe-mini-status {
+  display: grid;
+  justify-items: center;
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: #565d7e;
+  animation: lp-st-pulse 1.6s ease-in-out infinite;
+}
+.lp-pipe-mini-status > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  opacity: 0;
+}
+.lp-pipe-mini-status--2 .lp-st { animation-delay: 13.9s; }
+@keyframes lp-st-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.lp-st-1 { animation: lp-st-1 27s linear infinite; }
+.lp-st-2 { animation: lp-st-2 27s linear infinite; }
+.lp-st-3 { animation: lp-st-3 27s linear infinite; }
+.lp-st-4 { animation: lp-st-4 27s linear infinite; }
+/* thinking… : from the query landing until the editing line types (17.6-18.4) */
+@keyframes lp-st-1 {
+  0%, 13.9% { opacity: 0; }
+  14.3%, 17.6% { opacity: 1; }
+  18%, 100% { opacity: 0; }
+}
+/* editing… : in sync with terminal line 3 (17.6-18.4 → 20.2-21.1) */
+@keyframes lp-st-2 {
+  0%, 18% { opacity: 0; }
+  18.4%, 20.2% { opacity: 1; }
+  20.6%, 100% { opacity: 0; }
+}
+/* running tests… : in sync with terminal line 4 (20.2-21.1 → 23.3-24.2) */
+@keyframes lp-st-3 {
+  0%, 20.6% { opacity: 0; }
+  21%, 23.3% { opacity: 1; }
+  23.7%, 100% { opacity: 0; }
+}
+/* writing reply… : from the ✓ line until the ink starts writing (39.7) */
+@keyframes lp-st-4 {
+  0%, 23.7% { opacity: 0; }
+  24.1%, 39.4% { opacity: 1; }
+  39.8%, 100% { opacity: 0; }
 }
 
 /* mini Claude Code terminal on the machine node, same 12s cycle */
@@ -712,8 +853,26 @@ html:has(.lp) {
 .lp-pipe-term-bar em { font-style: normal; text-transform: uppercase; }
 .lp-pipe-term-status { margin-left: auto; display: grid; }
 .lp-pipe-term-status > span { grid-area: 1 / 1; white-space: nowrap; opacity: 0; }
-.lp-pipe-term-run { color: var(--accent); animation: lp-term-run 12s linear infinite; }
-.lp-pipe-term-ok { color: #4c9d74; animation: lp-term-ok 12s linear infinite; }
+.lp-pipe-term-run { color: var(--accent); animation: lp-term-run 27s linear infinite; }
+.lp-pipe-term-ok { color: #4c9d74; animation: lp-term-ok 27s linear infinite; }
+/*
+ * Two stacked session panes. Session one fades out just before the
+ * follow-up query arrives (the "clear"), then session two types in with
+ * the same line keyframes shifted by the act-2 delay.
+ */
+.lp-pipe-term-body { display: grid; }
+.lp-pipe-term-body pre { grid-area: 1 / 1; }
+.lp-pipe-term-s1 { animation: lp-term-s1 27s linear infinite; }
+.lp-pipe-term-s2 { opacity: 0; animation: lp-term-s2 27s linear infinite; }
+.lp-pipe-term-s2 .lp-tl { animation-delay: 13.9s; }
+@keyframes lp-term-s1 {
+  0%, 63% { opacity: 1; }
+  64%, 100% { opacity: 0; }
+}
+@keyframes lp-term-s2 {
+  0%, 63.9% { opacity: 0; }
+  64%, 100% { opacity: 1; }
+}
 .lp-pipe-term pre {
   margin: 0;
   padding: 15px 17px 16px;
@@ -732,45 +891,45 @@ html:has(.lp) {
   white-space: nowrap;
   opacity: 0;
 }
-.lp-tl-1 { animation: lp-tl-1 12s linear infinite; }
-.lp-tl-2 { animation: lp-tl-2 12s linear infinite; }
-.lp-tl-3 { animation: lp-tl-3 12s linear infinite; }
-.lp-tl-4 { animation: lp-tl-4 12s linear infinite; }
-.lp-tl-5 { animation: lp-tl-5 12s linear infinite; color: #4c9d74; }
+.lp-tl-1 { animation: lp-tl-1 27s linear infinite; }
+.lp-tl-2 { animation: lp-tl-2 27s linear infinite; }
+.lp-tl-3 { animation: lp-tl-3 27s linear infinite; }
+.lp-tl-4 { animation: lp-tl-4 27s linear infinite; }
+.lp-tl-5 { animation: lp-tl-5 27s linear infinite; color: #4c9d74; }
+/* lines type during act 1's window; the session panes handle hiding */
 @keyframes lp-tl-1 {
-  0%, 29% { opacity: 0; transform: translateY(3px); }
-  31%, 96% { opacity: 1; transform: none; }
-  98.5%, 100% { opacity: 0; }
+  0%, 12.9% { opacity: 0; transform: translateY(3px); }
+  13.8%, 100% { opacity: 1; transform: none; }
 }
 @keyframes lp-tl-2 {
-  0%, 34% { opacity: 0; transform: translateY(3px); }
-  36%, 96% { opacity: 1; transform: none; }
-  98.5%, 100% { opacity: 0; }
+  0%, 15.1% { opacity: 0; transform: translateY(3px); }
+  16%, 100% { opacity: 1; transform: none; }
 }
 @keyframes lp-tl-3 {
-  0%, 39.5% { opacity: 0; transform: translateY(3px); }
-  41.5%, 96% { opacity: 1; transform: none; }
-  98.5%, 100% { opacity: 0; }
+  0%, 17.6% { opacity: 0; transform: translateY(3px); }
+  18.4%, 100% { opacity: 1; transform: none; }
 }
 @keyframes lp-tl-4 {
-  0%, 45.5% { opacity: 0; transform: translateY(3px); }
-  47.5%, 96% { opacity: 1; transform: none; }
-  98.5%, 100% { opacity: 0; }
+  0%, 20.2% { opacity: 0; transform: translateY(3px); }
+  21.1%, 100% { opacity: 1; transform: none; }
 }
 @keyframes lp-tl-5 {
-  0%, 52.5% { opacity: 0; transform: translateY(3px); }
-  54.5%, 96% { opacity: 1; transform: none; }
-  98.5%, 100% { opacity: 0; }
+  0%, 23.3% { opacity: 0; transform: translateY(3px); }
+  24.2%, 100% { opacity: 1; transform: none; }
 }
 @keyframes lp-term-run {
-  0%, 28% { opacity: 0; }
-  30%, 53% { opacity: 1; }
-  55%, 100% { opacity: 0; }
+  0%, 12.4% { opacity: 0; }
+  13.3%, 23.7% { opacity: 1; }
+  24.6%, 63.9% { opacity: 0; }
+  64.8%, 75.3% { opacity: 1; }
+  76.2%, 100% { opacity: 0; }
 }
 @keyframes lp-term-ok {
-  0%, 54% { opacity: 0; }
-  56%, 96% { opacity: 1; }
-  98.5%, 100% { opacity: 0; }
+  0%, 24.6% { opacity: 0; }
+  25.5%, 62.9% { opacity: 1; }
+  63.9%, 76.2% { opacity: 0; }
+  77.1%, 98.5% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ---------- security grid ---------- */
@@ -979,9 +1138,15 @@ html:has(.lp) {
   .lp-pipe-nodes { gap: 12px; }
   .lp-pipe-node--relay { width: 84px; }
   .lp-pipe-node--relay .lp-pipe-icon { width: 40px; height: 40px; margin-bottom: 8px; }
-  .lp-pipe-mini { max-width: 165px; padding: 12px 7px 9px; background-size: 100% 16px; }
+  .lp-pipe-mini { max-width: 165px; height: 72px; --pipe-scroll: -46px; }
+  .lp-pipe-mini-scroll { padding: 12px 7px 9px; background-size: 100% 16px; }
   .lp-pipe-mini-note { font-size: 12.5px; }
-  .lp-pipe-mini-reply { font-size: 10px; margin-top: 5px; }
+  .lp-pipe-mini-note--2 { font-size: 11.5px; margin-top: 1px; }
+  .lp-pipe-mini-gesture--2 { margin-top: 5px; padding: 3px 4px 5px; }
+  .lp-pipe-mini-reply { font-size: 8.5px; margin-top: 5px; }
+  .lp-pipe-mini-gesture--2 .lp-pipe-mini-reply { margin-top: 0; }
+  .lp-pipe-mini-slot--2 { margin-top: 5px; }
+  .lp-pipe-mini-status { font-size: 7px; letter-spacing: 0.02em; }
   .lp-pipe-term-bar { font-size: 7px; padding: 4px 8px; }
   .lp-pipe-term pre { font-size: 7.5px; padding: 6px 8px; }
   .lp-demo-note { font-size: 24px; }
@@ -993,7 +1158,7 @@ html:has(.lp) {
 @media (prefers-reduced-motion: reduce) {
   html:has(.lp) { scroll-behavior: auto; }
   .lp-reveal { opacity: 1; transform: none; transition: none; }
-  .lp-pipe-out, .lp-pipe-back { animation: none; opacity: 0; }
+  .lp-pipe-out, .lp-pipe-back, .lp-pipe-out2, .lp-pipe-back2 { animation: none; opacity: 0; }
   .lp-pipe-node--relay .lp-pipe-icon { animation: none; }
   .lp-demo-note, .lp-demo-circle path, .lp-demo-reply, .lp-demo-tool--active, .lp-caret {
     animation: none;
@@ -1001,10 +1166,16 @@ html:has(.lp) {
   .lp-demo-note { clip-path: none; }
   .lp-demo-circle path { stroke-dashoffset: 0; }
   .lp-demo-reply { opacity: 1; transform: none; }
-  .lp-pipe-mini-circle path { animation: none; stroke-dashoffset: 0; }
+  .lp-pipe-mini-circle path { animation: none; stroke-dashoffset: 0; opacity: 0.85; }
   .lp-pipe-mini-reply { animation: none; opacity: 1; clip-path: none; }
-  .lp-tl { animation: none; opacity: 1; }
+  .lp-pipe-mini-note--2 { animation: none; opacity: 1; clip-path: none; }
+  .lp-pipe-mini-scroll { animation: none; transform: translateY(var(--pipe-scroll)); }
+  .lp-pipe-mini-status { animation: none; }
+  .lp-pipe-mini-status > span { animation: none; opacity: 0; }
+  .lp-tl { animation: none; opacity: 1; transform: none; }
   .lp-pipe-term-ok { animation: none; opacity: 1; }
   .lp-pipe-term-run { animation: none; }
+  .lp-pipe-term-s1 { animation: none; opacity: 0; }
+  .lp-pipe-term-s2 { animation: none; opacity: 1; }
   .lp-btn, .lp-card, .lp-faq summary::after { transition: none; }
 }

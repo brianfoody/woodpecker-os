@@ -404,39 +404,72 @@ html:has(.lp) {
 }
 
 /* ---------- pipeline diagram ---------- */
-.lp-pipe { position: relative; margin: 52px 0 18px; }
-.lp-pipe-nodes { display: flex; justify-content: space-between; gap: 14px; position: relative; z-index: 2; }
+.lp-pipe { position: relative; margin: 72px 0 22px; }
+.lp-pipe-nodes { display: flex; justify-content: space-between; align-items: center; gap: 32px; position: relative; }
 .lp-pipe-node {
-  flex: 1;
+  flex: 1.25;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  padding: 20px 12px 17px;
   text-align: center;
+  position: relative;
+  z-index: 2;
 }
-.lp-pipe-node--relay { border-style: dashed; }
+.lp-pipe-node--relay { flex: 0 0 auto; width: 220px; }
 .lp-pipe-icon { display: grid; place-items: center; margin-bottom: 10px; color: var(--accent); }
-.lp-pipe-node--relay .lp-pipe-icon { color: var(--text-3); }
-.lp-pipe-title { color: var(--text); font-weight: 600; font-size: 14.5px; margin-bottom: 3px; }
-.lp-pipe-sub { font-size: 12px; color: var(--text-3); margin-bottom: 12px; }
+.lp-pipe-node--relay .lp-pipe-icon {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-3);
+  animation: lp-relay-flash 12s linear infinite;
+}
+/* the relay lights up as the pulse passes through it (out ~17.5%, back ~74%) */
+@keyframes lp-relay-flash {
+  0%, 14% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+    border-color: var(--border-strong);
+    color: var(--text-3);
+  }
+  17.5% {
+    box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
+    border-color: rgba(126, 231, 196, 0.9);
+    color: var(--accent);
+  }
+  22%, 70.5% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+    border-color: var(--border-strong);
+    color: var(--text-3);
+  }
+  74% {
+    box-shadow: 0 0 34px 7px rgba(94, 234, 212, 0.45);
+    border-color: rgba(126, 231, 196, 0.9);
+    color: var(--accent);
+  }
+  78%, 100% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0);
+    border-color: var(--border-strong);
+    color: var(--text-3);
+  }
+}
+.lp-pipe-title { color: var(--text); font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+.lp-pipe-sub { font-size: 13px; color: var(--text-3); margin-bottom: 14px; }
 .lp-pipe-badge {
   display: inline-block;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   border-radius: 999px;
-  padding: 4px 11px;
+  padding: 5px 13px;
   border: 1px solid var(--border);
   color: var(--accent);
   background: var(--surface);
 }
 .lp-pipe-badge--nokey { color: var(--text-3); border-color: rgba(148, 210, 178, 0.09); background: transparent; }
-.lp-pipe-lane { position: relative; height: 56px; margin-top: 6px; }
+.lp-pipe-lane { position: relative; height: 56px; margin-top: 10px; }
 .lp-pipe-line {
   position: absolute;
   left: 10%; right: 10%; top: 50%;
@@ -463,15 +496,15 @@ html:has(.lp) {
   place-items: center;
   white-space: nowrap;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   background: #10131f;
-  border: 1px solid rgba(148, 210, 178, 0.3);
+  border: 1px solid rgba(148, 210, 178, 0.35);
   border-radius: 999px;
-  padding: 6px 13px;
+  padding: 7px 15px;
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 4px 18px -6px rgba(94, 234, 212, 0.35);
+  box-shadow: 0 0 26px -4px rgba(94, 234, 212, 0.55);
 }
 .lp-pipe-packet > span { grid-area: 1 / 1; }
 /*
@@ -492,14 +525,15 @@ html:has(.lp) {
   26% { opacity: 1; }
   30%, 100% { left: 87%; opacity: 0; }
 }
+/* the text encrypts at the halfway point, in sync with the relay flash (17.5%) */
 @keyframes lp-out-plain {
-  0%, 11% { opacity: 1; }
-  12.5%, 26.5% { opacity: 0; }
+  0%, 16% { opacity: 1; }
+  17.5%, 26.5% { opacity: 0; }
   28%, 100% { opacity: 1; }
 }
 @keyframes lp-out-cipher {
-  0%, 12.5% { opacity: 0; }
-  14%, 25% { opacity: 1; }
+  0%, 17.5% { opacity: 0; }
+  19%, 25% { opacity: 1; }
   26.5%, 100% { opacity: 0; }
 }
 @keyframes lp-travel-back {
@@ -508,14 +542,15 @@ html:has(.lp) {
   86% { opacity: 1; }
   90%, 100% { left: 13%; opacity: 0; }
 }
+/* return leg mirrors it: encrypts at the halfway flash (74%) */
 @keyframes lp-back-plain {
-  0%, 62% { opacity: 1; }
-  63.5%, 84.5% { opacity: 0; }
+  0%, 72.5% { opacity: 1; }
+  74%, 84.5% { opacity: 0; }
   86%, 100% { opacity: 1; }
 }
 @keyframes lp-back-cipher {
-  0%, 63.5% { opacity: 0; }
-  65%, 83% { opacity: 1; }
+  0%, 74% { opacity: 0; }
+  75.5%, 83% { opacity: 1; }
   84.5%, 100% { opacity: 0; }
 }
 
@@ -524,9 +559,9 @@ html:has(.lp) {
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 20px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 11.5px;
   letter-spacing: 0.06em;
   color: var(--text-3);
 }
@@ -535,38 +570,40 @@ html:has(.lp) {
 /* mini circle-action on the canvas node, synced to the 9s packet cycle */
 .lp-pipe-mini {
   position: relative;
-  margin: 0 auto 12px;
-  max-width: 220px;
-  padding: 12px 8px 9px;
-  border-radius: 8px;
+  width: 100%;
+  max-width: 410px;
+  margin: 0 auto 26px;
+  padding: 38px 22px 30px;
+  border-radius: 15px;
   background: var(--paper);
   background-image: linear-gradient(rgba(35, 38, 54, 0.055) 1px, transparent 1px);
-  background-size: 100% 15px;
-  background-position: 0 5px;
+  background-size: 100% 30px;
+  background-position: 0 10px;
   text-align: center;
-  box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.65);
+  transform: rotate(-1.7deg);
+  box-shadow: 0 28px 60px -26px rgba(0, 0, 0, 0.8);
 }
-.lp-pipe-mini-gesture { position: relative; display: inline-block; padding: 3px 10px; }
+.lp-pipe-mini-gesture { position: relative; display: inline-block; padding: 6px 16px; }
 .lp-pipe-mini-note {
   display: inline-block;
   font-family: var(--hand);
-  font-size: 16.5px;
+  font-size: 27px;
   line-height: 1.2;
   color: var(--paper-ink);
   transform: rotate(-1.2deg);
 }
 .lp-pipe-mini-circle {
   position: absolute;
-  inset: -5px -8px;
-  width: calc(100% + 16px);
-  height: calc(100% + 10px);
+  inset: -8px -12px;
+  width: calc(100% + 24px);
+  height: calc(100% + 16px);
   overflow: visible;
   pointer-events: none;
 }
 .lp-pipe-mini-circle path {
   fill: none;
   stroke: #8b5cf6;
-  stroke-width: 2.5;
+  stroke-width: 3;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
   opacity: 0.85;
@@ -582,9 +619,9 @@ html:has(.lp) {
 }
 .lp-pipe-mini-reply {
   display: block;
-  margin-top: 5px;
+  margin-top: 14px;
   font-family: var(--hand-2);
-  font-size: 13px;
+  font-size: 18px;
   color: #3c415c;
   opacity: 0;
   animation: lp-mini-reply 12s linear infinite;
@@ -601,23 +638,24 @@ html:has(.lp) {
 /* mini Claude Code terminal on the machine node, same 12s cycle */
 .lp-pipe-term {
   width: 100%;
-  max-width: 292px;
-  margin: 0 auto 12px;
-  border-radius: 8px;
+  max-width: 440px;
+  margin: 0 auto 26px;
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: #0b0e17;
   text-align: left;
   overflow: hidden;
-  box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.65);
+  transform: rotate(1.2deg);
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.75);
 }
 .lp-pipe-term-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 11px 16px;
   border-bottom: 1px solid rgba(148, 210, 178, 0.1);
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 10.5px;
   letter-spacing: 0.12em;
   color: var(--text-3);
 }
@@ -628,11 +666,11 @@ html:has(.lp) {
 .lp-pipe-term-ok { color: #4c9d74; animation: lp-term-ok 12s linear infinite; }
 .lp-pipe-term pre {
   margin: 0;
-  padding: 8px 10px 9px;
+  padding: 15px 17px 16px;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 9.5px;
-  line-height: 1.8;
+  font-size: 12.5px;
+  line-height: 1.95;
   color: var(--text-2);
 }
 .lp-pipe-term pre b { color: var(--accent); font-weight: 500; }
@@ -886,11 +924,14 @@ html:has(.lp) {
   .lp-pipe-title { font-size: 12px; }
   .lp-pipe-badge { font-size: 9px; padding: 3px 7px; }
   .lp-pipe-packet { font-size: 9px; padding: 3px 8px; }
-  .lp-pipe-mini { max-width: 140px; padding: 8px 5px 6px; }
-  .lp-pipe-mini-note { font-size: 11px; }
-  .lp-pipe-mini-reply { font-size: 9.5px; }
-  .lp-pipe-term-bar { font-size: 7px; padding: 4px 7px; }
-  .lp-pipe-term pre { font-size: 7px; padding: 6px 7px; }
+  .lp-pipe-nodes { gap: 12px; }
+  .lp-pipe-node--relay { width: 84px; }
+  .lp-pipe-node--relay .lp-pipe-icon { width: 40px; height: 40px; margin-bottom: 8px; }
+  .lp-pipe-mini { max-width: 165px; padding: 12px 7px 9px; background-size: 100% 16px; }
+  .lp-pipe-mini-note { font-size: 12.5px; }
+  .lp-pipe-mini-reply { font-size: 10px; margin-top: 5px; }
+  .lp-pipe-term-bar { font-size: 7px; padding: 4px 8px; }
+  .lp-pipe-term pre { font-size: 7.5px; padding: 6px 8px; }
   .lp-demo-note { font-size: 24px; }
   .lp-demo-paper { min-height: 280px; padding: 30px 22px 24px; }
   .lp-section { padding-top: 84px; }
@@ -901,6 +942,7 @@ html:has(.lp) {
   html:has(.lp) { scroll-behavior: auto; }
   .lp-reveal { opacity: 1; transform: none; transition: none; }
   .lp-pipe-out, .lp-pipe-back { animation: none; opacity: 0; }
+  .lp-pipe-node--relay .lp-pipe-icon { animation: none; }
   .lp-demo-note, .lp-demo-circle path, .lp-demo-reply, .lp-demo-tool--active, .lp-caret {
     animation: none;
   }

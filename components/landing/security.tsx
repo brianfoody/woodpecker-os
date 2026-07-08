@@ -39,9 +39,9 @@ export function SecuritySection() {
     <section id="security" className="lp-section">
       <p className="lp-kicker">HOW IT WORKS</p>
       <h2 className="lp-h2">
-        Your machine does the work.
+        A mindful way
         <br />
-        <span className="lp-grad">Nothing else can read it.</span>
+        <span className="lp-grad">to drive your agents.</span>
       </h2>
       <p className="lp-sub">
         You circle a note, it&apos;s encrypted on the canvas, and only your
@@ -54,7 +54,7 @@ export function SecuritySection() {
         aria-label="Diagram: your canvas and your machine exchange end-to-end encrypted messages through a relay that only sees ciphertext"
       >
         <div className="lp-pipe-nodes">
-          <div className="lp-pipe-node">
+          <div className="lp-pipe-node lp-pipe-node--canvas">
             <div className="lp-pipe-mini" aria-hidden>
               <span className="lp-pipe-mini-gesture">
                 <span className="lp-pipe-mini-note">hook up the payments</span>
@@ -77,7 +77,7 @@ export function SecuritySection() {
             <div className="lp-pipe-sub">relay.woodpeckeros.com</div>
             <span className="lp-pipe-badge lp-pipe-badge--nokey">no key · ciphertext only</span>
           </div>
-          <div className="lp-pipe-node">
+          <div className="lp-pipe-node lp-pipe-node--machine">
             <div className="lp-pipe-term" aria-hidden>
               <div className="lp-pipe-term-bar">
                 <em>claude code</em>

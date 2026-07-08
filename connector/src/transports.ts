@@ -37,6 +37,12 @@ export function startRelayTransport(opts: {
   let stopped = false;
   let backoffMs = 1000;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Last known canvas presence, so peer-status renders as transitions
+  // ("canvas disconnected") only when a canvas was actually there.
+  let canvasPresent = false;
+
+  const HEARTBEAT_MS = 30_000;
 
   const builder = new EnvelopeBuilder("connector");
   const guard = new ReplayGuard();
@@ -70,6 +76,26 @@ export function startRelayTransport(opts: {
       };
       ws?.send(JSON.stringify(join));
       opts.onStatus?.("connected to relay — waiting for canvas");
+
+      // A silently dead TCP connection (sleep, network change) never fires
+      // "close", which would leave us waiting on a socket the relay has long
+      // since reaped. Ping and require a pong before the next beat.
+      const socket = ws;
+      let awaitingPong = false;
+      socket?.on("pong", () => {
+        awaitingPong = false;
+      });
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        if (awaitingPong) {
+          console.error("[relay] heartbeat timed out — reconnecting");
+          socket.terminate(); // emits "close" → scheduleReconnect
+          return;
+        }
+        awaitingPong = true;
+        socket.ping();
+      }, HEARTBEAT_MS);
     });
 
     ws.on("message", (data) => {
@@ -92,7 +118,8 @@ export function startRelayTransport(opts: {
             // Undecryptable frame (stale key after re-pairing, tampering) — drop.
           });
       } else if (frame.type === "peer-status") {
-        if (frame.role === "client") {
+        if (frame.role === "client" && frame.connected !== canvasPresent) {
+          canvasPresent = frame.connected;
           opts.onStatus?.(
             frame.connected ? "canvas connected" : "canvas disconnected"
           );
@@ -103,6 +130,10 @@ export function startRelayTransport(opts: {
     });
 
     const scheduleReconnect = () => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
       if (stopped) return;
       opts.onStatus?.(`relay connection lost — retrying in ${Math.round(backoffMs / 1000)}s`);
       reconnectTimer = setTimeout(connect, backoffMs);
@@ -122,6 +153,7 @@ export function startRelayTransport(opts: {
     stop() {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       ws?.close();
     },
   };

@@ -113,7 +113,10 @@ wss.on("connection", (ws, req) => {
   ws.byteLog = [];
 
   ws.on("pong", () => {
+    // A pong is proof of life: refresh the idle clock too, so a healthy but
+    // quiet connector/canvas isn't reaped every IDLE_TIMEOUT_MS.
     ws.isAlive = true;
+    ws.lastActivity = Date.now();
   });
 
   ws.on("message", (data) => {

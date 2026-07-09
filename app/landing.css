@@ -314,6 +314,8 @@ html:has(.lp) {
   background-position: 0 12px;
 }
 .lp-demo-gesture { position: relative; display: inline-block; padding: 10px 18px; }
+/* second gesture wraps reply one + the follow-up so circling both reads as "continue this thread" */
+.lp-demo-gesture--2 { display: block; margin: 20px 0 0 10px; padding: 10px 18px 12px; }
 .lp-demo-note {
   margin: 0;
   font-family: var(--hand);
@@ -321,7 +323,13 @@ html:has(.lp) {
   line-height: 1.2;
   color: var(--paper-ink);
   transform: rotate(-1.4deg);
-  animation: lp-note 10s var(--ease) infinite;
+  animation: lp-note 24s var(--ease) infinite;
+}
+.lp-demo-note--2 {
+  font-size: 27px;
+  margin: 14px 0 0 8px;
+  transform: rotate(-0.9deg);
+  animation: lp-note2 24s var(--ease) infinite;
 }
 .lp-demo-circle {
   position: absolute;
@@ -339,9 +347,38 @@ html:has(.lp) {
   stroke-dasharray: 1 1;
   stroke-dashoffset: 1;
   opacity: 0.85;
-  animation: lp-circle 10s var(--ease) infinite;
+  animation: lp-circle 24s var(--ease) infinite;
 }
-.lp-demo-reply { margin: 30px 0 0 26px; animation: lp-reply 10s var(--ease) infinite; }
+.lp-demo-circle--2 path { animation: lp-circle2 24s var(--ease) infinite; }
+/* the reply slot: a pulsing agent status holds the spot until the ink lands */
+.lp-demo-slot { display: grid; justify-items: start; }
+.lp-demo-slot > * { grid-area: 1 / 1; }
+.lp-demo-slot .lp-demo-reply { margin: 0; }
+.lp-demo-slot--2 { margin: 22px 0 0 30px; }
+.lp-demo-status {
+  display: grid;
+  justify-items: start;
+  align-self: start;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #565d7e;
+  animation: lp-st-pulse 1.6s ease-in-out infinite;
+}
+.lp-demo-status > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  opacity: 0;
+}
+/* act two runs the same status sequence 8s later, with its own texts */
+.lp-demo-status--2 .lp-hst { animation-delay: 8s; }
+.lp-hst-1 { animation: lp-hst-1 24s linear infinite; }
+.lp-hst-2 { animation: lp-hst-2 24s linear infinite; }
+.lp-hst-3 { animation: lp-hst-3 24s linear infinite; }
+.lp-hst-4 { animation: lp-hst-4 24s linear infinite; }
+.lp-demo-reply { margin: 30px 0 0 26px; animation: lp-reply 24s var(--ease) infinite; }
+.lp-demo-reply--2 { animation: lp-reply2 24s var(--ease) infinite; }
 .lp-demo-reply-hand {
   margin: 0 0 10px;
   font-family: var(--hand-2);
@@ -371,23 +408,72 @@ html:has(.lp) {
   0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
   50% { box-shadow: 0 0 14px 1px rgba(139, 92, 246, 0.45); }
 }
+/*
+ * One 24s story, two acts.
+ * Act 1: note writes (0-5.5%), circle draws (7-11%), status tracks the
+ * agent (11.5-24.7%), reply lands (25-28.5%).
+ * Act 2 starts a beat after the reply (+33.3% = 8s): follow-up writes
+ * (33-38.5%), circle two wraps reply + follow-up (40-44%), status again
+ * (44.8-58%), reply two (57.5-61.5%).
+ * The finished conversation holds until 96%, then fades for the loop.
+ */
 @keyframes lp-note {
   0% { clip-path: inset(-15% 100% -15% -2%); }
-  13% { clip-path: inset(-15% -6% -15% -2%); }
-  95% { opacity: 1; }
+  5.5% { clip-path: inset(-15% -6% -15% -2%); }
+  96% { opacity: 1; }
   100% { opacity: 0; }
 }
+/* the circle triggers the session, then fades as the loader takes over */
 @keyframes lp-circle {
-  0%, 18% { stroke-dashoffset: 1; }
-  34% { stroke-dashoffset: 0; }
-  95% { stroke-dashoffset: 0; opacity: 0.85; }
-  100% { opacity: 0; }
+  0%, 7% { stroke-dashoffset: 1; opacity: 0.85; }
+  11% { stroke-dashoffset: 0; }
+  12.5% { stroke-dashoffset: 0; opacity: 0.85; }
+  15%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes lp-reply {
-  0%, 40% { opacity: 0; transform: translateY(10px); }
-  50% { opacity: 1; transform: none; }
-  95% { opacity: 1; }
+  0%, 24.5% { opacity: 0; transform: translateY(10px); }
+  28.5% { opacity: 1; transform: none; }
+  96% { opacity: 1; }
   100% { opacity: 0; }
+}
+@keyframes lp-note2 {
+  0%, 33% { clip-path: inset(-15% 100% -15% -2%); }
+  38.5% { clip-path: inset(-15% -6% -15% -2%); }
+  96% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes lp-circle2 {
+  0%, 40% { stroke-dashoffset: 1; opacity: 0.85; }
+  44% { stroke-dashoffset: 0; }
+  45.5% { stroke-dashoffset: 0; opacity: 0.85; }
+  48%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes lp-reply2 {
+  0%, 57.5% { opacity: 0; transform: translateY(10px); }
+  61.5% { opacity: 1; transform: none; }
+  96% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* agent status updates, ~0.8s apart, mirroring what the session is doing */
+@keyframes lp-hst-1 {
+  0%, 11.5% { opacity: 0; }
+  12%, 14.4% { opacity: 1; }
+  14.8%, 100% { opacity: 0; }
+}
+@keyframes lp-hst-2 {
+  0%, 14.8% { opacity: 0; }
+  15.3%, 17.7% { opacity: 1; }
+  18.1%, 100% { opacity: 0; }
+}
+@keyframes lp-hst-3 {
+  0%, 18.1% { opacity: 0; }
+  18.6%, 21% { opacity: 1; }
+  21.4%, 100% { opacity: 0; }
+}
+@keyframes lp-hst-4 {
+  0%, 21.4% { opacity: 0; }
+  21.9%, 24.3% { opacity: 1; }
+  24.7%, 100% { opacity: 0; }
 }
 
 /* ---------- feature cards ---------- */
@@ -1166,6 +1252,8 @@ html:has(.lp) {
   .lp-demo-note { clip-path: none; }
   .lp-demo-circle path { stroke-dashoffset: 0; }
   .lp-demo-reply { opacity: 1; transform: none; }
+  .lp-demo-status { animation: none; }
+  .lp-demo-status > span { animation: none; opacity: 0; }
   .lp-pipe-mini-circle path { animation: none; stroke-dashoffset: 0; opacity: 0.85; }
   .lp-pipe-mini-reply { animation: none; opacity: 1; clip-path: none; }
   .lp-pipe-mini-note--2 { animation: none; opacity: 1; clip-path: none; }

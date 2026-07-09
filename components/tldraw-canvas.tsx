@@ -4,15 +4,12 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import {
   Tldraw,
   TLUiOverrides,
-  TLComponents,
-  DefaultToolbar,
-  DefaultToolbarContent,
-  TldrawUiToolbarButton,
   loadSnapshot,
   TLShape,
   createShapeId,
 } from "tldraw";
 import "tldraw/tldraw.css";
+import { Wand2 } from "lucide-react";
 import { ThinkingIndicator } from "@/components/thinking-indicator";
 import {
   MessageBubbleShapeUtil,
@@ -685,11 +682,12 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
   const handleToggleMagicPen = useCallback(() => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
-    if (editor.getCurrentToolId() === "magic-draw") {
-      editor.setCurrentTool("draw");
-    } else {
-      editor.setCurrentTool("magic-draw");
-    }
+    const next = editor.getCurrentToolId() === "magic-draw" ? "draw" : "magic-draw";
+    editor.setCurrentTool(next);
+    // Set state directly — the editor's change event doesn't reliably fire
+    // for the magic-draw → draw transition, which left the FAB looking
+    // armed after toggling off.
+    setMagicPenActive(next === "magic-draw");
   }, []);
 
   // Expose cancel/retry/dismiss to the thinking-indicator shape
@@ -739,15 +737,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
 
   const uiOverrides: TLUiOverrides = useMemo(() => ({}), []);
 
-  const uiComponents: TLComponents = useMemo(() => ({
-    Toolbar: (props: any) => (
-      <DefaultToolbar {...props}>
-        <MagicPenToolButton active={magicPenActive} onClick={handleToggleMagicPen} />
-        <DefaultToolbarContent />
-      </DefaultToolbar>
-    ),
-  }), [magicPenActive, handleToggleMagicPen]);
-
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <TldrawErrorBoundary>
@@ -755,7 +744,6 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         shapeUtils={shapeUtils}
         tools={customTools}
         overrides={uiOverrides}
-        components={uiComponents}
         onMount={(editor) => {
           console.log("tldraw mounted");
 
@@ -979,11 +967,16 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           setTimeout(() => editor.setCurrentTool("draw"), 200);
 
           // Sync magicPenActive state when tool changes
+          // Session-scope store listener: currentToolId lives on the session
+          // records, and the editor "change" event proved unreliable for the
+          // magic-draw → draw transition (FAB stayed lit after toggling off).
           const syncMagicState = () => {
             const isMagic = editor.getCurrentToolId() === "magic-draw";
             setMagicPenActive(isMagic);
           };
-          editor.on("change", syncMagicState);
+          const stopSyncMagicState = editor.store.listen(syncMagicState, {
+            scope: "session",
+          });
 
           // Track shapes created while magic-draw tool is active.
           // Tint magic-draw strokes neon green so they're visually distinct.
@@ -1199,7 +1192,7 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
             loopCheckGeneration++; // abort any pending loop-check ladder
             document.removeEventListener("pointerup", checkMagicLoop);
             document.removeEventListener("touchend", checkMagicLoop);
-            editor.off("change", syncMagicState);
+            stopSyncMagicState();
             if (autoSaverRef.current) {
               autoSaverRef.current.cleanup();
             }
@@ -1247,28 +1240,74 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
         info={connectorInfo}
         darkMode={darkMode}
       />
+
+      <MagicPenFab
+        active={magicPenActive}
+        onClick={handleToggleMagicPen}
+        darkMode={darkMode}
+      />
     </div>
   );
 }
 
-function MagicPenToolButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+/**
+ * Floating action button for the magic pen — separated from the tldraw
+ * toolbar so the product's signature action stands on its own at the
+ * bottom-right. Filled with the brand's green gradient so it reads as
+ * THE action on the canvas; breathes a glow ring while armed. Keeps
+ * data-testid="magic-pen-tool": the first-run tutorial pulse and the
+ * verify-e2e pipeline both target it.
+ */
+function MagicPenFab({
+  active,
+  onClick,
+}: {
+  active: boolean;
+  onClick: () => void;
+  darkMode?: boolean;
+}) {
   return (
-    <TldrawUiToolbarButton
-      type="tool"
-      data-testid="magic-pen-tool"
-      data-value="magic-draw"
-      aria-pressed={active ? "true" : "false"}
-      onClick={onClick}
-      aria-label="Magic pen"
-      title="Magic Pen"
-    >
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 2C7.5 2 6.2 2.8 5.6 4C4.4 4.2 3.5 5.2 3.5 6.5C3.5 7 3.6 7.4 3.9 7.8C3.3 8.3 3 9.1 3 9.8C3 10.8 3.6 11.6 4.5 12C4.5 13.2 5.5 14.2 6.8 14.2C7.5 14.2 8.1 13.9 8.5 13.4" />
-        <path d="M9 2C10.5 2 11.8 2.8 12.4 4C13.6 4.2 14.5 5.2 14.5 6.5C14.5 7 14.4 7.4 14.1 7.8C14.7 8.3 15 9.1 15 9.8C15 10.8 14.4 11.6 13.5 12C13.5 13.2 12.5 14.2 11.2 14.2C10.5 14.2 9.9 13.9 9.5 13.4" />
-        <line x1="9" y1="2" x2="9" y2="16" />
-        <path d="M7.5 16C7.5 15.2 8.2 14.5 9 14.5C9.8 14.5 10.5 15.2 10.5 16" />
-      </svg>
-    </TldrawUiToolbarButton>
+    <>
+      <style>{`
+        @keyframes wp-fab-armed {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.55), 0 12px 32px -12px rgba(94, 234, 212, 0.65); }
+          50% { box-shadow: 0 0 0 14px rgba(94, 234, 212, 0), 0 12px 32px -12px rgba(94, 234, 212, 0.65); }
+        }
+      `}</style>
+      <button
+        type="button"
+        data-testid="magic-pen-tool"
+        data-value="magic-draw"
+        aria-pressed={active ? "true" : "false"}
+        aria-label="Magic pen"
+        title="Magic Pen"
+        onClick={onClick}
+        style={{
+          position: "fixed",
+          // sits above tldraw's "made with tldraw" watermark in the corner
+          bottom: 64,
+          right: 20,
+          zIndex: 900,
+          width: 64,
+          height: 64,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 999,
+          cursor: "pointer",
+          border: "none",
+          background: "linear-gradient(135deg, #9ff0c6, #5eead4)",
+          color: "#06231c",
+          boxShadow: active
+            ? undefined
+            : "0 0 0 1px rgba(94, 234, 212, 0.35), 0 12px 32px -12px rgba(94, 234, 212, 0.55)",
+          animation: active ? "wp-fab-armed 1.4s ease-in-out infinite" : undefined,
+          transform: active ? "scale(1.07) rotate(-8deg)" : undefined,
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+        }}
+      >
+        <Wand2 size={28} strokeWidth={2} />
+      </button>
+    </>
   );
 }
 

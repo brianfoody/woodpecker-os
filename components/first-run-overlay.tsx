@@ -138,9 +138,9 @@ export function FirstRunOverlay({
       chip: "2 / 2",
       text: (
         <>
-          Now pick the <strong>magic pen</strong> — the glowing wand in the
-          toolbar — and <strong>draw a circle</strong> around what you wrote.
-          Everything inside the circle becomes the prompt.
+          Now tap the <strong>magic pen</strong> — the glowing wand at the
+          bottom right — and <strong>draw a circle</strong> around what you
+          wrote. Everything inside the circle becomes the prompt.
         </>
       ),
     },
@@ -163,7 +163,7 @@ export function FirstRunOverlay({
       {step === "circle" && (
         <style>{`
           [data-testid="magic-pen-tool"] {
-            border-radius: 9px;
+            border-radius: 999px;
             animation: wp-tut-pulse 1.3s ease-in-out infinite;
           }
           @keyframes wp-tut-pulse {

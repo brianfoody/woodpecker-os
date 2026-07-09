@@ -144,6 +144,7 @@ html:has(.lp) {
   white-space: nowrap;
 }
 .lp-nav-cta:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.lp-nav-cta { cursor: pointer; }
 .lp-nav-cta-short { display: none; }
 @media (max-width: 760px) {
   .lp-nav-links a:not(.lp-nav-cta):not(.lp-nav-gh) { display: none; }
@@ -235,6 +236,7 @@ html:has(.lp) {
   font-size: 15px;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
   transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease),
     border-color 0.25s, background 0.25s;
 }
@@ -1112,6 +1114,25 @@ html:has(.lp) {
   letter-spacing: 0.14em;
   color: var(--text-3);
 }
+.lp-term-copy {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
+}
+.lp-term-copy:hover { color: var(--accent); border-color: var(--border-strong); }
 .lp-term pre { margin: 0; padding: 20px 22px 8px; color: var(--text-2); overflow-x: auto; }
 .lp-term .ok { color: var(--accent); }
 .lp-term .dim { color: var(--text-3); }

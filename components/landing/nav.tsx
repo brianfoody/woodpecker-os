@@ -1,4 +1,5 @@
 import { Feather } from "lucide-react";
+import { CopyCommandButton } from "@/components/landing/copy-command";
 import { GitHubStarButton } from "@/components/landing/github-star";
 
 export function LandingNav() {
@@ -13,10 +14,22 @@ export function LandingNav() {
           <a href="#gesture">Why a pen</a>
           <a href="#security">How it works</a>
           <GitHubStarButton />
-          <a href="#start" className="lp-nav-cta">
-            <span className="lp-nav-cta-full">npx @woodpeckeros/connect</span>
-            <span className="lp-nav-cta-short">get started</span>
-          </a>
+          <CopyCommandButton
+            href="#start"
+            className="lp-nav-cta"
+            idle={
+              <>
+                <span className="lp-nav-cta-full">npx @woodpeckeros/connect</span>
+                <span className="lp-nav-cta-short">get started</span>
+              </>
+            }
+            copied={
+              <>
+                <span className="lp-nav-cta-full">✓ copied — paste in terminal</span>
+                <span className="lp-nav-cta-short">✓ copied</span>
+              </>
+            }
+          />
         </div>
       </div>
     </nav>

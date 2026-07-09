@@ -1,3 +1,5 @@
+import { CopyCommandButton } from "@/components/landing/copy-command";
+
 /** Fake-but-plausible pairing QR, deterministic pattern (no data encoded). */
 function PairQr() {
   const size = 17;
@@ -93,6 +95,11 @@ export function QuickStart() {
             <span className="lp-term-dot" />
             <span className="lp-term-dot" />
             <em>YOUR TERMINAL</em>
+            <CopyCommandButton
+              className="lp-term-copy"
+              idle={<>⧉ copy command</>}
+              copied={<>✓ copied</>}
+            />
           </div>
           <pre>
 <span className="prompt">$</span> npx @woodpeckeros/connect{"\n"}

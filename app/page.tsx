@@ -8,9 +8,9 @@ import { SecuritySection } from "@/components/landing/security";
 import { QuickStart } from "@/components/landing/quick-start";
 
 export const metadata: Metadata = {
-  title: "Woodpecker OS: drive Claude Code with a pen",
+  title: "Woodpecker OS: drive Claude Code from a notepad",
   description:
-    "Turn an iPad or e-ink display into mission control for the Claude Code on your machine. Run agentic tasks in parallel on an infinite canvas, no terminal juggling, sessions that resume with a circle. End-to-end encrypted, no accounts, no cloud execution.",
+    "Write a note by hand, circle it, and Claude Code picks it up on your own machine. No terminal, no tab juggling — agents run where your files already are, and you resume any one by circling its reply. End-to-end encrypted, no accounts, nothing runs in the cloud.",
 };
 
 export default function Landing() {
@@ -25,14 +25,14 @@ export default function Landing() {
           <div>
             <p className="lp-kicker">WOODPECKER OS</p>
             <h1 className="lp-h1">
-              Drive Claude
-              <br />
-              <span className="lp-grad">with a pen.</span>
+              Drive Claude Code from a{" "}
+              <span className="lp-grad">notepad</span>.
             </h1>
             <p className="lp-lede">
-              Woodpecker turns an iPad or e-ink display into mission control for
-              the Claude Code running on <em>your</em> machine. Run agentic
-              tasks side by side on an infinite canvas.
+              You write a note by hand, circle it, and Claude Code picks it up
+              on your own machine. No terminal, no tab juggling. The work runs
+              where your files already are, and you stay on a surface that
+              isn&apos;t competing for your attention.
             </p>
             <HeroCta />
             <p className="lp-trust">
@@ -54,22 +54,19 @@ export default function Landing() {
         {/* Built for real work */}
         <Reveal>
           <section id="gesture" className="lp-section">
-            <p className="lp-kicker">BUILT FOR REAL WORK</p>
+            <p className="lp-kicker">WHY A PEN</p>
             <h2 className="lp-h2">
-              Writing code is no longer the bottleneck.
+              The typing was never
               <br />
-              <span className="lp-grad">Clarity of thought is.</span>
+              <span className="lp-grad">the hard part.</span>
             </h2>
             <p className="lp-sub">
-              Handwriting slows you down on purpose. What you write by hand,
-              you remember — so while your agents produce code faster than you
-              can read it, you stay the one who actually tracks what&apos;s
-              being built.
+              Agents now write code faster than you can read it. So the real
+              work isn&apos;t producing lines anymore — it&apos;s holding the
+              shape of what you&apos;re building in your head. Writing by hand is
+              slow on purpose. What you write down, you remember, and you stay
+              the one who knows what&apos;s actually going on.
             </p>
-            <blockquote className="lp-quote-big">
-              &ldquo;You are doomed when your imagination exceeds your capacity
-              to remember.&rdquo;
-            </blockquote>
           </section>
         </Reveal>
 
@@ -90,8 +87,8 @@ export default function Landing() {
           </p>
           <p className="lp-footer-story">
             Five hundred years ago, the most curious mind alive left himself a
-            note about the smallest of life&apos;s mysteries. A mind with room
-            to wonder, and the tools to chase it. That&apos;s the whole product.
+            note about one of the smallest mysteries in life. Room to wonder,
+            and the tools to chase it down. That&apos;s the whole product.
           </p>
         </div>
         <div className="lp-footer-bar">

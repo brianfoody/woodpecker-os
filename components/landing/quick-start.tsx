@@ -69,10 +69,10 @@ export function QuickStart() {
   return (
     <section id="start" className="lp-section">
       <p className="lp-kicker">GET STARTED</p>
-      <h2 className="lp-h2">From zero to ink in about a minute.</h2>
+      <h2 className="lp-h2">Set it up once, in about a minute.</h2>
       <p className="lp-sub">
         No account, no signup, no API key pasted into a website. It uses the
-        Claude Code login already on your machine: Claude Pro/Max or your own
+        Claude Code login already on your machine — Claude Pro/Max or your own
         key.
       </p>
 

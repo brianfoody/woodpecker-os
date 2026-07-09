@@ -45,15 +45,15 @@ export function SecuritySection() {
     <section id="security" className="lp-section">
       <p className="lp-kicker">HOW IT WORKS</p>
       <h2 className="lp-h2">
-        A mindful way
+        How the work gets
         <br />
-        <span className="lp-grad">to drive your agents.</span>
+        <span className="lp-grad">from pen to code.</span>
       </h2>
       <p className="lp-sub">
-        You circle a note, it&apos;s encrypted on the canvas, and only your
-        machine can decrypt it. Claude Code does the work there and the reply
-        comes back the same way — circle the reply with a follow-up note and
-        the conversation keeps going:
+        You circle a note. It&apos;s encrypted on the canvas, and only your
+        machine holds the key to read it. Claude Code does the work right there
+        on your computer, then writes the reply back the same way. Circle that
+        reply with a follow-up note and the same session keeps going:
       </p>
 
       <div

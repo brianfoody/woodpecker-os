@@ -114,7 +114,18 @@ class TldrawErrorBoundary extends React.Component<
   }
 }
 
-export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: WoodpeckerCanvasTheme; storageKey?: string; darkMode?: boolean }) {
+export default function TldrawCanvas({
+  theme,
+  storageKey,
+  darkMode,
+  onEditorMount,
+}: {
+  theme?: WoodpeckerCanvasTheme;
+  storageKey?: string;
+  darkMode?: boolean;
+  /** Called once the editor is mounted and the saved snapshot is loaded */
+  onEditorMount?: (editor: any) => void;
+}) {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
   const responseRendererRef = useRef<HandwrittenResponseRenderer | null>(null);
@@ -812,6 +823,16 @@ export default function TldrawCanvas({ theme, storageKey, darkMode }: { theme?: 
           const savedViewport = loadViewport(storageKey);
           if (savedViewport) {
             editor.setCamera(savedViewport);
+          }
+
+          // Snapshot + viewport are in — hand the editor to the wrapper
+          // (the Daily Drive shell uses this to seed/capture canvases)
+          if (onEditorMount) {
+            try {
+              onEditorMount(editor);
+            } catch (error) {
+              console.error("onEditorMount callback failed:", error);
+            }
           }
 
           // Clean up any orphaned thinking-indicator shapes left from a

@@ -151,5 +151,6 @@ When adding new components, follow the shadcn/ui patterns and use the configured
 3. **Intent Detection**: Debounced recognition with context awareness
 4. **State Persistence**: localStorage for auto-save, no initial cloud storage
 5. **Platform Strategy**: Web requires internet, mobile apps will have offline support
+6. **The Daily Drive** (`/today`): the opinionated day loop (plan → distill → drive → task canvases → reflect → harvest → masterboards) as a shell around plain TldrawCanvas instances — see decision #12
 
 For full details on these and other decisions, see `/docs/DECISIONS.md`.

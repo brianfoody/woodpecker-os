@@ -348,6 +348,40 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 
 ---
 
+## 12. The Daily Drive: an Opinionated Day Loop Over Plain Canvases (/today)
+
+**Decision**: Ship the focused product as a **shell around unmodified TldrawCanvas instances**, not a fork or an in-canvas framework. `/today` structures the day as Plan → Distill → Drive → task canvases → Reflect → Harvest → Masterboards; every surface is just a `TldrawCanvas` with its own `storageKey`, and the shell adds navigation chrome, a todo hub, and two one-shot AI steps that move content between surfaces.
+
+**Date**: July 2026
+
+**Context**:
+
+- The freeform canvas proved the core loop (write → circle → agent acts) but gave no daily structure: no way to go from morning writing to a task list, to per-task agent work, to end-of-day learnings
+- The product goal is a repeatable daily practice: day planning, todo distillation, scoping/executing each item on its own canvas with fluid navigation, and evening learnings flowing to long-lived "masterboard" canvases
+
+**Decision Details**:
+
+- **Wrapper, not fork**: `components/daily/day-shell.tsx` owns a view state (`plan | drive | task:<id> | reflect | boards | board:<id>`) and mounts one `TldrawCanvas` at a time, keyed by storage key. Magic pen, persistence, connector sync and session forking all work unchanged on every surface. The only canvas change is an optional `onEditorMount` callback so the shell can seed/capture canvases
+- **Data model** (`lib/daily/store.ts`, localStorage like decision #5): `DayRecord` (per local date) holds `TodoItem[]`; `Masterboard` holds an `inbox` of `LearningEntry`. Canvas keys are derived (`woodpecker-canvas-day-<date>-plan`, `-reflect`, `woodpecker-canvas-task-<todoId>`, `woodpecker-canvas-board-<boardId>`), so they ride the existing canvas-persistence + connector cross-device sync untouched
+- **Drive is a list, not a canvas**: the todo hub is a plain React screen — status toggles, big tap targets, add-by-hand, carry-over of unfinished todos from the previous day (the todo keeps its id, so its canvas and agent sessions follow it across days)
+- **Two structural AI steps** (`lib/daily/distill.ts`): *Distill* captures the whole plan canvas as an image and runs one connector `execute()` with a strict JSON-only prompt → todos merged case-insensitively (re-distilling never duplicates). *Harvest* does the same on the reflect canvas → learnings the user routes to a masterboard. Both consume the stream directly instead of rendering cards — they're pipeline steps, not conversations
+- **Deferred stamping for masterboards**: harvested learnings sit in the board's `inbox` and are stamped onto the board canvas as themed cards the next time it opens (a canvas can only be written while mounted); task canvases are seeded with a TASK title card and the reflect canvas with a day-recap card on first open
+- **Verification**: store logic unit-tested (`lib/daily/__tests__/store.test.ts`); `scripts/test-daily-drive-smoke.ts` drives the whole shell in Playwright against `npm run dev`
+
+**Alternatives Considered**:
+
+- Everything on one big canvas with zones/frames per stage (rejected: no clean per-task session scoping, snapshots grow unboundedly, navigation by panning doesn't survive a week of days)
+- Drive as a canvas with checkbox shapes (rejected: status/navigation are structured interactions; a list is faster and honest about it)
+- Writing into unmounted canvases by editing serialized snapshots (rejected: fragile against tldraw schema migrations — the inbox + stamp-on-open pattern avoids it)
+
+**Implications**:
+
+- `/canvas` remains the freeform surface; `/today` is the opinionated daily product — both share the same engine and neon-grid theme
+- A day's canvases accumulate in localStorage/connector storage under dated keys; pruning/archiving old days is future work
+- Distill/harvest require the connector (like every agent action); the todo list itself is fully manual-capable offline
+
+---
+
 ## Superseded decisions
 
 These reflect earlier choices that are no longer active. They're kept for historical context.

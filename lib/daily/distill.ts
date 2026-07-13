@@ -100,6 +100,54 @@ export async function distillPlanToTodos(editor: any): Promise<DistilledTodo[]> 
     .filter((t) => t.title.trim().length > 0);
 }
 
+function taskPlanPrompt(title: string, revision: boolean): string {
+  const base = `This image is a photo of my handwritten brief for the task: "${title}".
+The card labeled TASK is the task itself; cards labeled AI are prior agent conversation — ignore them.
+Write a concise execution plan: a one-line goal, then numbered steps (at most ~8, one line each), in my voice.
+Respond with plain text only — no markdown fences, no preamble, no commentary.`;
+  if (!revision) return base;
+  return `${base}
+Cards labeled PLAN are previous versions of the plan. My handwritten notes on or near them are revision requests — produce the next version of the plan incorporating them.`;
+}
+
+/**
+ * One-shot "create a plan for this task" step. Captures the task canvas
+ * (brief, prior PLAN cards, ink annotations) and returns the plan as plain
+ * text to be stamped as a PLAN card.
+ */
+export async function planTask(
+  editor: any,
+  todoTitle: string,
+  revision: boolean
+): Promise<string> {
+  const image = await captureCanvasImage(editor);
+  if (!image) throw new Error("The task canvas is empty — write a brief first");
+  const text = await runOnce(taskPlanPrompt(todoTitle, revision), image);
+  const plan = text.trim();
+  if (!plan) throw new Error("The agent returned an empty plan");
+  return plan;
+}
+
+const TASK_REFLECTION_PROMPT = `This image is a photo of my task canvas, captured as I close the task.
+After finishing the work I wrote a short handwritten reflection — what this task taught me. It is usually the most recent ink, often near the bottom or beside the result.
+Extract that reflection as ONE concise line in my voice.
+Respond with ONLY that line, plain text — no quotes, no preamble.
+If there is no reflection beyond the task, plan and agent conversation, respond with exactly NONE.`;
+
+/**
+ * Best-effort pull of the closing reflection off a task canvas.
+ * Returns undefined when the user didn't write one.
+ */
+export async function extractTaskReflection(
+  editor: any
+): Promise<string | undefined> {
+  const image = await captureCanvasImage(editor);
+  if (!image) return undefined;
+  const text = (await runOnce(TASK_REFLECTION_PROMPT, image)).trim();
+  if (!text || /^NONE\b/i.test(text)) return undefined;
+  return text;
+}
+
 const HARVEST_PROMPT = `This image is a photo of my handwritten end-of-day reflection.
 Extract the durable learnings and insights worth keeping beyond today — lessons, decisions, ideas. Ignore pure diary/logistics.
 Respond with ONLY a JSON array of strings, no markdown fences, no commentary. Each string one concise learning in my voice.

@@ -382,7 +382,44 @@ _Last reviewed: 2026-07-08. Decisions tied to the original handwriting-recogniti
 
 ---
 
-## Superseded decisions
+## 13. Per-Task Agent Lifecycle: brief → review → execute → verify
+
+**Decision**: Each todo in the Daily Drive carries an optional lifecycle `stage` mirroring how work with a coding agent actually goes: write a **brief** on the task canvas → *Create plan* (one-shot AI, stamps a PLAN card) → **review** (annotate in ink; *Revise plan* re-runs with annotations, *Execute plan* hands the plan to the agent) → **execute** (agent session streams reply cards; iterate by circling with the magic pen) → **verify** → done. Stages **guide, never gate** — DONE works from any stage, and a tappable B·R·E·V stepper in the task rail jumps to any stage directly.
+
+**Date**: July 2026
+
+**Context**:
+
+- A task canvas was just a blank surface with a TASK card; the actual working rhythm (kick off → plan → review the plan → execute → test) had no home, so the plan/review discipline lived in the user's head
+- The revise-vs-execute fork should follow from what the user did: annotated a plan in ink → offer both; no annotations → just execute
+
+**Decision Details**:
+
+- **Data model** (`lib/daily/store.ts`): `stage?: TaskStage` plus `planCount`/`planShapeCount` on `TodoItem`, all optional — `taskStage()` maps `undefined` to `brief`, so legacy localStorage records need no migration. Status (`todo/active/done/dropped`) stays orthogonal to stage; carry-over spreads the whole todo, so stage and plan state follow the canvas across days
+- **"Create plan" is an action, not a stage**: `planTask()` in `lib/daily/distill.ts` reuses the distill one-shot pattern (canvas image → `runOnce`), returning plain text stamped as a PLAN card. Prompts name the card labels (TASK / PLAN / AI) so the model can tell brief from prior plans from conversation
+- **Append-only PLAN cards**: revisions stamp `PLAN v2` below via `contentBottom`, never replace — replacing would orphan the ink annotations spatially anchored to the old card
+- **Annotation detection** is a shape-count heuristic: `planShapeCount` records the count right after stamping; more shapes now = annotated, which reveals *Revise plan*
+- **Execute uses the conversational path**: a minimal `onAgentApi` prop on `TldrawCanvas` exposes the existing `useClaudeCode.execute` pipeline, so the shell sends the full canvas image (plan + ink instructions) and gets streaming reply cards with session ids — circling them resumes the session, so iteration needs no new infra. Verify is a tracked pass-through stage with a hint, not an automated test step
+
+**Alternatives Considered**:
+
+- Extending `TodoStatus` with stage values (rejected: done/dropped are orthogonal to where in the loop a task is; conflating them breaks the drive-list toggle)
+- Replacing the PLAN card on revision (rejected: orphans annotations, destroys history)
+- A structured JSON plan with per-step checkboxes (rejected: a list-in-canvas duplicates the Drive and is heavy for small tasks)
+- Mandatory stage progression (rejected: "buy milk" needs no plan; violates the calm, guide-don't-gate ethos)
+
+**Implications**:
+
+- `onAgentApi` is the second (and still tiny) shell-facing hook on `TldrawCanvas` after `onEditorMount`; anything richer should still go through these rather than forking the canvas
+- The shape-count heuristic can miss annotations after deletions — acceptable, since Execute always sends the image anyway
+- Stage names surface in the drive list and reflect recap, so renaming a stage is a copy change in three places plus the `TaskStage` union
+
+**Update (July 2026, after design review)** — a five-design storyboard review settled three changes:
+
+- **"Drive" renamed to "Work"** in all user-facing copy ("THE WORK" list header, "← WORK" back button, "WORK n/m" nav pill). Internal identifiers (`DriveView`, view kind `"drive"`, `DayShell` file layout) keep the old name — the view kind is persisted in localStorage (`woodpecker-daily-last-view`) and renaming it would break restores for no user benefit
+- **Reflect joined the task loop as its closing beat**: stages are now brief → review → execute → verify → **reflect** → done. Verify asks "did it work?", reflect asks "what did it teach you?" — captured in ink while fresh instead of deferred to the evening. "Close task" best-effort extracts that line via a one-shot (`extractTaskReflection` in `distill.ts`, returns NONE-aware plain text) onto `TodoItem.reflection`; extraction failure (connector down) never blocks closing. The evening reflect canvas seeds done tasks as `✓ title — reflection`, so harvest sweeps per-task learnings
+- **One bar up top, one action below.** The B·R·E·V letter stepper is gone. A labelled **step track** (①BRIEF ─ ②REVIEW ─ …) sits inline in the task rail itself, between the task title and DONE; past steps tick off. The bottom keeps only the hint line and the per-stage primary action — one thing to do, one place to look. The **stage ring** survives as the 14px per-row progress glyph in the Work list. Rejected along the way: a separate step-track pill below the rail and a bottom step track above the actions (two bars / three stacked things = too much going on, per review), ring + word in the rail, dots-in-rail, letter initials (cryptic at arm's length on e-ink)
+- **Forward stages are earned, not skippable.** The track disables steps beyond `TodoItem.stageReached` — the furthest stage legitimately reached, bumped only by the advance actions (Create plan unlocks review, Execute plan unlocks execute, Verified unlocks reflect). Jumping backward is always free and never re-locks anything, so review-the-plan-again → return-to-execute costs nothing. This narrows the original "stages never gate" stance: the loop still never blocks *finishing* (rail DONE works from any stage), but it does block *skipping ahead*
 
 These reflect earlier choices that are no longer active. They're kept for historical context.
 

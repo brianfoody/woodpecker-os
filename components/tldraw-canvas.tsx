@@ -114,17 +114,34 @@ class TldrawErrorBoundary extends React.Component<
   }
 }
 
+export type CanvasAgentExecute = (
+  prompt: string,
+  opts: { resumeSessionId?: string; image?: string } | undefined,
+  position: { x: number; y: number },
+  onStrokeCleanup?: () => void,
+  sourceShapeId?: any,
+  branchDirection?: "right" | "right-under" | "under" | "left" | "left-under",
+  branchStartAnchorY?: number
+) => Promise<void>;
+
 export default function TldrawCanvas({
   theme,
   storageKey,
   darkMode,
   onEditorMount,
+  onAgentApi,
 }: {
   theme?: WoodpeckerCanvasTheme;
   storageKey?: string;
   darkMode?: boolean;
   /** Called once the editor is mounted and the saved snapshot is loaded */
   onEditorMount?: (editor: any) => void;
+  /**
+   * Exposes the conversational agent pipeline (streaming reply cards,
+   * session tagging) so a shell can hand work to the agent programmatically
+   * — same path the magic pen uses.
+   */
+  onAgentApi?: (api: { execute: CanvasAgentExecute }) => void;
 }) {
   const editorRef = useRef<any>(null);
   const autoSaverRef = useRef<CanvasAutoSaver | null>(null);
@@ -222,6 +239,11 @@ export default function TldrawCanvas({
     responseRendererRef,
     theme,
   });
+
+  // Hand the agent execute pipeline to the embedding shell (Daily Drive)
+  useEffect(() => {
+    if (onAgentApi) onAgentApi({ execute: executeClaudeCode });
+  }, [onAgentApi, executeClaudeCode]);
 
   // Keep canvas background and color scheme in sync when theme/dark mode changes
   useEffect(() => {

@@ -18,10 +18,10 @@ async function main() {
 
   page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 
-  // ── Drive view (default) ──
+  // ── Work view (default) ──
   await page.goto(`${BASE}/today`, { waitUntil: "networkidle" });
-  await page.waitForSelector("text=THE DRIVE", { timeout: 15000 });
-  console.log("✓ /today renders the Drive view");
+  await page.waitForSelector("text=THE WORK", { timeout: 15000 });
+  console.log("✓ /today renders the Work view");
 
   // Add a todo by hand
   await page.fill('input[placeholder="Add a task by hand..."]', "Fix the relay heartbeat");
@@ -37,6 +37,38 @@ async function main() {
   await page.waitForSelector("text=Fix the relay heartbeat");
   console.log("✓ task canvas opens and is seeded with the TASK card");
   await page.screenshot({ path: `${SHOT_DIR}/today-task.png` });
+
+  // ── Per-task lifecycle (brief → review → execute → verify → reflect) ──
+  // Brief stage offers Create plan; forward steps are LOCKED until earned
+  await page.waitForSelector("text=Create plan", { timeout: 10000 });
+  await page.waitForSelector('button[aria-label="Set stage: reflect"]');
+  console.log("✓ brief stage shows Create plan + the step track in the rail");
+  const reviewDisabled = await page.getAttribute(
+    'button[aria-label="Set stage: review"]',
+    "disabled"
+  );
+  if (reviewDisabled === null) fail("review step should be locked before a plan exists");
+  console.log("✓ review step is locked until a plan is created");
+
+  // Simulate the loop having progressed (plan creation needs the connector):
+  // stamp stage + stageReached into the day record and reload
+  await page.evaluate(() => {
+    const days = JSON.parse(localStorage.getItem("woodpecker-daily-days") ?? "{}");
+    const date = Object.keys(days)[0];
+    days[date].todos[0].stage = "reflect";
+    days[date].todos[0].stageReached = "reflect";
+    localStorage.setItem("woodpecker-daily-days", JSON.stringify(days));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector("text=Close task", { timeout: 20000 });
+  console.log("✓ reflect stage shows Close task");
+
+  // Backward jumps are free, and returning forward within reached stages too
+  await page.click('button[aria-label="Set stage: brief"]');
+  await page.waitForSelector("text=Create plan", { timeout: 5000 });
+  await page.click('button[aria-label="Set stage: verify"]');
+  await page.waitForSelector('button:has-text("Verified")', { timeout: 5000 });
+  console.log("✓ track moves freely within already-reached stages");
 
   // Task rail: mark done returns to drive
   await page.click("text=DONE");

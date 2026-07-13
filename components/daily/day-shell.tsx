@@ -4,8 +4,9 @@
  * The Daily Drive shell — the opinionated wrapper that turns the freeform
  * canvas engine into a daily practice:
  *
- *   Plan (canvas) → Distill → Drive (todo hub) → one canvas per task
- *   → Reflect (canvas) → Harvest → Masterboards (canvases)
+ *   Plan (canvas) → Distill → The Work (todo hub) → one canvas per task
+ *   (brief → review → execute → verify → reflect) → Reflect (canvas)
+ *   → Harvest → Masterboards (canvases)
  *
  * Every canvas is a plain TldrawCanvas with its own storageKey, so the
  * magic pen, persistence and connector sync all work unchanged. The shell
@@ -13,7 +14,7 @@
  * steps (distill / harvest) that move content between surfaces.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createShapeId } from "tldraw";
 import {
@@ -21,10 +22,12 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Play,
   Plus,
   Sparkles,
   X,
 } from "lucide-react";
+import type { CanvasAgentExecute } from "@/components/tldraw-canvas";
 import { createNeonGridTheme, type WoodpeckerCanvasTheme } from "@/lib/woodpecker-theme";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -39,16 +42,27 @@ import {
   loadBoards,
   mergeDistilledTodos,
   planCanvasKey,
+  furthestStage,
+  laterStage,
   reflectCanvasKey,
   taskCanvasKey,
+  taskStage,
+  TASK_STAGES,
   todayKey,
   updateDay,
   updateTodo,
   type DayRecord,
   type Masterboard,
+  type TaskStage,
   type TodoItem,
 } from "@/lib/daily/store";
-import { distillPlanToTodos, harvestLearnings } from "@/lib/daily/distill";
+import {
+  captureCanvasImage,
+  distillPlanToTodos,
+  extractTaskReflection,
+  harvestLearnings,
+  planTask,
+} from "@/lib/daily/distill";
 
 const TldrawCanvas = dynamic(() => import("@/components/tldraw-canvas"), {
   ssr: false,
@@ -152,6 +166,20 @@ export default function DayShell() {
   const [busy, setBusy] = useState<string | null>(null);
   const [harvested, setHarvested] = useState<string[] | null>(null);
   const editorRef = useRef<any>(null);
+  const agentApiRef = useRef<{ execute: CanvasAgentExecute } | null>(null);
+  // Bumped on any document change while a task canvas is open, so
+  // annotation presence (ink after the last PLAN stamp) re-evaluates.
+  const [shapeVersion, setShapeVersion] = useState(0);
+  const shapeListenerRef = useRef<(() => void) | null>(null);
+
+  const handleAgentApi = useCallback(
+    (api: { execute: CanvasAgentExecute }) => {
+      agentApiRef.current = api;
+    },
+    []
+  );
+
+  useEffect(() => () => shapeListenerRef.current?.(), []);
 
   const refresh = useCallback(() => {
     setDay(getDay(date));
@@ -182,6 +210,9 @@ export default function DayShell() {
   const setView = useCallback(
     (v: View) => {
       editorRef.current = null;
+      agentApiRef.current = null;
+      shapeListenerRef.current?.();
+      shapeListenerRef.current = null;
       setViewRaw(v);
       try {
         localStorage.setItem(VIEW_KEY, JSON.stringify({ date, view: v }));
@@ -191,6 +222,21 @@ export default function DayShell() {
   );
 
   const visibleTodos = day.todos.filter((t) => t.status !== "dropped");
+
+  /**
+   * Move a task to a stage, remembering the furthest point reached —
+   * jumping back never re-locks stages you've already earned.
+   */
+  const setTaskStage = useCallback(
+    (todo: TodoItem, s: TaskStage) => {
+      updateTodo(date, todo.id, {
+        stage: s,
+        stageReached: laterStage(furthestStage(todo), s),
+      });
+      refresh();
+    },
+    [date, refresh]
+  );
 
   const openTodo = useCallback(
     (todo: TodoItem) => {
@@ -221,6 +267,13 @@ export default function DayShell() {
           updateTodo(date, todo.id, { seeded: true });
           refresh();
         }
+        // Watch for ink after the last PLAN stamp (drives "Revise plan")
+        shapeListenerRef.current?.();
+        shapeListenerRef.current = editor.store.listen(
+          () => setShapeVersion((n) => n + 1),
+          { scope: "document" }
+        );
+        setShapeVersion((n) => n + 1);
       }
 
       if (v.kind === "reflect") {
@@ -231,8 +284,13 @@ export default function DayShell() {
             (t) => t.status === "todo" || t.status === "active"
           );
           const lines = [
-            ...done.map((t) => `✓ ${t.title}`),
-            ...open.map((t) => `○ ${t.title}`),
+            ...done.map(
+              (t) => `✓ ${t.title}${t.reflection ? ` — ${t.reflection}` : ""}`
+            ),
+            ...open.map(
+              (t) =>
+                `○ ${t.title}${taskStage(t) !== "brief" ? ` (${taskStage(t)})` : ""}`
+            ),
           ].join("\n");
           const text =
             `${date} — ${done.length}/${d.todos.length} done` +
@@ -279,7 +337,7 @@ export default function DayShell() {
       toast({
         title:
           added.length > 0
-            ? `${added.length} task${added.length === 1 ? "" : "s"} added to your drive`
+            ? `${added.length} task${added.length === 1 ? "" : "s"} added to your work`
             : "No new tasks found in the plan",
       });
       if (added.length > 0) setView({ kind: "drive" });
@@ -293,6 +351,132 @@ export default function DayShell() {
       setBusy(null);
     }
   }, [date, refresh, setView]);
+
+  /** One-shot "create/revise the plan" — stamps a PLAN card, moves to review. */
+  const runCreatePlan = useCallback(
+    async (revision: boolean) => {
+      const editor = editorRef.current;
+      if (!editor || view.kind !== "task") return;
+      const todo = getDay(date).todos.find((t) => t.id === view.todoId);
+      if (!todo) return;
+      setBusy(revision ? "revising the plan..." : "drafting a plan...");
+      try {
+        const plan = await planTask(editor, todo.title, revision);
+        const n = (todo.planCount ?? 0) + 1;
+        stampCard(editor, theme, {
+          x: 120,
+          y: contentBottom(editor),
+          text: plan,
+          label: n === 1 ? "PLAN" : `PLAN v${n}`,
+        });
+        updateTodo(date, todo.id, {
+          stage: "review",
+          stageReached: laterStage(furthestStage(todo), "review"),
+          planCount: n,
+          planShapeCount: editor.getCurrentPageShapes().length,
+        });
+        refresh();
+      } catch (error) {
+        toast({
+          title: revision ? "Revise failed" : "Plan failed",
+          description: error instanceof Error ? error.message : "Is your connector running?",
+          variant: "destructive",
+        });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [view, date, theme, refresh]
+  );
+
+  /**
+   * Hand the approved plan (canvas image, ink annotations included) to the
+   * agent via the conversational path — reply cards stream in and carry
+   * session ids, so circling them with the magic pen continues the session.
+   */
+  const runExecutePlan = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || view.kind !== "task") return;
+    const todo = getDay(date).todos.find((t) => t.id === view.todoId);
+    if (!todo) return;
+    const agent = agentApiRef.current;
+    if (!agent) {
+      toast({
+        title: "Canvas isn't ready yet",
+        description: "Give it a second and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBusy("handing the plan to the agent...");
+    try {
+      const image = await captureCanvasImage(editor);
+      if (!image) throw new Error("The task canvas is empty — create a plan first");
+      const planCard = editor
+        .getCurrentPageShapes()
+        .filter(
+          (s: any) =>
+            s.type === "handwritten-text" &&
+            typeof s.props?.cardLabel === "string" &&
+            s.props.cardLabel.startsWith("PLAN")
+        )
+        .sort((a: any, b: any) => b.y - a.y)[0];
+      const prompt =
+        `Execute this plan for the task "${todo.title}". ` +
+        `The image is my task canvas: the card labeled PLAN (highest version if several) is the approved plan; ` +
+        `my handwritten notes are additional instructions. Do the work and report concisely what you did.`;
+      // Fire and forget — the canvas renders its own thinking indicator and
+      // streaming reply cards; errors surface through the canvas retry UI.
+      void agent.execute(
+        prompt,
+        { image },
+        { x: 120, y: contentBottom(editor) },
+        undefined,
+        planCard?.id,
+        planCard ? "under" : undefined
+      );
+      updateTodo(date, todo.id, {
+        stage: "execute",
+        stageReached: laterStage(furthestStage(todo), "execute"),
+      });
+      refresh();
+    } catch (error) {
+      toast({
+        title: "Execute failed",
+        description: error instanceof Error ? error.message : "Is your connector running?",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }, [view, date, refresh]);
+
+  /**
+   * Close out a task from the reflect stage: best-effort extract the
+   * handwritten reflection off the canvas (it enriches the evening recap),
+   * then mark done. Closing never blocks on the connector being up.
+   */
+  const runCloseTask = useCallback(async () => {
+    if (view.kind !== "task") return;
+    const todo = getDay(date).todos.find((t) => t.id === view.todoId);
+    if (!todo) return;
+    setBusy("closing the task...");
+    let reflection: string | undefined;
+    try {
+      const editor = editorRef.current;
+      if (editor) reflection = await extractTaskReflection(editor);
+    } catch {
+      // no connector / extraction failed — close without a reflection
+    } finally {
+      updateTodo(date, todo.id, {
+        status: "done",
+        ...(reflection ? { reflection } : {}),
+      });
+      refresh();
+      setBusy(null);
+      setView({ kind: "drive" });
+    }
+  }, [view, date, refresh, setView]);
 
   const runHarvest = useCallback(async () => {
     const editor = editorRef.current;
@@ -349,6 +533,19 @@ export default function DayShell() {
   const currentBoard =
     view.kind === "board" ? boards.find((b) => b.id === view.boardId) : undefined;
 
+  // Has the user drawn anything since the last PLAN card was stamped?
+  const annotated = useMemo(() => {
+    void shapeVersion; // re-evaluate on document changes
+    if (view.kind !== "task" || !currentTask?.planShapeCount) return false;
+    const editor = editorRef.current;
+    if (!editor) return false;
+    try {
+      return editor.getCurrentPageShapes().length > currentTask.planShapeCount;
+    } catch {
+      return false;
+    }
+  }, [view, currentTask, shapeVersion]);
+
   return (
     <div style={{ position: "fixed", inset: 0, background: BG }}>
       {isCanvasView && (
@@ -358,6 +555,7 @@ export default function DayShell() {
           theme={theme}
           darkMode
           onEditorMount={handleEditorMount}
+          onAgentApi={handleAgentApi}
         />
       )}
 
@@ -409,6 +607,7 @@ export default function DayShell() {
           todos={visibleTodos}
           onBack={() => setView({ kind: "drive" })}
           onNavigate={(t) => openTodo(t)}
+          onJump={(s) => currentTask && setTaskStage(currentTask, s)}
           onDone={() => {
             if (currentTask) {
               updateTodo(date, currentTask.id, { status: "done" });
@@ -433,7 +632,7 @@ export default function DayShell() {
             PLAN
           </RailButton>
           <RailButton active={view.kind === "drive"} onClick={() => setView({ kind: "drive" })}>
-            DRIVE{" "}
+            WORK{" "}
             {day.todos.length > 0 &&
               `${day.todos.filter((t) => t.status === "done").length}/${visibleTodos.length}`}
           </RailButton>
@@ -456,6 +655,18 @@ export default function DayShell() {
         <StageAction onClick={runHarvest} busy={busy}>
           <Sparkles size={18} /> Harvest learnings
         </StageAction>
+      )}
+      {view.kind === "task" && currentTask && currentTask.status !== "done" && (
+        <TaskStageActions
+          stage={taskStage(currentTask)}
+          busy={busy}
+          annotated={annotated}
+          onCreatePlan={() => runCreatePlan(false)}
+          onRevisePlan={() => runCreatePlan(true)}
+          onExecutePlan={runExecutePlan}
+          onJump={(s) => setTaskStage(currentTask, s)}
+          onClose={runCloseTask}
+        />
       )}
 
       {harvested && (
@@ -507,6 +718,8 @@ function Rail({ children }: { children: React.ReactNode }) {
         fontFamily: MONO,
         fontSize: 13,
         whiteSpace: "nowrap",
+        maxWidth: "calc(100vw - 16px)",
+        overflowX: "auto",
       }}
     >
       {children}
@@ -547,17 +760,57 @@ function RailButton({
   );
 }
 
+/** The task loop drawn as a filling ring — the rail reports, it never moves. */
+function StageRing({ stage, size = 26 }: { stage: TaskStage; size?: number }) {
+  const idx = Math.max(0, TASK_STAGES.indexOf(stage));
+  const stroke = size <= 16 ? 2 : 3;
+  const r = (size - stroke * 2) / 2;
+  const c = 2 * Math.PI * r;
+  const frac = (idx + 1) / TASK_STAGES.length;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ transform: "rotate(-90deg)", flex: "0 0 auto" }}
+      aria-hidden
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="rgba(94, 234, 212, 0.18)"
+        strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={ACCENT}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - frac)}
+      />
+    </svg>
+  );
+}
+
 function TaskRail({
   todo,
   todos,
   onBack,
   onNavigate,
+  onJump,
   onDone,
 }: {
   todo?: TodoItem;
   todos: TodoItem[];
   onBack: () => void;
   onNavigate: (t: TodoItem) => void;
+  onJump: (s: TaskStage) => void;
   onDone: () => void;
 }) {
   const idx = todo ? todos.findIndex((t) => t.id === todo.id) : -1;
@@ -566,7 +819,7 @@ function TaskRail({
   return (
     <Rail>
       <RailButton onClick={onBack}>
-        <ArrowLeft size={14} /> DRIVE
+        <ArrowLeft size={14} /> WORK
       </RailButton>
       <RailButton onClick={() => prev && onNavigate(prev)}>
         <ChevronLeft size={14} style={{ opacity: prev ? 1 : 0.25 }} />
@@ -576,7 +829,7 @@ function TaskRail({
           color: todo?.status === "done" ? DIM : INK,
           textDecoration: todo?.status === "done" ? "line-through" : "none",
           padding: "0 6px",
-          maxWidth: 320,
+          maxWidth: 180,
           overflow: "hidden",
           textOverflow: "ellipsis",
           letterSpacing: 0.5,
@@ -587,6 +840,25 @@ function TaskRail({
       <RailButton onClick={() => next && onNavigate(next)}>
         <ChevronRight size={14} style={{ opacity: next ? 1 : 0.25 }} />
       </RailButton>
+      {todo && todo.status !== "done" && (
+        <>
+          <span
+            style={{
+              width: 1,
+              height: 22,
+              background: CARD_BORDER,
+              margin: "0 6px",
+              flex: "0 0 auto",
+            }}
+          />
+          <StageSteps
+            stage={taskStage(todo)}
+            reached={furthestStage(todo)}
+            onJump={onJump}
+          />
+          <span style={{ width: 6, flex: "0 0 auto" }} />
+        </>
+      )}
       {todo?.status !== "done" && (
         <button
           type="button"
@@ -657,6 +929,234 @@ function StageAction({
   );
 }
 
+/** Non-fixed pill button used inside TaskStageActions. */
+function ActionPill({
+  children,
+  onClick,
+  busy,
+  ghost,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  busy: string | null;
+  ghost?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!!busy}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "14px 22px",
+        borderRadius: 999,
+        border: ghost ? `1px solid ${CARD_BORDER}` : "none",
+        cursor: busy ? "wait" : "pointer",
+        fontFamily: MONO,
+        fontSize: 15,
+        letterSpacing: 0.5,
+        background: ghost
+          ? "rgba(10, 14, 20, 0.85)"
+          : busy
+            ? "rgba(94, 234, 212, 0.25)"
+            : "linear-gradient(135deg, #9ff0c6, #5eead4)",
+        color: ghost ? DIM : busy ? ACCENT : "#06231c",
+        fontWeight: 700,
+        boxShadow: ghost ? "none" : "0 12px 32px -12px rgba(94, 234, 212, 0.55)",
+      }}
+    >
+      {!ghost && busy ? busy : children}
+    </button>
+  );
+}
+
+/**
+ * The step track, inline in the task rail — past stages tick off and the
+ * current one fills. Tapping a step jumps to it, but only within stages
+ * already reached: forward stages are earned through the actions (create
+ * a plan to unlock review, execute it to unlock execute, …), never by
+ * skipping ahead.
+ */
+function StageSteps({
+  stage,
+  reached,
+  onJump,
+}: {
+  stage: TaskStage;
+  reached: TaskStage;
+  onJump: (s: TaskStage) => void;
+}) {
+  const current = TASK_STAGES.indexOf(stage);
+  const maxIdx = TASK_STAGES.indexOf(reached);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center" }}>
+      {TASK_STAGES.map((s, i) => {
+        const locked = i > maxIdx;
+        return (
+          <React.Fragment key={s}>
+            {i > 0 && (
+              <span
+                style={{
+                  width: 12,
+                  height: 1.5,
+                  background:
+                    i <= current ? "rgba(94, 234, 212, 0.5)" : "rgba(94, 234, 212, 0.18)",
+                  margin: "0 3px",
+                  flex: "0 0 auto",
+                }}
+              />
+            )}
+            <button
+              type="button"
+              aria-label={`Set stage: ${s}`}
+              disabled={locked}
+              onClick={() => onJump(s)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                border: "none",
+                background: "transparent",
+                cursor: locked ? "default" : "pointer",
+                fontFamily: MONO,
+                fontSize: 10.5,
+                letterSpacing: 1.5,
+                padding: "6px 2px",
+                opacity: locked ? 0.35 : 1,
+                color: i === current ? ACCENT : i < current ? "rgba(94, 234, 212, 0.55)" : DIM,
+              }}
+            >
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 999,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 10,
+                  flex: "0 0 auto",
+                  border: `1.5px solid ${i <= current ? ACCENT : DIM}`,
+                  background: i === current ? ACCENT : "transparent",
+                  color: i === current ? "#06231c" : i < current ? ACCENT : DIM,
+                  fontWeight: i === current ? 700 : 400,
+                }}
+              >
+                {i < current ? "✓" : i + 1}
+              </span>
+              {s.toUpperCase()}
+            </button>
+          </React.Fragment>
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * Bottom actions for a task canvas — one loop per task:
+ * brief (write) → Create plan → review (annotate/Revise or Execute)
+ * → execute (agent works, iterate via magic pen) → verify → reflect
+ * (jot one learning) → close. Stages guide, never gate: DONE in the
+ * rail works from any stage, and the step track (top bar) jumps anywhere.
+ */
+function TaskStageActions({
+  stage,
+  busy,
+  annotated,
+  onCreatePlan,
+  onRevisePlan,
+  onExecutePlan,
+  onJump,
+  onClose,
+}: {
+  stage: TaskStage;
+  busy: string | null;
+  annotated: boolean;
+  onCreatePlan: () => void;
+  onRevisePlan: () => void;
+  onExecutePlan: () => void;
+  onJump: (s: TaskStage) => void;
+  onClose: () => void;
+}) {
+  const hint =
+    stage === "review"
+      ? "Annotate the plan in ink to revise, or execute"
+      : stage === "execute"
+        ? "Circle the agent's replies with the magic pen to iterate"
+        : stage === "verify"
+          ? "Check the result; circle anything off to send it back"
+          : stage === "reflect"
+            ? "Jot one line in ink — what did this task teach you?"
+            : undefined;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 72,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 950,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+        maxWidth: "100vw",
+      }}
+    >
+      {hint && !busy && (
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 12,
+            color: DIM,
+            letterSpacing: 0.5,
+            padding: "4px 12px",
+            borderRadius: 999,
+            background: "rgba(10, 14, 20, 0.85)",
+            border: `1px solid ${CARD_BORDER}`,
+          }}
+        >
+          {hint}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 10 }}>
+        {stage === "brief" && (
+          <ActionPill onClick={onCreatePlan} busy={busy}>
+            <Sparkles size={18} /> Create plan
+          </ActionPill>
+        )}
+        {stage === "review" && annotated && (
+          <ActionPill ghost onClick={onRevisePlan} busy={busy}>
+            <Sparkles size={16} /> Revise plan
+          </ActionPill>
+        )}
+        {stage === "review" && (
+          <ActionPill onClick={onExecutePlan} busy={busy}>
+            <Play size={18} /> Execute plan
+          </ActionPill>
+        )}
+        {stage === "execute" && (
+          <ActionPill onClick={() => onJump("verify")} busy={busy}>
+            Ready to verify
+          </ActionPill>
+        )}
+        {stage === "verify" && (
+          <ActionPill onClick={() => onJump("reflect")} busy={busy}>
+            <Check size={18} /> Verified
+          </ActionPill>
+        )}
+        {stage === "reflect" && (
+          <ActionPill onClick={onClose} busy={busy}>
+            <Check size={18} /> Close task
+          </ActionPill>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Drive (the todo hub) ────────────────────────────────────────────
 
 function DriveView({
@@ -703,7 +1203,7 @@ function DriveView({
       }}
     >
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "96px 24px 140px" }}>
-        <div style={{ color: DIM, fontSize: 13, letterSpacing: 2 }}>THE DRIVE</div>
+        <div style={{ color: DIM, fontSize: 13, letterSpacing: 2 }}>THE WORK</div>
         <h1 style={{ fontSize: 28, margin: "8px 0 4px", color: ACCENT, letterSpacing: 1 }}>
           {date}
         </h1>
@@ -794,9 +1294,25 @@ function DriveView({
               {t.detail && (
                 <div style={{ fontSize: 13, color: DIM, marginTop: 4 }}>{t.detail}</div>
               )}
-              <div style={{ fontSize: 11, color: DIM, marginTop: 6, letterSpacing: 1 }}>
-                {t.status === "active" ? "● IN MOTION — " : ""}
-                OPEN CANVAS →
+              <div
+                style={{
+                  fontSize: 11,
+                  color: DIM,
+                  marginTop: 6,
+                  letterSpacing: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {t.status === "active" && (
+                  <>
+                    <StageRing stage={taskStage(t)} size={14} />
+                    <span style={{ color: ACCENT }}>{taskStage(t).toUpperCase()}</span>
+                    <span>—</span>
+                  </>
+                )}
+                <span>OPEN CANVAS →</span>
               </div>
             </button>
             <button

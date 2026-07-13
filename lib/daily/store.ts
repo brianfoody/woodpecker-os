@@ -14,6 +14,22 @@
 
 export type TodoStatus = "todo" | "active" | "done" | "dropped";
 
+/**
+ * The per-task working loop, mirroring how work with an agent actually goes:
+ * write a brief → get a plan → review/annotate it → execute → verify →
+ * reflect (jot one line on what the task taught you) → done.
+ * Stages guide but never gate — DONE is available from any stage.
+ */
+export type TaskStage = "brief" | "review" | "execute" | "verify" | "reflect";
+
+export const TASK_STAGES: TaskStage[] = [
+  "brief",
+  "review",
+  "execute",
+  "verify",
+  "reflect",
+];
+
 export interface TodoItem {
   id: string;
   title: string;
@@ -23,6 +39,20 @@ export interface TodoItem {
   source: "distilled" | "manual" | "carryover";
   /** Task canvas has been seeded with its title card */
   seeded?: boolean;
+  /** Lifecycle stage; undefined = "brief" (legacy records need no migration) */
+  stage?: TaskStage;
+  /**
+   * Furthest stage the task has legitimately reached — forward steps beyond
+   * it are locked in the UI (you earn review by creating a plan, etc.).
+   * Jumping back never lowers it.
+   */
+  stageReached?: TaskStage;
+  /** How many PLAN cards have been stamped (labels PLAN, PLAN v2, …) */
+  planCount?: number;
+  /** Shape count right after the last plan stamp — annotation detection */
+  planShapeCount?: number;
+  /** One-line learning extracted from the canvas when the task closed */
+  reflection?: string;
 }
 
 export interface DayRecord {
@@ -88,6 +118,33 @@ export function newId(): string {
   return (
     Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
   );
+}
+
+/** Effective stage of a todo — legacy records without the field are "brief". */
+export function taskStage(todo: Pick<TodoItem, "stage">): TaskStage {
+  return todo.stage ?? "brief";
+}
+
+/** The stage after this one, or null at the end of the loop. */
+export function nextStage(stage: TaskStage): TaskStage | null {
+  const i = TASK_STAGES.indexOf(stage);
+  return i >= 0 && i < TASK_STAGES.length - 1 ? TASK_STAGES[i + 1] : null;
+}
+
+/** Whichever of the two stages is further along the loop. */
+export function laterStage(a: TaskStage, b: TaskStage): TaskStage {
+  return TASK_STAGES.indexOf(a) >= TASK_STAGES.indexOf(b) ? a : b;
+}
+
+/**
+ * Furthest stage this todo has reached — the current stage counts even if
+ * `stageReached` was never written (legacy records).
+ */
+export function furthestStage(
+  todo: Pick<TodoItem, "stage" | "stageReached">
+): TaskStage {
+  const current = taskStage(todo);
+  return laterStage(todo.stageReached ?? current, current);
 }
 
 function readJson<T>(key: string, fallback: T): T {

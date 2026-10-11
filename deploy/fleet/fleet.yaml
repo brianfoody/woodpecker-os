@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Woodpecker hosted agents - one Lightsail box (Woodpecker's account) running an
+  isolated Docker container per user. Provisioning arrives over the relay; no
+  inbound ports besides SSH. Fixed monthly price.
+
+Parameters:
+  Invites:
+    Type: String
+    NoEcho: true
+    Description: Comma list of invite codes, each "code:maxAgents".
+  Size:
+    Type: String
+    Default: small_3_2
+    AllowedValues: [micro_3_2, small_3_2, medium_3_2]
+    Description: micro = US$7 (1GB), small = US$12 (2GB), medium = US$24 (4GB).
+  MaxTenants:
+    Type: Number
+    Default: 12
+  PackageUrl:
+    Type: String
+    Default: https://woodpeckeros-releases.s3.ap-southeast-2.amazonaws.com/agent/woodpeckeros-connect-latest.tgz
+  RelayUrl:
+    Type: String
+    Default: wss://relay.woodpeckeros.com
+
+Resources:
+  Fleet:
+    Type: AWS::Lightsail::Instance
+    Properties:
+      InstanceName: !Ref AWS::StackName
+      BlueprintId: ubuntu_24_04
+      BundleId: !Ref Size
+      Networking:
+        Ports:
+          - FromPort: 22
+            ToPort: 22
+            Protocol: tcp
+      Tags:
+        - Key: app
+          Value: woodpecker-fleet
+      # Lightsail prepends its own /bin/sh launch script: POSIX sh only.
+      UserData: !Sub |
+        set -eux
+        exec > /var/log/woodpecker-setup.log 2>&1
+        if [ ! -f /swapfile ]; then
+          fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        fi
+        export DEBIAN_FRONTEND=noninteractive
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        apt-get install -y nodejs docker.io curl
+        systemctl enable --now docker
+        mkdir -p /opt/woodpecker/image /var/lib/woodpecker
+        umask 077
+        cat > /etc/woodpecker-fleet.env <<EOF
+        WOODPECKER_INVITES=${Invites}
+        WOODPECKER_MAX_TENANTS=${MaxTenants}
+        WOODPECKER_RELAY=${RelayUrl}
+        WOODPECKER_REGION=${AWS::Region}
+        WOODPECKER_PACKAGE=${PackageUrl}
+        EOF
+        umask 022
+        cat > /opt/woodpecker/image/Dockerfile <<'EOF'
+        FROM node:22-bookworm-slim
+        RUN apt-get update && apt-get install -y --no-install-recommends git ripgrep ca-certificates curl jq \
+          && rm -rf /var/lib/apt/lists/*
+        COPY agent.tgz /tmp/agent.tgz
+        RUN npm install -g /tmp/agent.tgz && rm /tmp/agent.tgz \
+          && useradd -m -s /bin/bash woodpecker && mkdir -p /home/woodpecker/workspace \
+          && chown -R woodpecker:woodpecker /home/woodpecker
+        USER woodpecker
+        WORKDIR /home/woodpecker/workspace
+        CMD ["woodpecker", "serve", "--dir", "/home/woodpecker/workspace"]
+        EOF
+        cat > /usr/local/bin/woodpecker-update <<'EOF'
+        #!/bin/sh
+        # Pull the latest agent, rebuild the image, roll every user's container.
+        set -eu
+        . /etc/woodpecker-fleet.env
+        curl -fsSL "$WOODPECKER_PACKAGE" -o /opt/woodpecker/image/agent.tgz
+        npm install -g /opt/woodpecker/image/agent.tgz
+        docker build -q -t woodpecker-agent:latest /opt/woodpecker/image
+        set -a; . /etc/woodpecker-fleet.env; set +a
+        woodpecker fleet --refresh
+        systemctl restart woodpecker-fleet
+        docker image prune -f
+        EOF
+        chmod 755 /usr/local/bin/woodpecker-update
+        cat > /etc/systemd/system/woodpecker-fleet.service <<'EOF'
+        [Unit]
+        Description=Woodpecker hosted agent fleet
+        After=network-online.target docker.service
+        Wants=network-online.target
+        Requires=docker.service
+
+        [Service]
+        EnvironmentFile=/etc/woodpecker-fleet.env
+        ExecStart=/usr/bin/woodpecker fleet
+        Restart=always
+        RestartSec=5
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        cat > /etc/systemd/system/woodpecker-update.service <<'EOF'
+        [Unit]
+        Description=Update Woodpecker agents
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/woodpecker-update
+        EOF
+        cat > /etc/systemd/system/woodpecker-update.timer <<'EOF'
+        [Unit]
+        Description=Nightly Woodpecker agent update
+
+        [Timer]
+        OnCalendar=*-*-* 17:30:00
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+        EOF
+        systemctl daemon-reload
+        /usr/local/bin/woodpecker-update || true
+        systemctl enable --now woodpecker-fleet.service woodpecker-update.timer
+
+Outputs:
+  InstanceName:
+    Value: !Ref Fleet

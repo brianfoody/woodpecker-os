@@ -1,8 +1,13 @@
 # Woodpecker OS
 
-A writing canvas for clear thinking — with a quiet, end-to-end-encrypted line to your own Claude Code.
+A notebook that reads along.
 
-Write and sketch like it's paper. When you need the digital world, circle your words with the magic pen and **your own** Claude Code (on your own machine, with your own login, files, and MCP tools) acts on them — then gets out of the way.
+Write your day by hand (or press and hold to say it). When a line needs doing, a small mark appears in the margin and your agent quietly gets it ready: questions are answered right there, actions (emails, invites…) wait as drafts until you tick. Cancel one and say why; it learns when to stay quiet.
+
+The agent is a real Claude Code agent running on **your own Claude plan**, hosted for you by Woodpecker Cloud (one private container per person), or on your own computer if you prefer. Install the notebook as an app from the browser (PWA).
+
+- App: `/notebook` · landing: `/` · the older tldraw canvas still lives at `/canvas`
+- Hosted agents: `woodpecker fleet` on one Lightsail box, `deploy/fleet/fleet.yaml` (decision #14)
 
 Live at **[woodpeckeros.com](https://woodpeckeros.com)**.
 
@@ -24,7 +29,7 @@ Live at **[woodpeckeros.com](https://woodpeckeros.com)**.
 
 - **No accounts.** Pairing is a QR code: the connector prints `https://woodpeckeros.com/pair#<channelId>.<key>` — the secret lives in the URL fragment, which never reaches any server.
 - **End-to-end encrypted.** AES-256-GCM between browser and connector; the relay forwards ciphertext and presence, nothing else.
-- **Nothing runs in the cloud.** The website is static files. Claude Code, session history, and canvas snapshots all live on your machine (`~/.woodpecker/`).
+- **Your agent, your choice of home.** The website is static files. The agent (Claude Code, history, canvas copies, what it has learned) lives either in your private Woodpecker Cloud container or on your own machine (`~/.woodpecker/`).
 - **Guardrails by default.** Edits/writes are scoped to the working directory you choose; destructive shell patterns (sudo, `curl | sh`, `rm -rf /`, …) are denied and surfaced on the canvas. `--yolo` disables if you know what you're doing.
 
 ## Using it

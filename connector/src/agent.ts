@@ -61,6 +61,7 @@ export async function* runClaudeCode(opts: {
   resumeSessionId?: string;
   yolo?: boolean;
   signal?: AbortSignal;
+  settingSources?: Array<"user" | "project" | "local">;
 }): AsyncGenerator<StreamEvent> {
   const cwd = opts.cwd;
 
@@ -82,6 +83,7 @@ export async function* runClaudeCode(opts: {
     maxTurns: 30,
     abortController,
   };
+  if (opts.settingSources) options.settingSources = opts.settingSources;
 
   if (!opts.yolo) {
     options.canUseTool = createCanUseTool({

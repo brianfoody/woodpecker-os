@@ -8,6 +8,14 @@ import type { AppMessage } from "@woodpeckeros/protocol";
 import { PROTOCOL_VERSION } from "@woodpeckeros/protocol";
 import { runClaudeCode } from "./agent";
 import { extractTextFromImage } from "./ocr";
+import { approveDraft, draftLine, observeLines } from "./ambient";
+import { addLearning, forgetLearning, loadLearning } from "./learning";
+import {
+  authState,
+  credentialShape,
+  storeCredential,
+  verifyCredential,
+} from "./credentials";
 import { listSessionSummaries, getTranscript } from "./session";
 import {
   recordDevice,
@@ -34,6 +42,9 @@ export function createCore(opts: {
   cwd: string;
   yolo: boolean;
   version: string;
+  /** "cloud" = headless box that may still need a Claude credential. */
+  mode?: "local" | "cloud";
+  region?: string;
   onDeviceConnected?: (info: DeviceConnectedInfo) => void;
 }): ConnectorCore {
   const activeRuns = new Map<string, AbortController>();
@@ -59,6 +70,9 @@ export function createCore(opts: {
           cwd: opts.cwd,
           hostname: hostname(),
           protocolVersion: PROTOCOL_VERSION,
+          mode: opts.mode ?? "local",
+          auth: authState(opts.mode ?? "local"),
+          region: opts.region,
         });
         break;
       }
@@ -112,6 +126,126 @@ export function createCore(opts: {
             message: error instanceof Error ? error.message : "OCR failed",
           });
         }
+        break;
+      }
+
+      case "observe": {
+        try {
+          const lines = await observeLines({
+            lines: msg.lines,
+            context: msg.context,
+            cwd: opts.cwd,
+          });
+          send({ kind: "observe-result", reqId: msg.reqId, lines });
+        } catch (error) {
+          send({
+            kind: "error",
+            reqId: msg.reqId,
+            message: error instanceof Error ? error.message : "observe failed",
+          });
+        }
+        break;
+      }
+
+      case "draft": {
+        try {
+          const draft = await draftLine({
+            text: msg.text,
+            intent: msg.intent,
+            kindHint: msg.kindHint,
+            context: msg.context,
+            cwd: opts.cwd,
+            onProgress: (label) =>
+              send({
+                kind: "event",
+                reqId: msg.reqId,
+                event: { type: "status", content: label },
+              }),
+          });
+          send({ kind: "draft-result", reqId: msg.reqId, lineId: msg.lineId, draft });
+        } catch (error) {
+          send({
+            kind: "error",
+            reqId: msg.reqId,
+            message: error instanceof Error ? error.message : "draft failed",
+          });
+        }
+        break;
+      }
+
+      case "approve": {
+        const ac = new AbortController();
+        activeRuns.set(msg.reqId, ac);
+        console.log(`[connector] approve ${msg.reqId} (${msg.draft.summary})`);
+        try {
+          for await (const event of approveDraft({
+            text: msg.text,
+            draft: msg.draft,
+            cwd: opts.cwd,
+            yolo: opts.yolo,
+            signal: ac.signal,
+          })) {
+            send({ kind: "event", reqId: msg.reqId, event });
+          }
+        } catch (error) {
+          send({
+            kind: "event",
+            reqId: msg.reqId,
+            event: {
+              type: "error",
+              content: error instanceof Error ? error.message : "Unknown error",
+            },
+          });
+        } finally {
+          activeRuns.delete(msg.reqId);
+        }
+        break;
+      }
+
+      case "feedback": {
+        let reason = msg.entry.reason?.trim() || undefined;
+        if (!reason && msg.reasonImage) {
+          try {
+            reason = (await extractTextFromImage(msg.reasonImage, opts.cwd)) || undefined;
+          } catch (error) {
+            console.warn("[connector] could not read handwritten reason:", error);
+          }
+        }
+        const stored = addLearning({ ...msg.entry, reason });
+        console.log(
+          `[connector] learned: "${stored.text}" → ${stored.verdict}${reason ? ` (${reason})` : ""}`
+        );
+        break;
+      }
+
+      case "learning-list": {
+        send({
+          kind: "learning-list-result",
+          reqId: msg.reqId,
+          entries: loadLearning().slice(-200).reverse(),
+        });
+        break;
+      }
+
+      case "learning-forget": {
+        forgetLearning(msg.id);
+        break;
+      }
+
+      case "set-credential": {
+        const problem = credentialShape(msg.credential.type, msg.credential.value);
+        if (problem) {
+          send({ kind: "set-credential-result", reqId: msg.reqId, ok: false, message: problem });
+          break;
+        }
+        const check = await verifyCredential(msg.credential, opts.cwd);
+        if (check.ok) storeCredential(msg.credential);
+        send({
+          kind: "set-credential-result",
+          reqId: msg.reqId,
+          ok: check.ok,
+          message: check.message,
+        });
         break;
       }
 

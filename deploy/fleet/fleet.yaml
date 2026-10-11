@@ -99,10 +99,14 @@ Resources:
         ExecStart=/usr/bin/woodpecker fleet
         Restart=always
         RestartSec=5
+        # Keep the supervisor (and sshd) responsive when agents are busy.
+        OOMScoreAdjust=-500
 
         [Install]
         WantedBy=multi-user.target
         EOF
+        # Lower swappiness: prefer killing a runaway agent to thrashing the box.
+        echo 'vm.swappiness=10' > /etc/sysctl.d/90-woodpecker.conf && sysctl -p /etc/sysctl.d/90-woodpecker.conf
         cat > /etc/systemd/system/woodpecker-update.service <<'EOF'
         [Unit]
         Description=Update Woodpecker agents

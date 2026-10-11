@@ -86,8 +86,11 @@ function runContainer(t: Tenant): void {
     "unless-stopped",
     "--memory",
     process.env.WOODPECKER_TENANT_MEMORY ?? "1g",
+    // No container swap: an agent that outgrows its memory is OOM-killed and
+    // restarted (--restart) instead of dragging the whole host into swap
+    // thrash, which starves every other user's agent (and sshd).
     "--memory-swap",
-    process.env.WOODPECKER_TENANT_SWAP ?? "2g",
+    process.env.WOODPECKER_TENANT_SWAP ?? process.env.WOODPECKER_TENANT_MEMORY ?? "1g",
     "--cpus",
     "1",
     "--pids-limit",

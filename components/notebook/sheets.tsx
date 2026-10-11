@@ -319,6 +319,8 @@ function useQr(text: string | null): string | null {
   return svg;
 }
 
+const INVITE_KEY = "woodpecker-invite";
+
 export function AgentSheet({
   client,
   status,
@@ -351,17 +353,50 @@ export function AgentSheet({
   const link = useMemo(() => (pairing ? pairingUrl(APP_URL, pairing) : null), [pairing]);
   const qr = useQr(link);
 
-  const start = async () => {
+  // Resume a hosted agent that hasn't come online yet (e.g. after a reload)
+  // instead of offering to start a second one.
+  useEffect(() => {
+    if (pairing || status === "unpaired") return;
+    try {
+      const raw = localStorage.getItem("woodpecker-pairing");
+      const savedInvite = localStorage.getItem(INVITE_KEY);
+      if (raw && savedInvite) {
+        setPairing(JSON.parse(raw) as Pairing);
+        setInvite(savedInvite);
+      }
+    } catch {
+      // nothing to resume
+    }
+  }, [status, pairing]);
+
+  // Waking for too long? Offer a retry.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (!pairing || status === "connected") return;
+    const t = setTimeout(() => setSlow(true), 30_000);
+    return () => clearTimeout(t);
+  }, [pairing, status]);
+
+  const start = async (retryWith?: Pairing) => {
     setBusy(true);
     setError(null);
-    const res = await startHostedAgent(invite);
+    const res = await startHostedAgent(invite, retryWith);
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
       return;
     }
-    setPairing(res.pairing);
-    client?.adoptPairing(res.pairing);
+    try {
+      localStorage.setItem(INVITE_KEY, invite.trim());
+    } catch {
+      // only used for retries
+    }
+    setSlow(false);
+    if (!retryWith) {
+      setPairing(res.pairing);
+      client?.adoptPairing(res.pairing);
+    }
   };
 
   if (status === "connected" && info) {
@@ -439,7 +474,7 @@ export function AgentSheet({
             />
           </label>
           {error && <p className="nb-error">{error}</p>}
-          <button className="nb-btn nb-btn--go nb-btn--wide" disabled={!invite.trim() || busy} onClick={start}>
+          <button className="nb-btn nb-btn--go nb-btn--wide" disabled={!invite.trim() || busy} onClick={() => void start()}>
             <Cloud size={16} /> {busy ? "Starting your agent…" : "Start my agent"}
           </button>
         </div>
@@ -458,6 +493,17 @@ export function AgentSheet({
                 Writing on an iPad? Scan this there to open your notebook already connected. Treat it like
                 a password.
               </p>
+            </div>
+          )}
+          {slow && status !== "connected" && (
+            <div className="nb-steps">
+              <p className="nb-muted">
+                This is taking longer than it should. Trying again restarts the same agent; nothing is lost.
+              </p>
+              {error && <p className="nb-error">{error}</p>}
+              <button className="nb-btn" disabled={busy} onClick={() => void start(pairing)}>
+                {busy ? "Waking it…" : "Try again"}
+              </button>
             </div>
           )}
           <p className="nb-muted">Next we&apos;ll ask you to connect your Claude account.</p>

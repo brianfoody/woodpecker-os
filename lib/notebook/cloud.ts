@@ -33,8 +33,12 @@ function relayUrl(): string {
 
 export type ProvisionResult = { ok: true; pairing: Pairing } | { ok: false; message: string };
 
-export async function startHostedAgent(invite: string): Promise<ProvisionResult> {
-  const pairing = generatePairing();
+/**
+ * Ask the fleet for an agent. Pass an existing pairing to retry: the fleet
+ * recognises it and (re)starts that same agent rather than making another.
+ */
+export async function startHostedAgent(invite: string, existing?: Pairing): Promise<ProvisionResult> {
+  const pairing = existing ?? generatePairing();
   const key = await importChannelKey(PROVISION_PAIRING.key);
   const builder = new EnvelopeBuilder(`p-${randomB64Url(6)}`);
   const guard = new ReplayGuard();

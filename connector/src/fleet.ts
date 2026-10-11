@@ -144,7 +144,20 @@ export async function fleet(opts: { refresh: boolean }): Promise<void> {
 
     const current = loadState();
     const id = createHash("sha256").update(pairing.channelId).digest("hex").slice(0, 12);
-    if (current.tenants.some((t) => t.id === id)) return reply(true, "Already running.");
+    const existing = current.tenants.find((t) => t.id === id);
+    if (existing) {
+      // A retry from the browser: make sure the container really is up.
+      if (!isRunning(existing)) {
+        try {
+          runContainer(existing);
+          console.log(`[fleet] restarted ${containerName(existing)} on retry`);
+        } catch (error) {
+          console.error("[fleet] restart failed:", error);
+          return reply(false, "Couldn't start your agent — please try again.");
+        }
+      }
+      return reply(true, "Already running.");
+    }
 
     const invite = String(msg.invite ?? "").trim().toLowerCase();
     const invites = parseInvites();

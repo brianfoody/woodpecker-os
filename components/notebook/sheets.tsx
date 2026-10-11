@@ -78,7 +78,11 @@ export function HoldToTalk({
 
   const begin = (e: React.PointerEvent) => {
     e.preventDefault();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      // capture is a nicety
+    }
     dict.current = startDictation({ onText: (t) => onText(t) });
     if (dict.current) setLive(true);
   };
@@ -120,7 +124,11 @@ function ScribblePad({ onChange }: { onChange: (strokes: Stroke[]) => void }) {
       ref={svg}
       className="nb-scribble"
       onPointerDown={(e) => {
-        (e.target as Element).setPointerCapture(e.pointerId);
+        try {
+          (e.target as Element).setPointerCapture(e.pointerId);
+        } catch {
+          // capture is a nicety
+        }
         live.current = [at(e)];
       }}
       onPointerMove={(e) => {

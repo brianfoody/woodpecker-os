@@ -5,6 +5,8 @@
  *   woodpecker connect [--dir <path>] [--relay <url>] [--local] [--port <n>]
  *                      [--yolo] [--reset-pairing] [--app-url <url>]
  *   woodpecker pair        re-print the current pairing QR
+ *   woodpecker serve       headless agent for a cloud box (pairing via env)
+ *   woodpecker fleet       Woodpecker Cloud: one container per hosted user
  *   woodpecker help
  */
 
@@ -29,8 +31,11 @@ import {
   tutorialIntro,
 } from "./tutorial";
 import { loadConfig, saveConfig, WOODPECKER_HOME } from "./storage";
+import { loadStoredCredential } from "./credentials";
+import { serve } from "./cloud";
+import { fleet } from "./fleet";
 
-const VERSION = "0.1.1";
+const VERSION = "0.3.0";
 
 type Flags = {
   dir?: string;
@@ -40,6 +45,7 @@ type Flags = {
   local: boolean;
   yolo: boolean;
   resetPairing: boolean;
+  refresh: boolean;
 };
 
 function parseArgs(argv: string[]): { command: string; flags: Flags } {
@@ -48,6 +54,7 @@ function parseArgs(argv: string[]): { command: string; flags: Flags } {
     local: false,
     yolo: false,
     resetPairing: false,
+    refresh: false,
   };
   let command = "connect";
   const args = [...argv];
@@ -77,6 +84,9 @@ function parseArgs(argv: string[]): { command: string; flags: Flags } {
         break;
       case "--reset-pairing":
         flags.resetPairing = true;
+        break;
+      case "--refresh":
+        flags.refresh = true;
         break;
       default:
         console.error(`Unknown flag: ${arg}`);
@@ -147,6 +157,10 @@ async function main(): Promise<void> {
   woodpecker connect [--dir <path>] [--relay <url>] [--local] [--port <n>]
                      [--yolo] [--reset-pairing] [--app-url <url>]
   woodpecker pair     re-print the current pairing QR
+  woodpecker fleet [--refresh]
+                      Woodpecker Cloud host: one container per hosted user
+  woodpecker serve [--dir <path>] [--relay <url>]
+                      headless agent (what the cloud box runs)
 
 State lives in ${WOODPECKER_HOME}`
     );
@@ -164,6 +178,16 @@ State lives in ${WOODPECKER_HOME}`
     return;
   }
 
+  if (command === "serve") {
+    await serve({ dir: flags.dir, relay: flags.relay, version: VERSION });
+    return;
+  }
+
+  if (command === "fleet") {
+    await fleet({ refresh: flags.refresh });
+    return;
+  }
+
   if (command !== "connect") {
     console.error(`Unknown command: ${command}`);
     process.exit(1);
@@ -171,6 +195,7 @@ State lives in ${WOODPECKER_HOME}`
 
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
+  loadStoredCredential();
   printBanner();
 
   if (interactive) {

@@ -109,10 +109,12 @@ This should be a returned promise that pops up in the canvas.
 - `npm run build -w @woodpeckeros/connect` - Build the connector CLI bundle
 - `node connector/dist/cli.js connect --local --dir <path>` - Run the connector in local dev mode (canvas on localhost auto-connects)
 - `node relay/src/server.js` - Run the relay locally on :9000
+- `node connector/dist/cli.js serve` - Headless agent (what each hosted container runs; pairing via `WOODPECKER_PAIRING`)
+- `node connector/dist/cli.js fleet` - Woodpecker Cloud host supervisor (root, Docker); infra in `deploy/fleet/fleet.yaml`
 
 ## Architecture
 
-This is an npm-workspaces monorepo. The Next.js 15 app (repo root, App Router, React 19, shadcn/ui, Tailwind v4) is **fully static** and deploys to Vercel — it has NO API routes and no secrets. Claude Code execution happens in `connector/` (npm package `@woodpeckeros/connect`) on the user's own machine; the browser reaches it through `relay/` (dumb ciphertext pipe on Fly.io) using the E2E-encrypted protocol in `packages/protocol/`. See `docs/DECISIONS.md` #0 for the full model. Do not add server-side API routes or secrets to the web app.
+This is an npm-workspaces monorepo. The Next.js 15 app (repo root, App Router, React 19, shadcn/ui, Tailwind v4) is **fully static** and deploys to Vercel — it has NO API routes and no secrets. Claude Code execution happens in `connector/` (npm package `@woodpeckeros/connect`), either in a per-user container on Woodpecker Cloud (`woodpecker fleet`, decision #14) or on the user's own machine; the browser reaches it through `relay/` (dumb ciphertext pipe on Fly.io) using the E2E-encrypted protocol in `packages/protocol/`. See `docs/DECISIONS.md` #0 for the full model. Do not add server-side API routes or secrets to the web app.
 
 ### Key Structure
 
@@ -153,5 +155,6 @@ When adding new components, follow the shadcn/ui patterns and use the configured
 5. **Platform Strategy**: Web requires internet, mobile apps will have offline support
 6. **The Daily Drive** (`/today`): the opinionated day loop (plan → distill → The Work todo hub → task canvases → reflect → harvest → masterboards) as a shell around plain TldrawCanvas instances — see decision #12. User-facing name is "Work"; internal identifiers still say "drive"
 7. **Task lifecycle**: each todo moves through brief → review → execute → verify → reflect (create/revise/execute a PLAN card with the agent, close with a one-line learning). Forward stages are earned via the actions (`stageReached` gates the rail's step track); jumping back is free and DONE always works — see decision #13
+8. **Ambient notebook + Woodpecker Cloud** (`/notebook`, the primary app): row-based ink surface that reads along, with marks that draft (never act) until ticked, a learning loop on cancels, and agents hosted one-container-per-user by `woodpecker fleet` — see decision #14
 
 For full details on these and other decisions, see `/docs/DECISIONS.md`.

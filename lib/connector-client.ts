@@ -23,7 +23,13 @@ import {
   openEnvelope,
   sealEnvelope,
   randomB64Url,
+  type AgentAuth,
   type AppMessage,
+  type Draft,
+  type IntentClass,
+  type LearningEntry,
+  type ObserveLine,
+  type ObservedLine,
   type Envelope,
   type Pairing,
   type RelayFrame,
@@ -41,6 +47,9 @@ export type ConnectorInfo = {
   hostname: string;
   cwd: string;
   connectorVersion: string;
+  mode: "local" | "cloud";
+  auth: AgentAuth;
+  region?: string;
 };
 
 const PAIRING_KEY = "woodpecker-pairing";
@@ -99,6 +108,8 @@ export class ConnectorClient {
     { resolve: (v: { rev: number; snapshot: unknown | null }) => void; timer: ReturnType<typeof setTimeout> }
   >();
   private info: ConnectorInfo | null = null;
+  private infoListeners = new Set<(info: ConnectorInfo | null) => void>();
+  private progressListeners = new Map<string, (label: string) => void>();
 
   private mode: "direct" | "relay" | "none" = "none";
   private directUrl = "";
@@ -185,6 +196,30 @@ export class ConnectorClient {
     return this.mode !== "none";
   }
 
+  subscribeInfo(listener: (info: ConnectorInfo | null) => void): () => void {
+    this.infoListeners.add(listener);
+    listener(this.info);
+    return () => this.infoListeners.delete(listener);
+  }
+
+  private setInfo(info: ConnectorInfo | null): void {
+    this.info = info;
+    for (const listener of this.infoListeners) listener(info);
+  }
+
+  /** Store a pairing generated in this browser (cloud deploy flow). */
+  adoptPairing(pairing: Pairing): void {
+    localStorage.setItem(PAIRING_KEY, JSON.stringify(pairing));
+    // A dev direct-URL override would otherwise outrank the new pairing.
+    localStorage.removeItem(CONNECTOR_URL_KEY);
+    this.reconfigure();
+  }
+
+  forgetPairing(): void {
+    localStorage.removeItem(PAIRING_KEY);
+    this.reconfigure();
+  }
+
   subscribeStatus(listener: (status: ConnectorStatus) => void): () => void {
     this.statusListeners.add(listener);
     listener(this.status);
@@ -252,7 +287,7 @@ export class ConnectorClient {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
-      this.info = null;
+      this.setInfo(null);
       this.failActive("connection lost");
       this.scheduleReconnect();
     };
@@ -307,7 +342,7 @@ export class ConnectorClient {
       if (frame.connected) {
         this.sendHello();
       } else {
-        this.info = null;
+        this.setInfo(null);
         this.setStatus("waiting-for-connector");
         this.failActive("connector went offline");
       }
@@ -319,18 +354,30 @@ export class ConnectorClient {
   private onAppMessage(msg: AppMessage): void {
     switch (msg.kind) {
       case "hello-ack": {
-        this.info = {
+        this.setInfo({
           hostname: msg.hostname,
           cwd: msg.cwd,
           connectorVersion: msg.connectorVersion,
-        };
+          mode: msg.mode ?? "local",
+          auth: msg.auth ?? "ok",
+          region: msg.region,
+        });
         this.setStatus("connected");
         break;
       }
       case "event": {
+        const progress = this.progressListeners.get(msg.reqId);
+        if (progress && msg.event.type === "status" && msg.event.content) {
+          progress(msg.event.content);
+          break;
+        }
         this.eventQueues.get(msg.reqId)?.push(msg.event);
         break;
       }
+      case "observe-result":
+      case "draft-result":
+      case "learning-list-result":
+      case "set-credential-result":
       case "extract-text-result":
       case "sessions-list-result":
       case "transcript-result": {
@@ -515,6 +562,79 @@ export class ConnectorClient {
     } catch {
       return null;
     }
+  }
+
+  // -- ambient canvas -------------------------------------------------------
+
+  async observe(lines: ObserveLine[], context: string[]): Promise<ObservedLine[]> {
+    const reqId = randomB64Url(12);
+    const result = await this.request({ kind: "observe", reqId, lines, context }, 90_000);
+    return result.kind === "observe-result" ? result.lines : [];
+  }
+
+  async draft(
+    args: { lineId: string; text: string; intent: IntentClass; kindHint?: string; context: string[] },
+    onProgress?: (label: string) => void
+  ): Promise<Draft> {
+    const reqId = randomB64Url(12);
+    if (onProgress) this.progressListeners.set(reqId, onProgress);
+    try {
+      const result = await this.request({ kind: "draft", reqId, ...args }, 300_000);
+      if (result.kind !== "draft-result") throw new Error("unexpected reply");
+      return result.draft;
+    } finally {
+      this.progressListeners.delete(reqId);
+    }
+  }
+
+  async *approve(lineId: string, text: string, draft: Draft): AsyncGenerator<StreamEvent> {
+    this.requireConnected();
+    const reqId = randomB64Url(12);
+    const queue = new AsyncQueue<StreamEvent>();
+    this.eventQueues.set(reqId, queue);
+    this.send({ kind: "approve", reqId, lineId, text, draft });
+    let finished = false;
+    try {
+      for await (const event of queue) {
+        yield event;
+        if (event.type === "done" || event.type === "error") {
+          finished = true;
+          break;
+        }
+      }
+    } finally {
+      this.eventQueues.delete(reqId);
+      if (!finished) this.send({ kind: "cancel", reqId });
+    }
+  }
+
+  feedback(entry: Omit<LearningEntry, "id" | "ts">, reasonImage?: string): void {
+    if (this.status !== "connected") return;
+    this.send({ kind: "feedback", entry, reasonImage });
+  }
+
+  async listLearning(): Promise<LearningEntry[]> {
+    const reqId = randomB64Url(12);
+    const result = await this.request({ kind: "learning-list", reqId }, 20_000);
+    return result.kind === "learning-list-result" ? result.entries : [];
+  }
+
+  forgetLearning(id: string): void {
+    this.send({ kind: "learning-forget", id });
+  }
+
+  async setCredential(
+    type: "oauth-token" | "api-key",
+    value: string
+  ): Promise<{ ok: boolean; message?: string }> {
+    const reqId = randomB64Url(12);
+    const result = await this.request(
+      { kind: "set-credential", reqId, credential: { type, value } },
+      90_000
+    );
+    if (result.kind !== "set-credential-result") return { ok: false };
+    if (result.ok && this.info) this.setInfo({ ...this.info, auth: "ok" });
+    return { ok: result.ok, message: result.message };
   }
 
   saveCanvas(canvasKey: string, rev: number, snapshot: unknown): void {

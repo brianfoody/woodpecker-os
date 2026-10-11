@@ -24,7 +24,7 @@ export default function PairPage() {
     // Remove the secret from the address bar and browser history
     window.history.replaceState(null, "", "/pair");
     peekConnectorClient()?.reconfigure();
-    router.replace("/canvas");
+    router.replace("/notebook");
   }, [router]);
 
   return (

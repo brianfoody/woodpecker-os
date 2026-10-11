@@ -1,6 +1,6 @@
 {
   "name": "@woodpeckeros/connect",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Woodpecker OS connector — drive your local Claude Code from the woodpeckeros.com writing canvas",
   "license": "MIT",
   "type": "module",

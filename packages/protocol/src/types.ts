@@ -8,11 +8,22 @@
  *  - App layer (encrypted inside `relay.payload`): AppMessage.
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const DEFAULT_RELAY_URL = "wss://relay.woodpeckeros.com";
 export const DEFAULT_LOCAL_PORT = 8787;
 export const DEFAULT_APP_URL = "https://woodpeckeros.com";
+
+/**
+ * Hosted agents: the browser asks Woodpecker's fleet for an agent over this
+ * well-known relay channel. The key is public (it ships in the web bundle) —
+ * it only keeps the request off the wire in plaintext; access is gated by
+ * invite codes on the fleet, not by this key.
+ */
+export const PROVISION_PAIRING = {
+  channelId: "n-y802Zq5LXANrnufagaIA",
+  key: "00jBYxR7ykd3wp4udyK4ODfj7iFAGdnOViCMx-3Y59c",
+};
 
 /** Hard cap on a single relay frame (base64 ciphertext included). */
 export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
@@ -57,6 +68,59 @@ export type SessionSummary = {
   tag: string | null;
 };
 
+// ---------------------------------------------------------------------------
+// Ambient canvas ("dots"): the agent quietly reads each handwritten line,
+// classifies whether it is asking for something, and drafts — never acts —
+// until the user ticks it.
+// ---------------------------------------------------------------------------
+
+/** What a line of writing is, as far as the agent can tell. */
+export type IntentClass = "none" | "info" | "action";
+
+export type ObservedLine = {
+  id: string;
+  /** Transcribed text of the line (empty if illegible / a drawing). */
+  text: string;
+  intent: IntentClass;
+  /** 0..1 — the canvas only lights a dot above its threshold. */
+  confidence: number;
+  /** Short label for the dot's card, e.g. "Email Sam about the invoice". */
+  title?: string;
+  /** e.g. "email", "message", "calendar", "research", "reminder", "other". */
+  kind?: string;
+};
+
+export type ObserveLine = {
+  id: string;
+  /** base64 PNG of just this line's ink. Omitted for typed/voice lines. */
+  image?: string;
+  /** Already-known text (voice lines) — skips transcription. */
+  text?: string;
+};
+
+export type Draft = {
+  /** One line the card leads with. */
+  summary: string;
+  /** Markdown body: the drafted email, the answer, the plan. */
+  body: string;
+  /** Is there something left to execute once the user ticks? */
+  needsApproval: boolean;
+};
+
+export type FeedbackVerdict = "approved" | "cancelled" | "dismissed";
+
+export type LearningEntry = {
+  id: string;
+  ts: string;
+  text: string;
+  intent: IntentClass;
+  kind?: string;
+  verdict: FeedbackVerdict;
+  reason?: string;
+};
+
+export type AgentAuth = "ok" | "missing";
+
 export type AppMessage =
   // Handshake
   | {
@@ -71,6 +135,10 @@ export type AppMessage =
       cwd: string;
       hostname: string;
       protocolVersion: number;
+      /** Added in protocol 2 — absent from older connectors. */
+      mode?: "local" | "cloud";
+      auth?: AgentAuth;
+      region?: string;
     }
   // Claude Code execution
   | {
@@ -108,6 +176,57 @@ export type AppMessage =
       textBlocks: string[];
       isComplete: boolean;
     }
+  // Ambient canvas
+  | {
+      kind: "observe";
+      reqId: string;
+      lines: ObserveLine[];
+      /** Text of the surrounding page, oldest first, for context. */
+      context: string[];
+    }
+  | { kind: "observe-result"; reqId: string; lines: ObservedLine[] }
+  | {
+      kind: "draft";
+      reqId: string;
+      lineId: string;
+      text: string;
+      intent: IntentClass;
+      kindHint?: string;
+      context: string[];
+    }
+  | { kind: "draft-result"; reqId: string; lineId: string; draft: Draft }
+  | {
+      kind: "approve";
+      reqId: string;
+      lineId: string;
+      text: string;
+      draft: Draft;
+    }
+  | {
+      kind: "feedback";
+      entry: Omit<LearningEntry, "id" | "ts">;
+      /** Handwritten reason — transcribed on the agent before storing. */
+      reasonImage?: string;
+    }
+  | { kind: "learning-list"; reqId: string }
+  | { kind: "learning-list-result"; reqId: string; entries: LearningEntry[] }
+  | { kind: "learning-forget"; id: string }
+  // Cloud agent setup — the Claude credential travels E2E-encrypted.
+  | {
+      kind: "set-credential";
+      reqId: string;
+      credential: { type: "oauth-token" | "api-key"; value: string };
+    }
+  | { kind: "set-credential-result"; reqId: string; ok: boolean; message?: string }
+  // Hosted agents (provision channel only)
+  | {
+      kind: "provision";
+      reqId: string;
+      invite: string;
+      /** The new agent's pairing, minted in the browser. */
+      pairing: { channelId: string; key: string };
+    }
+  | { kind: "provision-result"; reqId: string; ok: boolean; message?: string }
   // Errors tied to a request (or connection-level when reqId is absent)
   | { kind: "error"; reqId?: string; message: string };
 

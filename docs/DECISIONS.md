@@ -442,3 +442,37 @@ The original LLM provider was Groq (`llama-3.3-70b-versatile` for text, `llama-4
 ### Handwritten-font AI responses (Kalam/Caveat, typewriter) _(partially superseded)_
 
 AI responses were originally rendered in handwriting fonts (Kalam/Caveat) with a typewriter animation to match the notepad aesthetic. The `handwritten-text` tldraw shape still exists, but themed variants (e.g. `/v2`'s Neon Grid) now render responses as styled cards with theme fonts (Orbitron / Share Tech Mono) rather than the handwriting look.
+
+---
+
+## 14. The Ambient Notebook + Woodpecker Cloud (hosted agents)
+
+**Date**: October 2026 (amends #0 and #3)
+
+**Context**:
+
+- Woodpecker kept failing for three reasons: the agent lived on the user's laptop (iPad useless when it slept); input was pen-only; and the tldraw "circle it with the magic pen and wait for a reply" loop felt like a chat bot bolted onto a canvas rather than a notebook that's alive.
+
+**Decision Details**:
+
+- **`/notebook`: a purpose-built ink surface** (perfect-freehand + SVG, no tldraw). Ruled rows are the unit of meaning: every stroke/voice block belongs to a row. Pencil writes and a finger scrolls once a pencil is seen; press-and-hold anywhere (or the mic) streams dictation onto the line via the browser's Web Speech API; zig-zag scratches out. One page per day, saved to localStorage and mirrored to the agent (`canvas-save`, rev-guarded so local ink written while a remote copy is in flight wins).
+- **Ambient loop (supersedes #3's "explicit trigger only")**: after a 1.4s pause, changed rows are rasterised and sent as one `observe` call (Haiku, custom system prompt, no tools, no MCP; about 4s). Each row gets text + intent `none|info|action` + confidence. Above 0.55 a mark appears and `draft` starts automatically: **info** is answered in the margin; **action** is prepared as a draft and waits for a tick (`approve`). Draft mode is enforced, not requested: `canUseTool` denies every non-read tool, and MCP tools only pass when the verb reads as a read.
+- **Learning**: every tick/cancel (+ spoken, typed or handwritten reason) is appended to `~/.woodpecker/learning.jsonl` on the agent and injected into the classifier prompt as few-shot examples, generalised "only as far as the reason goes". Verified: one "I wanted to look it up with the kids" cancel drops a similar curiosity question from 0.95 to 0.2–0.3 while an unrelated email stays at 0.75. Users can read and forget entries ("What it has learned").
+- **Woodpecker Cloud (hosted, supersedes #0's "nothing runs in the cloud")**: one Woodpecker-owned Lightsail box (`deploy/fleet/fleet.yaml`, stack `woodpecker-fleet`, ap-southeast-2, small_3_2 at US$12/mo fixed) runs `woodpecker fleet`, which starts one Docker container per user (`woodpecker serve`, memory/pid-capped, `no-new-privileges`, own named volume). Containers dial out to the relay, so no inbound ports. Nightly timer rebuilds the image from the S3 tarball and rolls containers.
+- **Provisioning over the relay**: the browser mints the agent's pairing, then sends `provision` on a well-known relay channel (`PROVISION_PAIRING`, public key) to the fleet, gated by invite codes (`code:max`) and `MAX_TENANTS`. No Lambda/API/registry, zero extra infra cost.
+- **Claude credential**: the user pastes a `claude setup-token` token (or API key) into the app; it travels E2E-encrypted to their container, is verified with a one-turn Haiku call, then stored 0600 on the container's volume.
+- **PWA**: `app/manifest.ts`, `public/sw.js` (network-first pages, cache-first hashed assets, offline notebook), iOS meta, generated icons.
+
+**Alternatives Considered**:
+
+- Users self-deploying to their own AWS (CloudFormation quick-create): built first, rejected: the product promise is "it just works from the iPad".
+- Lambda Function URL + SQS for provisioning: works, but extra IAM keys on the box and more moving parts than reusing the relay.
+- Per-user VMs: about US$7/user/month vs. pennies for an idle container (about 28 MB RSS).
+- Keep tldraw: its tool/shape model fought the row-based, read-along design and production use needs a licence.
+
+**Implications / trade-offs**:
+
+- Woodpecker now operates infrastructure that holds users' Claude tokens (on their container volume). The relay still only sees ciphertext, but the fleet operator could access containers. Copy says so honestly.
+- The provision key is public by design; anyone could also join that channel as a "connector" (relay: newest connector wins). Fine for an invite beta; before GA the fleet should authenticate (e.g. sign provision results) or provisioning should move behind an authenticated API.
+- Using subscription OAuth tokens in a hosted product needs to be squared with Anthropic's terms for Agent SDK products; API keys are supported as the fallback.
+- Single host: capacity is bounded (12 tenants on 2 GB + 4 GB swap). Scale by adding hosts (each a separate provision channel or a coordinator).

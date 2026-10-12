@@ -36,6 +36,10 @@ Resources:
           - FromPort: 22
             ToPort: 22
             Protocol: tcp
+          # SSH on 443 too: plenty of networks block outbound 22.
+          - FromPort: 443
+            ToPort: 443
+            Protocol: tcp
       Tags:
         - Key: app
           Value: woodpecker-fleet
@@ -43,6 +47,13 @@ Resources:
       UserData: !Sub |
         set -eux
         exec > /var/log/woodpecker-setup.log 2>&1
+        # SSH on 22 and 443 (works whether sshd is socket- or service-activated).
+        printf 'Port 22\nPort 443\n' > /etc/ssh/sshd_config.d/10-ports.conf
+        mkdir -p /etc/systemd/system/ssh.socket.d
+        printf '[Socket]\nListenStream=\nListenStream=22\nListenStream=443\n' > /etc/systemd/system/ssh.socket.d/ports.conf
+        systemctl daemon-reload
+        systemctl restart ssh.socket 2>/dev/null || true
+        systemctl restart ssh.service 2>/dev/null || true
         if [ ! -f /swapfile ]; then
           fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
           echo '/swapfile none swap sw 0 0' >> /etc/fstab

@@ -6,10 +6,26 @@ import { LiveDemo } from "@/components/home/live-demo";
 import { InstallCard } from "@/components/home/install-card";
 import { CopyLine } from "@/components/home/copy-line";
 
+const DESCRIPTION =
+  "Write your day by hand or say it out loud. When a line needs doing, a small mark appears in the margin and quietly gets it ready. Nothing happens until you tick. Your own always-on Claude agent, hosted for you.";
+
 export const metadata: Metadata = {
-  title: "Woodpecker: a notebook that reads along",
-  description:
-    "Write your day by hand or say it out loud. When a line needs doing, a small mark appears in the margin and quietly gets it ready. Nothing happens until you tick. Your own always-on Claude agent, hosted for you.",
+  title: { absolute: "Woodpecker: a notebook that reads along" },
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: { title: "Woodpecker: a notebook that reads along", description: DESCRIPTION, url: "/" },
+  twitter: { card: "summary_large_image", title: "Woodpecker: a notebook that reads along", description: DESCRIPTION },
+};
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Woodpecker",
+  url: "https://www.woodpeckeros.com/",
+  description: DESCRIPTION,
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "iPadOS, iOS, macOS, Windows, Android (installable web app)",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
 function Logo() {
@@ -31,6 +47,7 @@ function Logo() {
 export default function Home() {
   return (
     <div className="hm">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       <nav className="hm-nav">
         <a href="#top" className="hm-logo">
           <Logo />

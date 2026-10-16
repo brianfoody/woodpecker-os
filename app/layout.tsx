@@ -5,7 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
-  title: "Woodpecker",
+  metadataBase: new URL("https://www.woodpeckeros.com"),
+  title: { default: "Woodpecker", template: "%s · Woodpecker" },
   description:
     "A notebook that reads along. Write or speak; your own cloud agent quietly gets things ready, and nothing happens until you tick.",
   applicationName: "Woodpecker",
@@ -22,6 +23,8 @@ export const metadata: Metadata = {
     apple: "/icons/apple-touch-icon.png",
   },
   formatDetection: { telephone: false },
+  openGraph: { type: "website", siteName: "Woodpecker", locale: "en_US" },
+  twitter: { card: "summary_large_image" },
 };
 
 const geistSans = Geist({

@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 import NotebookClient from "./notebook-client";
 
 export const metadata: Metadata = {
-  title: "Notebook · Woodpecker",
+  title: "Notebook",
   description: "A notebook that reads along — write or speak, and your agent quietly gets things ready.",
+  robots: { index: false },
 };
 
 export const viewport: Viewport = {
